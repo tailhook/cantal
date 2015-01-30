@@ -47,7 +47,7 @@ class Counter(_Value):
         return 8
 
     def _get_type(self):
-        return ('L', 'u64')
+        return ('L', 'counter u64')
 
 
 class Float(_Value):
@@ -65,7 +65,7 @@ class Float(_Value):
         return 8
 
     def _get_type(self):
-        return ('d', 'f64')
+        return ('d', 'level f64')
 
     def set(self, value):
         self._memoryview[0] = value
@@ -85,7 +85,7 @@ class Integer(_Value):
         return 8
 
     def _get_type(self):
-        return ('l', 'f64')
+        return ('l', 'level f64')
 
     def set(self, value):
         self._memoryview[0] = value
@@ -115,7 +115,7 @@ class State(_Value):
         return self.HEADER_SIZE + self.size
 
     def _get_type(self):
-        return ('c', 'state{}'.format(self.size))
+        return ('c', 'state {}'.format(self.size))
 
     @contextmanager
     def enter(self, value):
