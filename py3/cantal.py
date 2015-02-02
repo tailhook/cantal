@@ -36,7 +36,7 @@ class Collection(object):
                 "Counter {} is already defined".format(name))
         self._all_values[name] = value
 
-    def start(self, path):
+    def start(self, basepath):
         values = list(self._all_values.items())
         del self._all_values
 
@@ -68,15 +68,16 @@ class Collection(object):
 
         size = offset
 
-        tmppath = path + '.tmp'
-        metapath = path + '.meta'
+        path = basepath + '.values'
+        tmppath = basepath + '.tmp'
+        metapath = basepath + '.meta'
 
         if os.path.exists(metapath):
-            os.path.unlink(metapath)
+            os.unlink(metapath)
         if os.path.exists(path):
-            os.path.unlink(path)
+            os.unlink(path)
         if os.path.exists(tmppath):
-            os.path.unlink(tmppath)
+            os.unlink(tmppath)
 
         with open(tmppath, 'w+b') as f:
             # We could use truncate, but it doesn't enlarge file in
@@ -98,7 +99,7 @@ class Collection(object):
             size = value._get_size()
             value._memoryview = mem[offset:offset+size].cast(vtype)
 
-        return ActiveCollection(path)
+        return ActiveCollection(basepath)
 
 
 class ActiveCollection(object):
@@ -115,7 +116,7 @@ class ActiveCollection(object):
 
     def close(self):
         os.unlink(self._path + '.meta')
-        os.unlink(self._path)
+        os.unlink(self._path + '.values')
 
 
 global_collection = Collection()
@@ -249,4 +250,4 @@ def start(path=None):
                 os.getpid())
 
     global_collection = global_collection.start(path)
-    atexit.register(global_collection.cleanup)
+    atexit.register(global_collection.close)
