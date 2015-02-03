@@ -32,7 +32,7 @@ class TestBase(TestCase):
         return State(collection=self.collection, **kwargs)
 
     def assertRead(self, value, offset=0):
-        with open(self._path, 'rb') as file:
+        with open(self._path + '.values', 'rb') as file:
             file.seek(offset, 0)
             self.assertEqual(file.read(), value)
 
@@ -100,8 +100,8 @@ class TestScheme(TestBase):
         self.counter(name="2")
         self.start()
         self.assertMeta("""
-            counter u64: {"name": "1"}
-            counter u64: {"name": "2"}
+            counter 8: {"name": "1"}
+            counter 8: {"name": "2"}
         """)
 
     def test_counter_float(self):
@@ -109,8 +109,8 @@ class TestScheme(TestBase):
         self.float(name="1")
         self.start()
         self.assertMeta("""
-            level f64: {"name": "1"}
-            counter u64: {"name": "2"}
+            level 8 float: {"name": "1"}
+            counter 8: {"name": "2"}
         """)
 
     def test_counter_state(self):
@@ -118,21 +118,21 @@ class TestScheme(TestBase):
         self.state(name="1")
         self.start()
         self.assertMeta("""
-            counter u64: {"name": "2"}
+            counter 8: {"name": "2"}
             pad 56
             state 64: {"name": "1"}
         """)
 
     def test_2counters_state(self):
         self.counter(name="1")
-        self.float(name="2")
+        self.integer(name="2")
         self.counter(name="3")
         self.state(name="100")
         self.start()
         self.assertMeta("""
-            counter u64: {"name": "1"}
-            level f64: {"name": "2"}
-            counter u64: {"name": "3"}
+            counter 8: {"name": "1"}
+            level 8 signed: {"name": "2"}
+            counter 8: {"name": "3"}
             pad 40
             state 64: {"name": "100"}
         """)

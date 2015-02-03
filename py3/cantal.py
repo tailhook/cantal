@@ -147,7 +147,7 @@ class Counter(_Value):
         return 8
 
     def _get_type(self):
-        return ('L', 'counter u64')
+        return ('L', 'counter 8')
 
 
 class Float(_Value):
@@ -162,7 +162,7 @@ class Float(_Value):
         return 8
 
     def _get_type(self):
-        return ('d', 'level f64')
+        return ('d', 'level 8 float')
 
     def set(self, value):
         self._memoryview[0] = value
@@ -179,7 +179,7 @@ class Integer(_Value):
         return 8
 
     def _get_type(self):
-        return ('l', 'level f64')
+        return ('l', 'level 8 signed')
 
     def set(self, value):
         self._memoryview[0] = value
