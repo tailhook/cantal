@@ -2,7 +2,7 @@
 Cantal
 ======
 
-:Status: pre-alpha
+:Status: proof of concept
 
 Cantal is an expermimental heartbeating, monitoring and statistics solution.
 Main design goals:
