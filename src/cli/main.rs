@@ -32,7 +32,7 @@ fn main() {
             Err(e) => panic!("Error parsing data: {}", e.description()),
         };
         for &(ref descr, ref item) in data.iter() {
-            println!("{} {:?}", descr.textname, item);
+            println!("{:?} {} {:?}", f, descr.textname, item);
         }
     }
 }

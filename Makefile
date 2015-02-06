@@ -16,7 +16,7 @@ libcantal.rlib: $(ARGPARSELIB) src/query/lib.rs src/query/*.rs
 		-L rust-argparse -L .
 
 cantal_agent: $(ARGPARSELIB) libcantal.rlib src/agent/main.rs src/agent/*.rs
-	$(RUSTC) src/cli/main.rs -g -o $@ \
+	$(RUSTC) src/agent/main.rs -g -o $@ \
 		-L rust-argparse -L .
 
 cantal: $(ARGPARSELIB) libcantal.rlib src/cli/main.rs src/cli/*.rs
