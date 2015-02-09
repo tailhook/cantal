@@ -1,5 +1,7 @@
-extern crate argparse;
+extern crate libc;
 #[macro_use] extern crate log;
+
+extern crate argparse;
 
 use std::os;
 use argparse::{ArgumentParser, Store};

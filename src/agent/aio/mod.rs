@@ -11,25 +11,30 @@ use std::os::unix::Fd;
 use std::collections::BinaryHeap;
 use std::collections::HashMap;
 
+use self::lowlevel::{create_epoll};
 
 pub mod http;
+pub mod lowlevel;
 
 
 pub type HttpHandler = fn(req: &http::Request);
 pub type IntervalHandler = fn();
 
-
-enum Handler {
-    Http(HttpHandler),
+enum InternalHandler {
+    AcceptHttp,
+    ParseHttp(HttpHandler),
+    Interval(IntervalHandler),
 }
 
 pub struct MainLoop {
-    socket_handlers: HashMap<Fd, Handler>,
+    epoll_fd: Fd,
+    socket_handlers: HashMap<Fd, InternalHandler>,
 }
 
 impl MainLoop {
     pub fn new() -> Result<MainLoop, IoError> {
         return Ok(MainLoop {
+            epoll_fd: try!(create_epoll()),
             socket_handlers: HashMap::new(),
         });
     }
