@@ -1,50 +1,42 @@
 commands:
 
-  make:
-    description: Build lithos in ubuntu container
+  make: !Command
+    description: Build cantal in ubuntu container
     container: ubuntu
-    command: [make]
+    run: [make]
 
-  py3:
+  py3: !Command
     description: Run python3 example
     container: ubuntu
-    command: python3 py3/example.py
+    run: python3 py3/example.py
     environ:
       CANTAL_PATH: /work/run/py3
 
-  docs:
+  docs: !Command
     description: Build HTML docs
     container: docs
     work-dir: docs
-    command: [make, html]
+    run: [make, html]
 
 containers:
 
   ubuntu:
     # The container to build lithos ubuntu package
-    builder: ubuntu
-    uids: [0-1000, 65534]
-    gids: [0-1000, 65534]
+    setup:
+    - !Ubuntu trusty
+    - !UbuntuUniverse ~
+    - !Install [make, checkinstall, wget]
+    - !Sh |
+        cd /tmp
+        wget https://static.rust-lang.org/dist/rust-1.0.0-alpha-x86_64-unknown-linux-gnu.tar.gz
+        tar -xf rust-1.0.0-alpha-x86_64-unknown-linux-gnu.tar.gz
+        cd rust-1.0.0-alpha-x86_64-unknown-linux-gnu
+        ./install.sh --prefix=/usr
     environ:
       HOME: /tmp
-    parameters:
-      repos: universe
-      packages: make checkinstall wget
-    provision: |
-      export PATH=/bin:/usr/bin:/usr/bin/local
-      chown root /var/spool/rsyslog
-      cd /work/run
-      wget https://static.rust-lang.org/dist/rust-1.0.0-alpha-x86_64-unknown-linux-gnu.tar.gz
-      tar -xf rust-1.0.0-alpha-x86_64-unknown-linux-gnu.tar.gz
-      cd rust-1.0.0-alpha-x86_64-unknown-linux-gnu
-      ./install.sh --prefix=/usr
-    tmpfs-volumes:
-      /tmp: size=1m,mode=1777
-      /run: size=100m,mode=1777
-      /var/tmp: size=100m,mode=1777
 
   docs:
-    builder: alpine
-    parameters:
-      packages: py-sphinx make
+    setup:
+    - !Alpine v3.1
+    - !Install [py-sphinx, make]
 
