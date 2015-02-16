@@ -13,6 +13,8 @@ use std::os::unix::Fd;
 use std::collections::BinaryHeap;
 use std::collections::HashMap;
 
+use self::HandlerResult::*;
+
 
 pub mod http;
 pub mod lowlevel;
@@ -21,10 +23,15 @@ pub mod lowlevel;
 pub type HttpHandler = fn(req: &http::Request);
 pub type IntervalHandler = fn();
 
-#[derive(Copy)]
 enum SockHandler {
     AcceptHttp(HttpHandler),
-    ParseHttp(HttpHandler),
+    ParseHttp(Box<http::Stream>),
+}
+
+pub enum HandlerResult {
+    AddHttp(Fd, HttpHandler),
+    Remove(Fd),
+    Proceed,
 }
 
 impl Show for SockHandler {
@@ -72,21 +79,33 @@ impl MainLoop {
         loop {
             match self.epoll.next_event(None) {
                 lowlevel::EPollEvent::Input(fd) => {
-                    let handle = *self.socket_handlers.get(&fd)
-                        .expect("Bad file descriptor returned from epoll");
-                    match handle {
-                        SockHandler::AcceptHttp(hdl) => {
-                            let v = lowlevel::accept(fd)
-                            .map(|sock| {
-                                self.socket_handlers.insert(sock,
-                                    SockHandler::ParseHttp(hdl));
-                                self.epoll.add_fd_in(sock);
-                                })
-                            .map_err(|e| info!("Error accepting: {}", e));
+                    let res = {
+                        let handle = self.socket_handlers.get_mut(&fd)
+                            .expect("Bad file descriptor returned from epoll");
+                        match handle {
+                            &mut SockHandler::AcceptHttp(hdl) => {
+                                lowlevel::accept(fd)
+                                .map_err(|e| info!("Error accepting: {}", e))
+                                .map(|sock| AddHttp(sock, hdl))
+                                .unwrap_or(Proceed)
+                            }
+                            &mut SockHandler::ParseHttp(ref mut stream) => {
+                                stream.read_http()
+                            }
                         }
-                        SockHandler::ParseHttp(ref hdl) => {
-                            unimplemented!();
+                    };
+                    match res {
+                        AddHttp(sock, hdl) => {
+                            self.socket_handlers.insert(sock,
+                                SockHandler::ParseHttp(
+                                    Box::new(http::Stream::new(sock, hdl))));
+                            self.epoll.add_fd_in(sock);
                         }
+                        Remove(sock) => {
+                            assert!(self.socket_handlers.remove(&sock)
+                                    .is_some());
+                        }
+                        Proceed => {}
                     }
                 }
                 lowlevel::EPollEvent::Timeout => {
