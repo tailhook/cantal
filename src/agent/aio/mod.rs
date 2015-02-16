@@ -102,8 +102,10 @@ impl MainLoop {
                             self.epoll.add_fd_in(sock);
                         }
                         Remove(sock) => {
+                            self.epoll.del_fd(sock);
                             assert!(self.socket_handlers.remove(&sock)
                                     .is_some());
+                            lowlevel::close(sock);
                         }
                         Proceed => {}
                     }

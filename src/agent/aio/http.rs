@@ -3,9 +3,7 @@
 
 use std::os::unix::Fd;
 use super::{HttpHandler, HandlerResult};
-
-const BUFFER_SIZE: usize = 1024;
-
+use super::lowlevel::{read_to_vec, ReadResult};
 
 //  We don't do generic HTTP, so we only need these specific methods
 pub enum Method {
@@ -46,10 +44,30 @@ impl Stream {
         return Stream {
             fd: fd,
             handler: handler,
-            buf: Vec::with_capacity(BUFFER_SIZE),
+            buf: Vec::new(),
         }
     }
     pub fn read_http(&mut self) -> HandlerResult {
-        unimplemented!();
+        match read_to_vec(self.fd, &mut self.buf) {
+            ReadResult::Read(start, end) => {
+                let check_start = if start > 3 { start - 3 } else { 0 };
+                if end - check_start < 4 {
+                    return HandlerResult::Proceed;
+                }
+                for i in range(check_start, end - 3) {
+                    if self.buf.slice(i, i+4) == b"\r\n\r\n" {
+                        unimplemented!();
+                    }
+                }
+                HandlerResult::Proceed
+            }
+            ReadResult::Fatal(err) => {
+                error!("Error handling connection (fd: {}): {:?}",
+                    self.fd, err);
+                HandlerResult::Remove(self.fd)
+            }
+            ReadResult::NoData => HandlerResult::Proceed,
+            ReadResult::Closed => HandlerResult::Remove(self.fd),
+        }
     }
 }

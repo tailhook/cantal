@@ -1,3 +1,4 @@
+use std::ptr;
 use std::io::IoError;
 use std::os::errno;
 use std::mem::size_of;
@@ -7,6 +8,9 @@ use std::os::unix::{AsRawFd, Fd};
 use libc;
 use libc::{c_int};
 
+use self::ReadResult::*;
+
+const BUFFER_SIZE: usize = 4096;
 
 mod linux {
     use libc::{c_int, c_void};
@@ -42,6 +46,13 @@ pub enum EPollEvent {
     Timeout,
 }
 
+pub enum ReadResult {
+    Read(usize, usize),
+    NoData,
+    Closed,
+    Fatal(IoError),
+}
+
 impl EPoll {
     pub fn new() -> Result<EPoll, IoError> {
         let fd = unsafe { linux::epoll_create1(linux::EPOLL_CLOEXEC) };
@@ -64,6 +75,14 @@ impl EPoll {
         };
         let rc = unsafe { linux::epoll_ctl(self.fd(),
             linux::EPOLL_CTL_ADD, fd, &ev) };
+        if rc < 0 {
+            return Err(IoError::last_error());
+        }
+        Ok(())
+    }
+    pub fn del_fd(&self, fd: Fd) -> Result<(), IoError> {
+        let rc = unsafe { linux::epoll_ctl(self.fd(),
+            linux::EPOLL_CTL_DEL, fd, ptr::null()) };
         if rc < 0 {
             return Err(IoError::last_error());
         }
@@ -119,4 +138,37 @@ pub fn accept(fd: Fd) -> Result<Fd, IoError> {
         return Err(IoError::last_error());
     }
     return Ok(child);
+}
+
+pub fn read_to_vec(fd: Fd, vec: &mut Vec<u8>) -> ReadResult {
+    let oldlen = vec.len();
+    let newend = oldlen + BUFFER_SIZE;
+    vec.reserve(BUFFER_SIZE);
+    unsafe { vec.set_len(newend) };
+    let bytes = unsafe { libc::read(fd,
+        vec.slice_mut(oldlen, newend).as_mut_ptr() as *mut libc::c_void,
+        BUFFER_SIZE as u64) };
+    if bytes < 0 {
+        unsafe { vec.set_len(oldlen) };
+        if errno() == libc::EAGAIN as usize {
+            return NoData;
+        } else {
+            return Fatal(IoError::last_error());
+        }
+    } else if bytes == 0 {
+        return Closed;
+    } else {
+        unsafe { vec.set_len(oldlen + bytes as usize) };
+        return Read(oldlen, oldlen + bytes as usize);
+    }
+}
+
+pub fn close(fd: Fd) {
+    let rc = unsafe { libc::close(fd) };
+    if rc < 0 {
+        if errno() == libc::EINTR as usize {
+            return;
+        }
+        panic!("Close returned {}", IoError::last_error());
+    }
 }
