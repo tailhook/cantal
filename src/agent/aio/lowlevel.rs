@@ -1,5 +1,6 @@
 use std::io::IoError;
 use std::os::errno;
+use std::mem::size_of;
 use std::io::net::tcp::TcpListener;
 use std::os::unix::{AsRawFd, Fd};
 
@@ -73,7 +74,6 @@ impl EPoll {
             let mut ev = linux::epoll_event { events: 0, data: 0 };
             let timeo = timeout.map(|x| (x*1000.) as c_int).unwrap_or(-1);
             let rc = unsafe { linux:: epoll_wait(self.fd(), &mut ev, 1, timeo) };
-            println!("EPOLL {} {}", ev.events, ev.data);
             if rc == 1 {
                 return EPollEvent::Input(ev.data as Fd);
             } else if rc < 0 {
@@ -106,4 +106,17 @@ pub fn bind_tcp_socket(host: &str, port: u16) -> Result<Fd, IoError> {
     }
     // TODO(tailhook) set non-blocking, set cloexec
     return Ok(fd);
+}
+
+pub fn accept(fd: Fd) -> Result<Fd, IoError> {
+    let mut sockaddr: libc::sockaddr = libc::sockaddr {
+        sa_family: 0,
+        sa_data: [0u8; 14],
+    };
+    let mut addrlen: libc::socklen_t = size_of::<libc::sockaddr>() as u32;
+    let child = unsafe { libc::accept(fd, &mut sockaddr, &mut addrlen) };
+    if child < 0 {
+        return Err(IoError::last_error());
+    }
+    return Ok(child);
 }

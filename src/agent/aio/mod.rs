@@ -7,6 +7,8 @@
 
 use std::io::IoError;
 use std::time::Duration;
+use std::fmt::{Show, Formatter};
+use std::fmt::Error as FmtError;
 use std::os::unix::Fd;
 use std::collections::BinaryHeap;
 use std::collections::HashMap;
@@ -19,9 +21,23 @@ pub mod lowlevel;
 pub type HttpHandler = fn(req: &http::Request);
 pub type IntervalHandler = fn();
 
+#[derive(Copy)]
 enum SockHandler {
     AcceptHttp(HttpHandler),
     ParseHttp(HttpHandler),
+}
+
+impl Show for SockHandler {
+    fn fmt(&self, fmt: &mut Formatter) -> Result<(), FmtError> {
+        match *self {
+            SockHandler::AcceptHttp(ref hdl) => {
+                write!(fmt, "AcceptHttp(_)")
+            }
+            SockHandler::ParseHttp(ref hdl) => {
+                write!(fmt, "ParseHttp(_)")
+            }
+        }
+    }
 }
 
 pub struct MainLoop {
@@ -53,22 +69,29 @@ impl MainLoop {
     }
 
     pub fn run(&mut self) -> ! {
-        match self.epoll.next_event(None) {
-            lowlevel::EPollEvent::Input(fd) => {
-                println!("INPUT FD {}", fd);
-                match self.socket_handlers.get(&fd)
-                    .expect("Unexpected file descriptor returned from epoll")
-                {
-                    &SockHandler::AcceptHttp(ref hdl) => {
-                        unimplemented!();
-                    }
-                    &SockHandler::ParseHttp(ref hdl) => {
-                        unimplemented!();
+        loop {
+            match self.epoll.next_event(None) {
+                lowlevel::EPollEvent::Input(fd) => {
+                    let handle = *self.socket_handlers.get(&fd)
+                        .expect("Bad file descriptor returned from epoll");
+                    match handle {
+                        SockHandler::AcceptHttp(hdl) => {
+                            let v = lowlevel::accept(fd)
+                            .map(|sock| {
+                                self.socket_handlers.insert(sock,
+                                    SockHandler::ParseHttp(hdl));
+                                self.epoll.add_fd_in(sock);
+                                })
+                            .map_err(|e| info!("Error accepting: {}", e));
+                        }
+                        SockHandler::ParseHttp(ref hdl) => {
+                            unimplemented!();
+                        }
                     }
                 }
-            }
-            lowlevel::EPollEvent::Timeout => {
-                unimplemented!();
+                lowlevel::EPollEvent::Timeout => {
+                    unimplemented!();
+                }
             }
         }
     }
