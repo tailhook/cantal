@@ -5,6 +5,7 @@ use super::aio::http;
 
 
 fn http_handler(req: &http::Request) {
+    println!("REQ {:?}", req);
 }
 
 
