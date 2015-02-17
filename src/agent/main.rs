@@ -1,13 +1,19 @@
+#![feature(unboxed_closures)]
+
 extern crate libc;
 #[macro_use] extern crate log;
 
 extern crate argparse;
 
 use std::os;
+use std::sync::RwLock;
 use argparse::{ArgumentParser, Store};
+
 
 mod aio;
 mod server;
+mod stats;
+
 
 fn main() {
     let mut host = "0.0.0.0".to_string();
@@ -28,7 +34,8 @@ fn main() {
             }
         }
     }
-    match server::run_server(host, port) {
+    let stats = RwLock::new(stats::Stats::new());
+    match server::run_server(&stats, host, port) {
         Ok(()) => {}
         Err(x) => {
             error!("Error running server: {}", x);

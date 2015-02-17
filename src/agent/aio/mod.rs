@@ -5,6 +5,7 @@
 //  This is the reason we don't make it too generic, just get things done for
 //  our case. I.e. we only support HTTP and epoll
 
+use std::rc::Rc;
 use std::io::IoError;
 use std::time::Duration;
 use std::fmt::{Show, Formatter};
@@ -20,21 +21,22 @@ pub mod http;
 pub mod lowlevel;
 
 
-pub type HttpHandler = fn(req: &http::Request);
+pub type HttpHandler<'a> = &'a (for<'b> Fn(&'b http::Request<'b>)
+                       -> Result<http::Response, http::Error> + 'a);
 pub type IntervalHandler = fn();
 
-enum SockHandler {
-    AcceptHttp(HttpHandler),
-    ParseHttp(Box<http::Stream>),
+enum SockHandler<'a> {
+    AcceptHttp(HttpHandler<'a>),
+    ParseHttp(Box<http::Stream<'a>>),
 }
 
-pub enum HandlerResult {
-    AddHttp(Fd, HttpHandler),
+pub enum HandlerResult<'a> {
+    AddHttp(Fd, HttpHandler<'a>),
     Remove(Fd),
     Proceed,
 }
 
-impl Show for SockHandler {
+impl<'a> Show for SockHandler<'a> {
     fn fmt(&self, fmt: &mut Formatter) -> Result<(), FmtError> {
         match *self {
             SockHandler::AcceptHttp(ref hdl) => {
@@ -47,13 +49,13 @@ impl Show for SockHandler {
     }
 }
 
-pub struct MainLoop {
+pub struct MainLoop<'a> {
     epoll: lowlevel::EPoll,
-    socket_handlers: HashMap<Fd, SockHandler>,
+    socket_handlers: HashMap<Fd, SockHandler<'a>>,
 }
 
-impl MainLoop {
-    pub fn new() -> Result<MainLoop, IoError> {
+impl<'a> MainLoop<'a> {
+    pub fn new<'x>() -> Result<MainLoop<'x>, IoError> {
         return Ok(MainLoop {
             epoll: try!(lowlevel::EPoll::new()),
             socket_handlers: HashMap::new(),
@@ -61,11 +63,12 @@ impl MainLoop {
     }
 
     pub fn add_http_server(&mut self, host: &str, port: u16,
-                           handler: HttpHandler)
+        handler: HttpHandler<'a>)
         -> Result<(), IoError>
     {
         let fd = try!(lowlevel::bind_tcp_socket(host, port));
-        self.socket_handlers.insert(fd, SockHandler::AcceptHttp(handler));
+        self.socket_handlers.insert(fd, SockHandler::AcceptHttp(
+            handler));
         self.epoll.add_fd_in(fd);
         Ok(())
     }
@@ -75,7 +78,7 @@ impl MainLoop {
     {
     }
 
-    pub fn run(&mut self) -> ! {
+    pub fn run(&'a mut self) -> ! {
         loop {
             match self.epoll.next_event(None) {
                 lowlevel::EPollEvent::Input(fd) => {
@@ -90,7 +93,10 @@ impl MainLoop {
                                 .unwrap_or(Proceed)
                             }
                             &mut SockHandler::ParseHttp(ref mut stream) => {
-                                stream.read_http()
+                                match stream.read_http() {
+                                    Ok(()) => Proceed,
+                                    Err(()) => Remove(stream.fd),
+                                }
                             }
                         }
                     };
