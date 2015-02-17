@@ -11,6 +11,7 @@ use libc::{c_int};
 use self::ReadResult::*;
 
 const BUFFER_SIZE: usize = 4096;
+const MAX_HEADERS_SIZE: usize = 16384;
 
 mod linux {
     use libc::{c_int, c_void};
@@ -142,6 +143,10 @@ pub fn accept(fd: Fd) -> Result<Fd, IoError> {
 
 pub fn read_to_vec(fd: Fd, vec: &mut Vec<u8>) -> ReadResult {
     let oldlen = vec.len();
+    if oldlen >= MAX_HEADERS_SIZE {
+        // TODO(tailhook) return bad request
+        return Closed;
+    }
     let newend = oldlen + BUFFER_SIZE;
     vec.reserve(BUFFER_SIZE);
     unsafe { vec.set_len(newend) };

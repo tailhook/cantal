@@ -7,14 +7,14 @@ use super::{HttpHandler, HandlerResult};
 use super::lowlevel::{read_to_vec, ReadResult};
 
 //  We don't do generic HTTP, so we only need these specific methods
-#[derive(Show)]
+#[derive(Show, Copy, PartialEq, Eq)]
 pub enum Method {
     Get,
     Unknown,
 }
 
 
-#[derive(Show)]
+#[derive(Show, Copy, PartialEq, Eq)]
 pub enum Version {
     Http10,
     Http11,
@@ -26,7 +26,7 @@ pub enum TransferEncoding {
 }
 
 #[derive(Show)]
-pub enum HTTPError {
+pub enum HttpError {
     BadRequest(&'static str),
     MethodNotAllowed,
 }
@@ -46,7 +46,41 @@ pub struct Request<'a> {
     request_line: RequestLine<'a>,
     //headers: Vec<(&'a str, &'a str)>,
     //transfer_encoding: TransferEncoding,
-    //content_length: Option<usize>,
+    content_length: usize,
+    close: bool,
+}
+
+pub struct RequestParser<'a> {
+    req: Request<'a>,
+    has_content_length: bool,
+}
+
+impl<'a> RequestLine<'a> {
+    fn version(&self) -> Version {
+        let RequestLine(_, _, ver) = *self;
+        return ver;
+    }
+}
+
+impl<'a> RequestParser<'a> {
+    fn start<'x>(req_line: RequestLine<'x>) -> RequestParser<'x>
+    {
+        return RequestParser {
+            req: Request {
+                close: req_line.version() == Version::Http10,
+                request_line: req_line,
+                content_length: 0,
+            },
+            has_content_length: false,
+        };
+    }
+    fn add_header(&mut self, name: &str, value: &str) -> Result<(), HttpError>
+    {
+        Ok(())
+    }
+    fn take(self) -> Request<'a> {
+        return self.req;
+    }
 }
 
 impl Stream {
@@ -66,7 +100,7 @@ impl Stream {
                 }
                 for i in range(check_start, end - 3) {
                     if self.buf.slice(i, i+4) == b"\r\n\r\n" {
-                        match self.parse_request(self.buf.slice(0, i)) {
+                        match self.parse_request(self.buf.slice(0, i+2)) {
                             Ok(req) => {
                                 (self.handler)(&req);
                                 unimplemented!();
@@ -92,41 +126,71 @@ impl Stream {
     }
 
     pub fn _request_line<'x>(&self, chunk: &'x str)
-        -> Result<RequestLine<'x>, HTTPError>
+        -> Result<RequestLine<'x>, HttpError>
     {
         let mut pieces = chunk.trim().words();
         let meth = match pieces.next().unwrap() {
             "GET" => Method::Get,
-            _ => return Err(HTTPError::MethodNotAllowed),
+            _ => return Err(HttpError::MethodNotAllowed),
         };
         let uri = try!(pieces.next()
-            .ok_or(HTTPError::BadRequest("No URI specified")));
+            .ok_or(HttpError::BadRequest("No URI specified")));
         let ver = match pieces.next() {
             Some("HTTP/1.0") => Version::Http10,
             Some("HTTP/1.1") => Version::Http11,
-            _ => return Err(HTTPError::BadRequest("Bad HTTP version")),
+            _ => return Err(HttpError::BadRequest("Bad HTTP version")),
         };
         Ok(RequestLine(meth, uri, ver))
     }
 
-    pub fn parse_request<'x>(&self, chunk: &'x [u8])
-        -> Result<Request<'x>, HTTPError>
+    pub fn parse_request<'x>(&self, headers: &'x [u8])
+        -> Result<Request<'x>, HttpError>
     {
-        let headers = try!(from_utf8(chunk)
-            .map_err(|_| HTTPError::BadRequest("Can't decode headers")));
-        let mut lines = headers.split_str("\r\n");
-        let request_line = try!(self._request_line(lines.next().unwrap()));
-        //let header_name = None;
-        //let header_value = "".to_string();
-        for line in lines {
-            if line.starts_with(" ") || line.starts_with("\t") {
-                // continuation
-            } else {
-                // new header
-            }
+        let line_end = headers.position_elem(&b'\r').unwrap();
+        let req_line = try!(from_utf8(&headers[..line_end])
+                 .map_err(|_| HttpError::BadRequest("Can't decode headers")));
+        let mut req_parser = RequestParser::start(
+            try!(self._request_line(req_line)));
+        if headers[line_end+1] != b'\n' {
+            return Err(HttpError::BadRequest("Wrong end of line"));
         }
-        return Ok(Request {
-            request_line: request_line,
-        });
+        let mut pos = line_end + 2;
+        if pos < headers.len() &&
+            (headers[pos] == b' ' || headers[pos] == b'\t')
+        {
+            return Err(HttpError::BadRequest(
+                "Continuation line without headers"));
+        }
+        while pos < headers.len() {
+            let start = pos;
+            while headers[pos] != b':' {
+                if headers[pos] == b'\r' || headers[pos] == b'\n' {
+                    return Err(HttpError::BadRequest(
+                        "Header line without colon"));
+                }
+                pos += 1;
+            }
+            let name = try!(from_utf8(&headers[start..pos])
+                 .map_err(|_| HttpError::BadRequest("Can't decode headers")));
+            let vstart = pos + 1;
+            while headers[pos] != b'\r' {
+                pos += 1;
+                // We know that there is always '\r\n' at the end
+                if headers[pos] == b'\r' && headers[pos+1] == b'\n' &&
+                    headers.len() > pos+2 &&
+                    (headers[pos+2] == b' ' || headers[pos+2] == b'\t') {
+                    pos += 1; // continuation line
+                }
+            }
+            let value = try!(from_utf8(&headers[vstart..pos])
+                 .map_err(|_| HttpError::BadRequest("Can't decode headers")));
+            // We know that there is always '\r\n' at the end
+            if headers[pos+1] != b'\n' {
+                return Err(HttpError::BadRequest("Wrong end of line"));
+            }
+            pos += 2;
+            try!(req_parser.add_header(name, value));
+        }
+        return Ok(req_parser.take());
     }
 }
