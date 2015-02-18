@@ -13,6 +13,7 @@ use argparse::{ArgumentParser, Store};
 mod aio;
 mod server;
 mod stats;
+mod staticfiles;
 
 
 fn main() {

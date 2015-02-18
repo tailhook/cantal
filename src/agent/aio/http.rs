@@ -34,13 +34,18 @@ pub enum TransferEncoding {
 #[derive(Show)]
 pub enum Error {
     BadRequest(&'static str),
+    NotFound,
     MethodNotAllowed,
+    ServerError(&'static str),
 }
 
 #[derive(Show, Copy)]
 pub enum Status {
-    Ok,
-    NotFound,
+    Ok, // 200
+    BadRequest, // 400
+    NotFound, // 404
+    MethodNotAllowed, // 405
+    ServerError, // 500
 }
 
 
@@ -82,6 +87,13 @@ impl<'a> RequestLine<'a> {
     fn version(&self) -> Version {
         let RequestLine(_, _, ver) = *self;
         return ver;
+    }
+}
+
+impl<'a> Request<'a> {
+    pub fn uri<'x>(&'x self) -> &'x str {
+        let RequestLine(_, uri, _) = self.request_line;
+        return uri;
     }
 }
 
@@ -134,7 +146,11 @@ impl<'a> Stream<'a> {
                                             resp.buf);
                                     }
                                     Err(e) => {
-                                        unimplemented!();
+                                        let mut builder = ResponseBuilder::new(
+                                            &req, e.status());
+                                        builder.set_body(e.body().as_bytes());
+                                        return HandlerResult::SendAndClose(
+                                            builder.take().buf);
                                     }
                                 };
                             }
@@ -228,17 +244,42 @@ impl<'a> Stream<'a> {
     }
 }
 
+impl Error {
+    fn status(&self) -> Status {
+        match *self {
+            Error::BadRequest(_) => Status::BadRequest,
+            Error::NotFound => Status::NotFound,
+            Error::MethodNotAllowed => Status::MethodNotAllowed,
+            Error::ServerError(_) => Status::ServerError,
+        }
+    }
+    fn body(&self) -> &'static str {
+        match *self {
+            Error::BadRequest(val) => val,
+            Error::NotFound => "Page Not Found",
+            Error::MethodNotAllowed => "Method Not Allowed",
+            Error::ServerError(val) => val,
+        }
+    }
+}
+
 impl Status {
     fn status_code(self) -> u32 {
         match self {
             Status::Ok => 200,
             Status::NotFound => 404,
+            Status::BadRequest => 400,
+            Status::MethodNotAllowed => 405,
+            Status::ServerError => 500,
         }
     }
     fn status_text(self) -> &'static str {
         match self {
             Status::Ok => "OK",
             Status::NotFound => "Not Found",
+            Status::BadRequest => "Bad Request",
+            Status::MethodNotAllowed => "Method Not Allowed",
+            Status::ServerError => "Internal Server Error",
         }
     }
 }

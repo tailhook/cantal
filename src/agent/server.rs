@@ -4,16 +4,25 @@ use std::time::Duration;
 use super::aio;
 use super::stats::Stats;
 use super::aio::http;
+use super::staticfiles;
 
 
 fn handle_request(stats: &RwLock<Stats>, req: &http::Request)
     -> Result<http::Response, http::Error>
 {
-    let stats = stats.read().unwrap();
-    let mut builder = http::ResponseBuilder::new(req, http::Status::Ok);
-    builder.set_body(format!("Hurray. val: {}", stats.startup_time)
-        .into_bytes());
-    Ok(builder.take())
+    if  req.uri().starts_with("/js") ||
+        req.uri().starts_with("/css/") ||
+        req.uri().starts_with("/fonts/") ||
+        req.uri() == "/"
+    {
+        return staticfiles::serve(req);
+    } else {
+        let stats = stats.read().unwrap();
+        let mut builder = http::ResponseBuilder::new(req, http::Status::Ok);
+        builder.set_body(format!("Hurray. val: {}", stats.startup_time)
+            .into_bytes());
+        Ok(builder.take())
+    }
 }
 
 
