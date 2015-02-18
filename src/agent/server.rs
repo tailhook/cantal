@@ -10,8 +10,10 @@ fn handle_request(stats: &RwLock<Stats>, req: &http::Request)
     -> Result<http::Response, http::Error>
 {
     let stats = stats.read().unwrap();
-    println!("REQ {:?} {}", req, stats.startup_time);
-    unimplemented!();
+    let mut builder = http::ResponseBuilder::new(req, http::Status::Ok);
+    builder.set_body(format!("Hurray. val: {}", stats.startup_time)
+        .into_bytes());
+    Ok(builder.take())
 }
 
 

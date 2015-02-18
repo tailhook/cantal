@@ -14,7 +14,10 @@ use std::os::unix::Fd;
 use std::collections::BinaryHeap;
 use std::collections::HashMap;
 
+use self::lowlevel::WriteResult;
 use self::HandlerResult::*;
+use self::ReadHandler::*;
+use self::WriteHandler::*;
 
 
 pub mod http;
@@ -25,40 +28,33 @@ pub type HttpHandler<'a> = &'a (for<'b> Fn(&'b http::Request<'b>)
                        -> Result<http::Response, http::Error> + 'a);
 pub type IntervalHandler = fn();
 
-enum SockHandler<'a> {
+enum ReadHandler<'a> {
     AcceptHttp(HttpHandler<'a>),
     ParseHttp(Box<http::Stream<'a>>),
 }
-
-pub enum HandlerResult<'a> {
-    AddHttp(Fd, HttpHandler<'a>),
-    Remove(Fd),
-    Proceed,
+enum WriteHandler<'a> {
+    TailChunk(usize, Vec<u8>),
 }
 
-impl<'a> Show for SockHandler<'a> {
-    fn fmt(&self, fmt: &mut Formatter) -> Result<(), FmtError> {
-        match *self {
-            SockHandler::AcceptHttp(ref hdl) => {
-                write!(fmt, "AcceptHttp(_)")
-            }
-            SockHandler::ParseHttp(ref hdl) => {
-                write!(fmt, "ParseHttp(_)")
-            }
-        }
-    }
+pub enum HandlerResult {
+    ContinueRead,
+    Close,
+    SendAndClose(Vec<u8>),
 }
+
 
 pub struct MainLoop<'a> {
     epoll: lowlevel::EPoll,
-    socket_handlers: HashMap<Fd, SockHandler<'a>>,
+    read_handlers: HashMap<Fd, ReadHandler<'a>>,
+    write_handlers: HashMap<Fd, WriteHandler<'a>>,
 }
 
 impl<'a> MainLoop<'a> {
     pub fn new<'x>() -> Result<MainLoop<'x>, IoError> {
         return Ok(MainLoop {
             epoll: try!(lowlevel::EPoll::new()),
-            socket_handlers: HashMap::new(),
+            read_handlers: HashMap::new(),
+            write_handlers: HashMap::new(),
         });
     }
 
@@ -67,8 +63,8 @@ impl<'a> MainLoop<'a> {
         -> Result<(), IoError>
     {
         let fd = try!(lowlevel::bind_tcp_socket(host, port));
-        self.socket_handlers.insert(fd, SockHandler::AcceptHttp(
-            handler));
+        assert!(self.read_handlers.insert(
+            fd, ReadHandler::AcceptHttp(handler)).is_none());
         self.epoll.add_fd_in(fd);
         Ok(())
     }
@@ -82,38 +78,101 @@ impl<'a> MainLoop<'a> {
         loop {
             match self.epoll.next_event(None) {
                 lowlevel::EPollEvent::Input(fd) => {
+                    enum R<'a> {
+                        AddHttp(Fd, HttpHandler<'a>),
+                        SwitchToSend(Fd, Vec<u8>),
+                        Remove(Fd),
+                        Proceed,
+                    }
                     let res = {
-                        let handle = self.socket_handlers.get_mut(&fd)
+                        let handle = self.read_handlers.get_mut(&fd)
                             .expect("Bad file descriptor returned from epoll");
                         match handle {
-                            &mut SockHandler::AcceptHttp(hdl) => {
+                            &mut AcceptHttp(hdl) => {
                                 lowlevel::accept(fd)
                                 .map_err(|e| info!("Error accepting: {}", e))
-                                .map(|sock| AddHttp(sock, hdl))
-                                .unwrap_or(Proceed)
+                                .map(|sock| R::AddHttp(sock, hdl))
+                                .unwrap_or(R::Proceed)
                             }
-                            &mut SockHandler::ParseHttp(ref mut stream) => {
+                            &mut ParseHttp(ref mut stream) => {
                                 match stream.read_http() {
-                                    Ok(()) => Proceed,
-                                    Err(()) => Remove(stream.fd),
+                                    ContinueRead => R::Proceed,
+                                    Close => R::Remove(stream.fd),
+                                    SendAndClose(data) => {
+                                        // TODO(tailhook) send right now
+                                        R::SwitchToSend(fd, data)
+                                    }
                                 }
                             }
                         }
                     };
                     match res {
-                        AddHttp(sock, hdl) => {
-                            self.socket_handlers.insert(sock,
-                                SockHandler::ParseHttp(
-                                    Box::new(http::Stream::new(sock, hdl))));
+                        R::AddHttp(sock, hdl) => {
+                            assert!(self.read_handlers.insert(sock,
+                                ParseHttp(
+                                    Box::new(http::Stream::new(sock, hdl))),
+                                ).is_none());
                             self.epoll.add_fd_in(sock);
                         }
-                        Remove(sock) => {
+                        R::SwitchToSend(sock, data) => {
+                            self.epoll.change_to_out(sock);
+                            assert!(self.read_handlers.remove(&sock)
+                                    .is_some());
+                            assert!(self.write_handlers.insert(sock,
+                                TailChunk(0, data),
+                                ).is_none());
+                        }
+                        R::Remove(sock) => {
                             self.epoll.del_fd(sock);
-                            assert!(self.socket_handlers.remove(&sock)
+                            assert!(self.read_handlers.remove(&sock)
                                     .is_some());
                             lowlevel::close(sock);
                         }
-                        Proceed => {}
+                        R::Proceed => {}
+                    }
+                }
+                lowlevel::EPollEvent::Output(fd) => {
+                    enum R<'a> {
+                        Remove(Fd),
+                        Proceed,
+                    }
+                    let res = {
+                        let handle = self.write_handlers.get_mut(&fd)
+                            .expect("Bad file descriptor returned from epoll");
+                        match handle {
+                            &mut TailChunk(ref mut offset, ref val) => {
+                                match lowlevel::write(fd, &val[*offset..]) {
+                                    WriteResult::Written(bytes) => {
+                                        *offset += bytes;
+                                        if *offset >= val.len() {
+                                            R::Remove(fd)
+                                        } else {
+                                            R::Proceed
+                                        }
+                                    }
+                                    WriteResult::Fatal(err) => {
+                                        error!("Error handling connection\
+                                            (fd: {}): {:?}", fd, err);
+                                        R::Remove(fd)
+                                    }
+                                    WriteResult::Again => {
+                                        R::Proceed
+                                    }
+                                    WriteResult::Closed => {
+                                        R::Remove(fd)
+                                    }
+                                }
+                            }
+                        }
+                    };
+                    match res {
+                        R::Remove(sock) => {
+                            self.epoll.del_fd(sock);
+                            assert!(self.write_handlers.remove(&sock)
+                                    .is_some());
+                            lowlevel::close(sock);
+                        }
+                        R::Proceed => {}
                     }
                 }
                 lowlevel::EPollEvent::Timeout => {

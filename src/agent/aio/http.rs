@@ -1,10 +1,16 @@
 //  This implementation is an implementation of subset of HTTP.
 //  It *may be unsafe* to expose this implementation to the untrusted internet
 
+use std::vec::CowVec;
 use std::str::from_utf8;
+use std::borrow::{Cow, IntoCow};
 use std::os::unix::Fd;
 use super::{HttpHandler, HandlerResult};
 use super::lowlevel::{read_to_vec, ReadResult};
+
+
+const MAX_HEADERS_SIZE: usize = 16384;
+
 
 //  We don't do generic HTTP, so we only need these specific methods
 #[derive(Show, Copy, PartialEq, Eq)]
@@ -31,6 +37,12 @@ pub enum Error {
     MethodNotAllowed,
 }
 
+#[derive(Show, Copy)]
+pub enum Status {
+    Ok,
+    NotFound,
+}
+
 
 #[derive(Show)]
 pub struct RequestLine<'a>(Method, &'a str, Version);
@@ -53,6 +65,12 @@ pub struct Request<'a> {
 #[derive(Show)]
 pub struct Response {
     buf: Vec<u8>,
+}
+
+pub struct ResponseBuilder<'a> {
+    version: Version,
+    status: Status,
+    body: CowVec<'a, u8>,
 }
 
 pub struct RequestParser<'a> {
@@ -96,37 +114,47 @@ impl<'a> Stream<'a> {
             buf: Vec::new(),
         }
     }
-    pub fn read_http(&mut self) -> Result<(), ()> {
+    pub fn read_http(&mut self) -> HandlerResult {
         match read_to_vec(self.fd, &mut self.buf) {
             ReadResult::Read(start, end) => {
                 let check_start = if start > 3 { start - 3 } else { 0 };
                 if end - check_start < 4 {
-                    return Ok(());
+                    if self.buf.len() > MAX_HEADERS_SIZE {
+                    } else {
+                        return HandlerResult::ContinueRead;
+                    }
                 }
                 for i in range(check_start, end - 3) {
                     if self.buf.slice(i, i+4) == b"\r\n\r\n" {
                         match self.parse_request(self.buf.slice(0, i+2)) {
                             Ok(req) => {
-                                (*self.handler)(&req);
-                                unimplemented!();
+                                match (*self.handler)(&req) {
+                                    Ok(resp) => {
+                                        return HandlerResult::SendAndClose(
+                                            resp.buf);
+                                    }
+                                    Err(e) => {
+                                        unimplemented!();
+                                    }
+                                };
                             }
                             Err(e) => {
                                 // TODO(tailhook) implement HTTP errors
                                 info!("Error parsing request: {:?}", e);
-                                return Err(());
+                                return HandlerResult::Close;
                             }
                         }
                     }
                 }
-                Ok(())
+                HandlerResult::ContinueRead
             }
             ReadResult::Fatal(err) => {
                 error!("Error handling connection (fd: {}): {:?}",
                     self.fd, err);
-                Err(())
+                HandlerResult::Close
             }
-            ReadResult::NoData => Ok(()),
-            ReadResult::Closed => Err(()),
+            ReadResult::NoData => HandlerResult::ContinueRead,
+            ReadResult::Closed => HandlerResult::Close,
         }
     }
 
@@ -197,5 +225,56 @@ impl<'a> Stream<'a> {
             try!(req_parser.add_header(name, value));
         }
         return Ok(req_parser.take());
+    }
+}
+
+impl Status {
+    fn status_code(self) -> u32 {
+        match self {
+            Status::Ok => 200,
+            Status::NotFound => 404,
+        }
+    }
+    fn status_text(self) -> &'static str {
+        match self {
+            Status::Ok => "OK",
+            Status::NotFound => "Not Found",
+        }
+    }
+}
+
+impl Version {
+    fn text(self) -> &'static str {
+        match self {
+            Version::Http10 => "HTTP/1.0",
+            Version::Http11 => "HTTP/1.1",
+        }
+    }
+}
+
+impl<'a> ResponseBuilder<'a> {
+    pub fn new<'x>(req: &Request, status: Status) -> ResponseBuilder<'x> {
+        return ResponseBuilder {
+            version: req.request_line.version(),
+            status: status,
+            body: b"".into_cow(),
+        };
+    }
+    pub fn set_body<T:IntoCow<'a, Vec<u8>, [u8]>>(&mut self, x: T)
+    {
+        self.body = x.into_cow();
+    }
+    pub fn take(self) -> Response {
+        return Response {
+            buf: format!("{} {} {}\r\n\
+                    Content-Length: {}\r\n\
+                    Connection: close\r\n\
+                    \r\n",
+                    self.version.text(),
+                    self.status.status_code(),
+                    self.status.status_text(),
+                    self.body.len()
+                ).into_bytes() + self.body.as_slice(),
+        };
     }
 }

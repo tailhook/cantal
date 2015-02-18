@@ -8,10 +8,10 @@ use std::os::unix::{AsRawFd, Fd};
 use libc;
 use libc::{c_int};
 
-use self::ReadResult::*;
+use self::ReadResult as R;
+use self::WriteResult as W;
 
 const BUFFER_SIZE: usize = 4096;
-const MAX_HEADERS_SIZE: usize = 16384;
 
 mod linux {
     use libc::{c_int, c_void};
@@ -24,6 +24,7 @@ mod linux {
     pub const EPOLLIN: u32 = 0x001;
     pub const EPOLLPRI: u32 =  0x002;
     pub const EPOLLOUT: u32 = 0x004;
+    pub const EPOLLHUP: u32 = 0x010;
 
     #[repr(C)]
     pub struct epoll_event {
@@ -44,12 +45,20 @@ pub struct EPoll(Fd);
 
 pub enum EPollEvent {
     Input(Fd),
+    Output(Fd),
     Timeout,
 }
 
 pub enum ReadResult {
     Read(usize, usize),
     NoData,
+    Closed,
+    Fatal(IoError),
+}
+
+pub enum WriteResult {
+    Written(usize),
+    Again,
     Closed,
     Fatal(IoError),
 }
@@ -69,7 +78,7 @@ impl EPoll {
         return fd;
     }
 
-    pub fn add_fd_in(&self, fd: Fd) -> Result<(), IoError> {
+    pub fn add_fd_in(&self, fd: Fd) {
         let ev = linux::epoll_event {
             events: linux::EPOLLIN,
             data: fd as u64,
@@ -77,17 +86,35 @@ impl EPoll {
         let rc = unsafe { linux::epoll_ctl(self.fd(),
             linux::EPOLL_CTL_ADD, fd, &ev) };
         if rc < 0 {
-            return Err(IoError::last_error());
+            // All documented errors are kinda resource limits, or bad
+            // file descriptor. Nothing to be handled in runtime.
+            panic!("Error adding fd {} to epoll: {}",
+                   fd, IoError::last_error());
         }
-        Ok(())
     }
-    pub fn del_fd(&self, fd: Fd) -> Result<(), IoError> {
+    pub fn change_to_out(&self, fd: Fd) {
+        let ev = linux::epoll_event {
+            events: linux::EPOLLOUT,
+            data: fd as u64,
+        };
+        let rc = unsafe { linux::epoll_ctl(self.fd(),
+            linux::EPOLL_CTL_MOD, fd, &ev) };
+        if rc < 0 {
+            // All documented errors are kinda resource limits, or bad
+            // file descriptor. Nothing to be handled in runtime.
+            panic!("Error adding fd {} to epoll: {}",
+                   fd, IoError::last_error());
+        }
+    }
+    pub fn del_fd(&self, fd: Fd) {
         let rc = unsafe { linux::epoll_ctl(self.fd(),
             linux::EPOLL_CTL_DEL, fd, ptr::null()) };
         if rc < 0 {
-            return Err(IoError::last_error());
+            // All documented errors are kinda resource limits, or bad
+            // file descriptor. Nothing to be handled in runtime.
+            panic!("Error adding fd {} to epoll: {}",
+                   fd, IoError::last_error());
         }
-        Ok(())
     }
     pub fn next_event(&self, timeout: Option<f64>) -> EPollEvent {
         loop {
@@ -95,7 +122,14 @@ impl EPoll {
             let timeo = timeout.map(|x| (x*1000.) as c_int).unwrap_or(-1);
             let rc = unsafe { linux:: epoll_wait(self.fd(), &mut ev, 1, timeo) };
             if rc == 1 {
-                return EPollEvent::Input(ev.data as Fd);
+                // Note we never poll both for in and out
+                if (ev.events & linux::EPOLLIN) != 0 {
+                    return EPollEvent::Input(ev.data as Fd);
+                } else if (ev.events & linux::EPOLLOUT) != 0 {
+                    return EPollEvent::Output(ev.data as Fd);
+                } else if (ev.events & linux::EPOLLHUP) != 0 {
+                    unimplemented!();
+                }
             } else if rc < 0 {
                 if errno() == libc::EINTR as usize {
                     continue;
@@ -143,10 +177,6 @@ pub fn accept(fd: Fd) -> Result<Fd, IoError> {
 
 pub fn read_to_vec(fd: Fd, vec: &mut Vec<u8>) -> ReadResult {
     let oldlen = vec.len();
-    if oldlen >= MAX_HEADERS_SIZE {
-        // TODO(tailhook) return bad request
-        return Closed;
-    }
     let newend = oldlen + BUFFER_SIZE;
     vec.reserve(BUFFER_SIZE);
     unsafe { vec.set_len(newend) };
@@ -156,15 +186,32 @@ pub fn read_to_vec(fd: Fd, vec: &mut Vec<u8>) -> ReadResult {
     if bytes < 0 {
         unsafe { vec.set_len(oldlen) };
         if errno() == libc::EAGAIN as usize {
-            return NoData;
+            return R::NoData;
         } else {
-            return Fatal(IoError::last_error());
+            return R::Fatal(IoError::last_error());
         }
     } else if bytes == 0 {
-        return Closed;
+        return R::Closed;
     } else {
         unsafe { vec.set_len(oldlen + bytes as usize) };
-        return Read(oldlen, oldlen + bytes as usize);
+        return R::Read(oldlen, oldlen + bytes as usize);
+    }
+}
+
+pub fn write(fd: Fd, chunk: &[u8]) -> WriteResult {
+    let bytes = unsafe { libc::write(fd,
+        chunk.as_ptr() as *mut libc::c_void,
+        chunk.len() as u64) };
+    if bytes < 0 {
+        if errno() == libc::EAGAIN as usize {
+            return W::Again;
+        } else {
+            return W::Fatal(IoError::last_error());
+        }
+    } else if bytes == 0 {
+        return W::Closed;
+    } else {
+        return W::Written(bytes as usize);
     }
 }
 
