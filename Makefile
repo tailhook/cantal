@@ -3,10 +3,13 @@ RUSTC ?= rustc
 PREFIX ?= /usr
 DESTDIR ?=
 
+# ------------------ RUST BINARIES -----------------------
 CANTALLIB = libcantal.rlib
 ARGPARSELIB = rust-argparse/libargparse.rlib
 
-all: libcantal.rlib cantal cantal_agent
+all: bin js
+
+bin: libcantal.rlib cantal cantal_agent
 
 test: cantal_test
 	./cantal_test
@@ -27,10 +30,22 @@ cantal: $(ARGPARSELIB) libcantal.rlib src/cli/main.rs src/cli/*.rs
 $(ARGPARSELIB):
 	make -C rust-argparse libargparse.rlib
 
+# ------------------ JAVASCRIPTS -----------------------
+
+js:
+	-mkdir public/js 2>/dev/null
+	make -C frontend
+
+# ------------------ INSTALL -----------------------
+
 install:
 	install -d $(DESTDIR)$(PREFIX)/bin
-	install -m 755 lithos_tree $(DESTDIR)$(PREFIX)/bin/cantal
-	install -m 755 lithos_tree $(DESTDIR)$(PREFIX)/bin/cantal-agent
+	install -d $(DESTDIR)$(PREFIX)/lib/cantal
+	install -m 755 cantal $(DESTDIR)$(PREFIX)/bin/cantal
+	install -m 755 cantal-agent $(DESTDIR)$(PREFIX)/lib/cantal/cantal-agent
+	ln -s ../lib/cantal/cantal-agent $(DESTDIR)$(PREFIX)/bin/cantal-agent
+	cp -r public $(DESTDIR)$(PREFIX)/lib/cantal/
 
 
-.PHONY: all install test
+.PHONY: all install test bin js webpack
+.DELETE_ON_ERROR:

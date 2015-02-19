@@ -1,5 +1,7 @@
 use std::sync::RwLock;
 use std::time::Duration;
+use serialize::json::Json;
+use serialize::json;
 
 use super::aio;
 use super::stats::Stats;
@@ -19,8 +21,10 @@ fn handle_request(stats: &RwLock<Stats>, req: &http::Request)
     } else {
         let stats = stats.read().unwrap();
         let mut builder = http::ResponseBuilder::new(req, http::Status::Ok);
-        builder.set_body(format!("Hurray. val: {}", stats.startup_time)
-            .into_bytes());
+        builder.set_body(format!("{}", Json::Object(vec!(
+                ("startup_time".to_string(), Json::U64(stats.startup_time))
+                ).into_iter().collect())
+            ).into_bytes());
         Ok(builder.take())
     }
 }
