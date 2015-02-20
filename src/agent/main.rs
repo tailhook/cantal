@@ -7,7 +7,8 @@ extern crate serialize;
 extern crate argparse;
 
 use std::os;
-use std::sync::RwLock;
+use std::thread::Thread;
+use std::sync::{RwLock, Arc};
 use argparse::{ArgumentParser, Store};
 
 
@@ -15,6 +16,8 @@ mod aio;
 mod server;
 mod stats;
 mod staticfiles;
+mod scanner;
+mod scan;
 
 
 fn main() {
@@ -36,8 +39,10 @@ fn main() {
             }
         }
     }
-    let stats = RwLock::new(stats::Stats::new());
-    match server::run_server(&stats, host, port) {
+    let stats = &Arc::new(RwLock::new(stats::Stats::new()));
+    let stats2 = stats.clone();
+    Thread::spawn(move || scanner::scan_loop(stats2));
+    match server::run_server(&**stats, host, port) {
         Ok(()) => {}
         Err(x) => {
             error!("Error running server: {}", x);

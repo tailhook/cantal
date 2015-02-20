@@ -1,12 +1,14 @@
 <request-error>
     <span class="error bg-danger"
         title={ title(opts.error) }>
-        [E{ opts.error.status }]
+        [{ opts.error.short_name || error }]
     </span>
 
+    import {format_datetime} from "util/time"
 
     this.title = function title(err) {
-        return `${err.status} ${err.status_text}\nAt ${err.time}`
+        return `${err.description}\nAt ${
+            format_datetime(err.time)}`
     }
 
 </request-error>

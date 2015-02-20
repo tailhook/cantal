@@ -1,14 +1,19 @@
 export class RequestError extends Error {
-    constructor(response) {
-        this.status = response.status
-        this.status_text = response.statusText
+    constructor(err) {
+        if(err.status) {
+            this.short_name = "E" + err.status
+            this.description = `${err.status} ${err.status_text}`
+        } else {
+            this.short_name = err.message;
+            this.description = err.toString();
+            this.error = err;
+        }
         this.time = new Date()
     }
 }
 
 export class RefreshJson {
     constructor(url, timeout=2000) {
-        console.log("Instance", this)
         this.url = url;
         this.timeout = timeout;
         this._timer = null
@@ -16,9 +21,7 @@ export class RefreshJson {
         this._start_request()
     }
     _start_request() {
-        console.log("Started", this)
         fetch(this.url).then((resp) => {
-            this.start_timer()
             if(resp.status == 200) {
                 return resp.json()
             } else {
@@ -27,16 +30,18 @@ export class RefreshJson {
                 throw new RequestError(resp)
             }
         }).then((value) => {
+            this.start_timer()
             this.trigger("json_update", value)
         }).catch((err) => {
-            this.trigger("json_error", err)
+            this.start_timer()
+            this.trigger("json_error", new RequestError(err))
         })
     }
     start_timer() {
         if(this._timer) {
             clearTimeout(this._timer)
         }
-        this._timer = setTimeout(()=> this._start_request, this.timeout)
+        this._timer = setTimeout(()=> this._start_request(), this.timeout)
     }
 
 }
