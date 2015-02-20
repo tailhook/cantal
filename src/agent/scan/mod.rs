@@ -3,6 +3,7 @@ use std::fmt::String;
 use libc;
 
 pub mod machine;
+pub mod processes;
 
 
 extern {
