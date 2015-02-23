@@ -5,6 +5,7 @@ extern crate libc;
 extern crate serialize;
 
 extern crate argparse;
+extern crate cantal;
 
 use std::os;
 use std::thread::Thread;

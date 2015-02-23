@@ -1,10 +1,36 @@
 use std::str::FromStr;
 use std::io::BufferedReader;
 use std::io::EndOfFile;
+use std::str::from_utf8;
+use std::hash::{Hash};
 use std::io::fs::{File, readdir};
-use std::collections::BTreeMap;
+use std::collections::{HashMap, BTreeMap};
+use std::collections::hash_map::Entry::{Occupied, Vacant};
+use std::collections::hash_map::Hasher;
 
+use cantal::Metadata;
 
+type Pid = u32;
+
+pub struct ReadCache {
+    metadata: HashMap<Path, Metadata>,
+}
+
+struct MinimalProcess {
+    pid: Pid,
+    ppid: Pid,
+    name: String,
+    state: char,
+    vsize: u64,
+    rss: u64,
+    num_threads: u32,
+    start_time: u64,
+    user_time: u32,
+    system_time: u32,
+    child_user_time: u32,
+    child_system_time: u32,
+    cantal_path: Option<Path>,
+}
 
 struct Group {
     pids: Vec<u32>,
@@ -39,28 +65,102 @@ fn get_env_var(pid: u32) -> Option<Path> {
     .and_then(|opt| opt)
 }
 
-fn scan_groups(pids: Vec<u32>) -> Result<BTreeMap<String, Group>, ()> {
-    let groups = BTreeMap::new();
-    for pid in pids.into_iter() {
-        let cantal_path = get_env_var(pid);
-        if cantal_path.is_some() {
-            println!("Path {:?} {:?}", pid, cantal_path);
-        }
+fn read_process(cache: &mut ReadCache, pid: Pid)
+    -> Result<MinimalProcess, ()>
+{
+    let cantal_path = get_env_var(pid);
+    let path = Path::new(format!("/proc/{}/stat", pid));
+    let mut buf = Vec::with_capacity(4096);
+    try!(File::open(&path)
+        .and_then(|mut f| f.push(4096, &mut buf))
+        .map_err(|e| debug!("Can't read stat file: {}", e)));
+    if buf.len() >= 4096 {
+        error!("Stat line too long");
+        return Err(());
     }
-    return Ok(groups);
+    let name_start = try!(buf.position_elem(&b'(').ok_or(()));
+    // Since there might be brackets in the name itself we should use last
+    // closing paren
+    let name_end = try!(buf.rposition_elem(&b')').ok_or(()));
+    let name = try!(from_utf8(&buf[name_start+1..name_end])
+        .map_err(|e| debug!("Can't decode stat file: {}", e)))
+        .to_string();
+
+    let mut words = try!(from_utf8(&buf[name_end+1..])
+        .map_err(|e| debug!("Can't decode stat file: {}", e)))
+        .words();
+
+    return Ok(MinimalProcess {
+        pid: pid,
+        name: name,
+        state: words.nth(0).unwrap().char_at(0),
+        ppid: words.nth(0).and_then(FromStr::from_str).unwrap(),
+        user_time: words.nth(9).and_then(FromStr::from_str).unwrap(),
+        system_time: words.nth(0).and_then(FromStr::from_str).unwrap(),
+        child_user_time: words.nth(0).and_then(FromStr::from_str).unwrap(),
+        child_system_time: words.nth(0).and_then(FromStr::from_str).unwrap(),
+        num_threads: words.nth(2).and_then(FromStr::from_str).unwrap(),
+        start_time: words.nth(1).and_then(FromStr::from_str).unwrap(),
+        vsize: words.nth(0).and_then(FromStr::from_str).unwrap(),
+        rss: words.nth(0).and_then(FromStr::from_str).unwrap(),
+        cantal_path: cantal_path,
+    });
+    /*
+        cantal_path.map(|path| {
+            let meta = match Metadata::read(&path.with_extension("meta")) {
+                Ok(meta) => meta,
+                Err(e) => {
+                    warn!("Error parsing metadata {:?}: {}", path, e);
+                    return;
+                }
+            };
+            let data = match meta.read_data(&path.with_extension("values")) {
+                Ok(data) => data,
+                Err(e) => {
+                    warn!("Error parsing data {:?}: {}", path, e);
+                    return;
+                }
+            };
+            for &(ref descr, ref item) in data.iter() {
+                println!("{} {} {:?}", pid, descr.textname, item);
+            }
+        });
+    */
 }
 
-pub fn read() -> Processes {
+fn tree_collect<K: Hash<Hasher> + Eq, V, I: Iterator<Item=(K, V)>>(mut iter: I)
+    -> HashMap<K, Vec<V>>
+{
+    let mut result = HashMap::new();
+    for (k, v) in iter {
+        if let Some(vec) = result.get_mut(&k) {
+            let mut val: &mut Vec<V> = vec;
+            val.push(v);
+            continue;
+        }
+        result.insert(k, vec!(v));
+    }
+    return result;
+}
+
+pub fn read(cache: &mut ReadCache) -> Processes {
+    let file_list = readdir(&Path::new("/proc"))
+        .map_err(|e| error!("Error listing /proc: {}", e))
+        .unwrap_or(Vec::new());
+    let children = tree_collect(file_list.into_iter()
+        .map(|x| x.filename_str().and_then(FromStr::from_str))
+        .filter(|x| x.is_some())
+        .map(|x| x.unwrap())
+        .map(|x| (x, read_process(cache, x))));
     return Processes {
-        groups: readdir(&Path::new("/proc"))
-            .map_err(|e| error!("Error listing /proc: {}", e))
-            .map(|lst| lst.into_iter()
-                            .map(|x| x.filename_str()
-                                      .and_then(FromStr::from_str))
-                            .filter(|x| x.is_some())
-                            .map(|x| x.unwrap())
-                            .collect::<Vec<u32>>())
-            .and_then(|lst| scan_groups(lst))
-            .unwrap_or(BTreeMap::new()),
+        groups: BTreeMap::new(),
     };
+}
+
+impl ReadCache {
+    pub fn new() -> ReadCache {
+        ReadCache {
+            metadata: HashMap::new(),
+        }
+    }
 }
