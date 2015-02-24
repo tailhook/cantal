@@ -1,5 +1,6 @@
 import {tag_class as hc, tag as h, link, icon, button_xs as button,
         title_span as title, tag_key as hk, tag_map} from 'util/html'
+import {format_uptime, till_now_ms, from_ms} from 'util/time'
 import {RefreshJson} from 'util/request'
 
 
@@ -21,6 +22,7 @@ export class Processes {
         this.open_items = {};
     }
     set_data(data) {
+        this.uptime_base = data.boot_time;
         this.all = data.all;
         var toplevel = [];
         var by_id = {};
@@ -51,38 +53,53 @@ export class Processes {
     remove() {
         cito.vdom.remove(this._node);
     }
-    render_process(process) {
+    render_process(level=0, process) {
         var children = this.tree[process.pid];
         var is_open = this.open_items[process.pid];
-        var head = hk("tr", process.pid, tag_map('td')([
-            (children
-                ? is_open
-                    ? button("default", [icon("minus"), ` ${children.length}`],
-                        () => delete this.open_items[process.pid])
-                    : button("default", [icon("plus"), ` ${children.length}`],
-                        () => this.open_items[process.pid] = true)
-                : ""),
-            process.pid.toString(),
-            process.name.toString(),
-            process.cmdline.split('\u{0000}').join(' '),
-            ]));
+        var head = hk("tr", process.pid, [
+            h('td', [
+                {tag: 'div', attrs: {
+                    style: {display: 'inline-block', width: `${16*level}px`}}},
+                (children
+                    ? is_open
+                        ? button("default", [icon("minus"), ` ${children.length}`],
+                            () => {
+                                delete this.open_items[process.pid]
+                                this.update()
+                            })
+                        : button("default", [icon("plus"), ` ${children.length}`],
+                            () => {
+                                this.open_items[process.pid] = true
+                                this.update()
+                            })
+                    : ""),
+                ' ' + process.pid.toString(),
+            ]),
+            h('td', title(process.cmdline.split('\u{0000}').join(' '),
+                     [process.name.toString()])),
+            h('td', [
+                format_uptime(till_now_ms(from_ms(
+                    process.start_time + this.uptime_base*1000))),
+            ]),
+            hc('td', 'text-right', (process.rss / 1048576).toFixed(1)),
+        ]);
         if(children && this.open_items[process.pid]) {
-            var ch = children.map(this.render_process.bind(this))
-            ch.splice(0, 0, head);
-            return {children: ch};
+            var ch = children.map(this.render_process.bind(this, level+1))
+            ch.splice(0, 0, head)
+            return {children: ch}
         } else {
             return head;
         }
     }
     render_processes() {
-        return hc("table", "table", [
+        return hc("table", "table table-hover", [
             h("thead", h("tr", tag_map('th')([
-                '',
                 'pid',
                 'name',
-                'command-line',
+                'uptime',
+                'mem (MiB)',
                 ]))),
-            h("tbody", this.toplevel.map(this.render_process.bind(this))),
+            h("tbody", this.toplevel.map(this.render_process.bind(this, 0))),
         ]);
     }
     render() {
