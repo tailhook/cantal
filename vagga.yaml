@@ -27,7 +27,7 @@ containers:
     - !UbuntuUniverse ~
     - !Install [make, checkinstall, wget]
 
-    - !NpmInstall [riot, babel]
+    - !NpmInstall [babel]
 
     - !BuildDeps [ca-certificates]
     - !TarInstall

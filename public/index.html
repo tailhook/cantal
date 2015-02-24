@@ -4,13 +4,13 @@
     <link rel="stylesheet" href="/css/bootstrap.min.css">
     <title>Cantal Statistics</title>
     <script src="/js/lib.js"></script>
-    <script src="/js/util.js"></script>
-    <script src="/js/riot-tags.js"></script>
+    <script src="/js/app.js"></script>
   </head>
   <body>
-    <cantal-nav></cantal-nav>
     <script>
-      riot.mount('*')
+      (function() {
+        require('app/main').App.start()
+      })()
     </script>
   </body>
 </html>
