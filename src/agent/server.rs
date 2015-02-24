@@ -4,9 +4,18 @@ use serialize::json::Json;
 use serialize::json::as_pretty_json;
 
 use super::aio;
-use super::stats::Stats;
-use super::aio::http;
+use super::scan;
 use super::staticfiles;
+use super::aio::http;
+use super::stats::Stats;
+
+
+#[derive(Encodable)]
+struct StatusData<'a> {
+    startup_time: u64,
+    scan_time: u64,
+    machine: &'a scan::machine::MachineStats,
+}
 
 
 fn handle_request(stats: &RwLock<Stats>, req: &http::Request)
@@ -18,16 +27,25 @@ fn handle_request(stats: &RwLock<Stats>, req: &http::Request)
         req.uri() == "/"
     {
         return staticfiles::serve(req);
-    } else {
+    } else if req.uri() == "/status.json" {
         let stats = stats.read().unwrap();
         let mut builder = http::ResponseBuilder::new(req, http::Status::Ok);
-        builder.set_body(format!("{}", as_pretty_json(&*stats)).into_bytes());
+        builder.set_body(format!("{}", as_pretty_json(&StatusData {
+            startup_time: stats.startup_time,
+            scan_time: stats.scan_time,
+            machine: &stats.machine,
+        })).into_bytes());
         Ok(builder.take())
+    } else if req.uri() == "/all_processes.json" {
+        let stats = stats.read().unwrap();
+        let mut builder = http::ResponseBuilder::new(req, http::Status::Ok);
+        builder.set_body(
+            format!("{}", as_pretty_json(&stats.processes)
+            ).into_bytes());
+        Ok(builder.take())
+    } else {
+        return Err(http::Error::NotFound);
     }
-}
-
-
-fn read_stats() {
 }
 
 
@@ -43,6 +61,5 @@ pub fn run_server<'x>(stats: &RwLock<Stats>, host: String, port: u16)
         .map_err(|e| format!("Can't create main loop: {}", e)));
     try!(main.add_http_server(host.as_slice(), port, handler)
         .map_err(|e| format!("Can't bind {}:{}: {}", host, port, e)));
-    main.add_interval(Duration::seconds(2),read_stats);
     main.run();
 }

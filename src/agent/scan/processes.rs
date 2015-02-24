@@ -16,6 +16,7 @@ pub struct ReadCache {
     metadata: HashMap<Path, Metadata>,
 }
 
+#[derive(Encodable)]
 struct MinimalProcess {
     pid: Pid,
     ppid: Pid,
@@ -32,13 +33,16 @@ struct MinimalProcess {
     cantal_path: Option<Path>,
 }
 
+/*
 struct Group {
     pids: Vec<u32>,
     path: Path,
 }
+*/
 
-struct Processes {
-    groups: BTreeMap<String, Group>,
+#[derive(Encodable, Default)]
+pub struct Processes {
+    all: Vec<MinimalProcess>,
 }
 
 fn get_env_var(pid: u32) -> Option<Path> {
@@ -147,13 +151,20 @@ pub fn read(cache: &mut ReadCache) -> Processes {
     let file_list = readdir(&Path::new("/proc"))
         .map_err(|e| error!("Error listing /proc: {}", e))
         .unwrap_or(Vec::new());
-    let children = tree_collect(file_list.into_iter()
+    let processes = file_list.into_iter()
         .map(|x| x.filename_str().and_then(FromStr::from_str))
         .filter(|x| x.is_some())
+        .map(|x| read_process(cache, x.unwrap()))
+        .filter(|x| x.is_ok())
         .map(|x| x.unwrap())
-        .map(|x| (x, read_process(cache, x))));
+        .collect::<Vec<MinimalProcess>>();
+
+    {
+        let children: HashMap<u32, Vec<&MinimalProcess>>;
+        children = tree_collect(processes.iter().map(|p| (p.ppid, p)));
+    }
     return Processes {
-        groups: BTreeMap::new(),
+        all: processes,
     };
 }
 

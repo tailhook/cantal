@@ -15,12 +15,18 @@
           </ul>
           <form class="navbar-form navbar-right { error ? 'bg-danger' : ''}">
             (<span class="glyphicon glyphicon-hdd" />
-                { stats.machine.load_avg_1min.toFixed(2) } /
-                { stats.machine.load_avg_5min.toFixed(2) } /
-                { stats.machine.load_avg_15min.toFixed(2) }
+                <span title="Load Average 1 min">
+                    { stats.machine.load_avg_1min.toFixed(2) }</span> /
+                <span title="Load Average 5 min">
+                    { stats.machine.load_avg_5min.toFixed(2) }</span> /
+                <span title="Load Average 15 min">
+                    { stats.machine.load_avg_15min.toFixed(2) }</span>
                 up { box_up() })
             (<span class="glyphicon glyphicon-scale" />
-                up { up() })
+                up { up() }
+                / <span title="Stats calculation time">
+                    { stats.scan_time }ms</span>
+            )
             <request-error if={ error != null } error={ error } /></li>
             <a class="btn btn-default" href="/status">Status</a>
           </form>
