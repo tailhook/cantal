@@ -1,4 +1,5 @@
 use std::str::FromStr;
+use std::os::page_size;
 use std::io::BufferedReader;
 use std::io::EndOfFile;
 use std::str::from_utf8;
@@ -7,6 +8,7 @@ use std::io::fs::{File, readdir};
 use std::collections::{HashMap, BTreeMap};
 use std::collections::hash_map::Entry::{Occupied, Vacant};
 use std::collections::hash_map::Hasher;
+use libc;
 
 use cantal::Metadata;
 
@@ -14,10 +16,11 @@ type Pid = u32;
 
 pub struct ReadCache {
     metadata: HashMap<Path, Metadata>,
+    tick: u32,
 }
 
 #[derive(Encodable)]
-struct MinimalProcess {
+pub struct MinimalProcess {
     pid: Pid,
     ppid: Pid,
     name: String,
@@ -43,7 +46,7 @@ struct Group {
 
 #[derive(Encodable, Default)]
 pub struct Processes {
-    all: Vec<MinimalProcess>,
+    pub all: Vec<MinimalProcess>,
 }
 
 fn get_env_var(pid: u32) -> Option<Path> {
@@ -117,9 +120,13 @@ fn read_process(cache: &mut ReadCache, pid: Pid)
         child_user_time: words.nth(0).and_then(FromStr::from_str).unwrap(),
         child_system_time: words.nth(0).and_then(FromStr::from_str).unwrap(),
         num_threads: words.nth(2).and_then(FromStr::from_str).unwrap(),
-        start_time: words.nth(1).and_then(FromStr::from_str).unwrap(),
+        start_time: {
+            let stime: u64 = words.nth(1).and_then(FromStr::from_str).unwrap();
+            (stime * 1000) / cache.tick as u64 },
         vsize: words.nth(0).and_then(FromStr::from_str).unwrap(),
-        rss: words.nth(0).and_then(FromStr::from_str).unwrap(),
+        rss: {
+            let rss: u64 = words.nth(0).and_then(FromStr::from_str).unwrap();
+            rss * page_size() as u64},
         cmdline: cmdline.to_string(),
         cantal_path: cantal_path,
     });
@@ -186,6 +193,9 @@ impl ReadCache {
     pub fn new() -> ReadCache {
         ReadCache {
             metadata: HashMap::new(),
+            tick: unsafe {
+                libc::sysconf(libc::consts::os::sysconf::_SC_CLK_TCK) as u32
+            },
         }
     }
 }

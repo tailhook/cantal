@@ -17,6 +17,12 @@ struct StatusData<'a> {
     machine: &'a scan::machine::MachineStats,
 }
 
+#[derive(Encodable)]
+struct ProcessData<'a> {
+    boot_time: Option<u64>,
+    all: &'a Vec<scan::processes::MinimalProcess>,
+}
+
 
 fn handle_request(stats: &RwLock<Stats>, req: &http::Request)
     -> Result<http::Response, http::Error>
@@ -39,9 +45,10 @@ fn handle_request(stats: &RwLock<Stats>, req: &http::Request)
     } else if req.uri() == "/all_processes.json" {
         let stats = stats.read().unwrap();
         let mut builder = http::ResponseBuilder::new(req, http::Status::Ok);
-        builder.set_body(
-            format!("{}", as_pretty_json(&stats.processes)
-            ).into_bytes());
+        builder.set_body(format!("{}", as_pretty_json(&ProcessData {
+            boot_time: stats.machine.boot_time,
+            all: &stats.processes.all,
+            })).into_bytes());
         Ok(builder.take())
     } else {
         return Err(http::Error::NotFound);
