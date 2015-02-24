@@ -30,6 +30,7 @@ struct MinimalProcess {
     system_time: u32,
     child_user_time: u32,
     child_system_time: u32,
+    cmdline: String,
     cantal_path: Option<Path>,
 }
 
@@ -73,6 +74,18 @@ fn read_process(cache: &mut ReadCache, pid: Pid)
     -> Result<MinimalProcess, ()>
 {
     let cantal_path = get_env_var(pid);
+
+    let path = Path::new(format!("/proc/{}/cmdline", pid));
+    let mut cmdlinebuf = Vec::with_capacity(4096);
+    try!(File::open(&path)
+        .and_then(|mut f| f.push(4096, &mut cmdlinebuf))
+        .map_err(|e| {
+            if e.kind != EndOfFile {
+                debug!("Can't read cmdline file: {}", e);
+            }
+        }));
+    let cmdline = String::from_utf8_lossy(cmdlinebuf.as_slice());
+
     let path = Path::new(format!("/proc/{}/stat", pid));
     let mut buf = Vec::with_capacity(4096);
     try!(File::open(&path)
@@ -107,6 +120,7 @@ fn read_process(cache: &mut ReadCache, pid: Pid)
         start_time: words.nth(1).and_then(FromStr::from_str).unwrap(),
         vsize: words.nth(0).and_then(FromStr::from_str).unwrap(),
         rss: words.nth(0).and_then(FromStr::from_str).unwrap(),
+        cmdline: cmdline.to_string(),
         cantal_path: cantal_path,
     });
     /*
