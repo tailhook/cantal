@@ -9,15 +9,6 @@ export class App {
     }
     static start() {
         var app = new App();
-        b.routes(b.route({ handler: app }, [
-            b.route({ name: "processes", handler: new Processes() }),
-        ]));
-    }
-    render(ctx, me) {
-        me.tag = "div";
-        me.children = [
-            {component: this.navbar},
-            me.data.activeRouteHandler()
-        ];
+        app.navbar.mount(document.body)
     }
 }
