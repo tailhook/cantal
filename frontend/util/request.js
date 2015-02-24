@@ -35,7 +35,7 @@ export class RefreshJson {
             var lcy = new Date() - time;
             if(req.status != 200) {
                 console.error("Error fetching", this.url, req);
-                this.handler(Error("Status {}", req.status), lcy);
+                this.handler(Error(`Status ${req.status}`), lcy);
                 return;
             }
             try {

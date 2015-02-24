@@ -1,20 +1,12 @@
-export function tag(tag) {
-    var args = [];
-    for (var _i = 1; _i < arguments.length; _i++) {
-        args[_i - 1] = arguments[_i];
-    }
-    return { tag: tag, children: args };
+export function tag(tag, children) {
+    return { tag: tag, children: children };
 }
 
 export function tag_class(tag, classname, children) {
     return { tag: tag, attrs: { class: classname }, children: children };
 }
 
-export function link(classname, href) {
-    var args = [];
-    for (var _i = 2; _i < arguments.length; _i++) {
-        args[_i - 2] = arguments[_i];
-    }
+export function link(classname, href, ...args) {
     return { tag: 'a', attrs: {
         class: classname,
         href: href,
@@ -28,4 +20,21 @@ export function title_span(title, children) {
         title: title,
         class: "title",
         }, children: children };
+}
+
+export function tag_key(tag, key, children) {
+    return { tag: tag, key: key, children: children };
+}
+
+export function tag_map(tagname) {
+    return function(list) {
+        return list.map(tag.bind(null, tagname))
+    }
+}
+
+export function button_xs(kind, children, handler) {
+    return { tag: 'button',
+        attrs: {class: 'btn btn-xs btn-'+kind},
+        events: { click: handler },
+        children: children };
 }

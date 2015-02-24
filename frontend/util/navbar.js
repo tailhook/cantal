@@ -21,8 +21,7 @@ export class Navbar {
         this._refresher.start();
     }
     update() {
-        var value = this.render();
-        cito.vdom.update(this._node, value)
+        cito.vdom.update(this._node, this.render())
     }
     render_self() {
         var stats = this.data;
@@ -56,7 +55,7 @@ export class Navbar {
         return hc("div", "navbar navbar-default", [
             hc('div', 'container-fluid', [
                 hc('div', 'navbar-header', [
-                    hc('a', 'navbar-brand', "Cantal"),
+                    link('navbar-brand', "#/", "Cantal"),
                 ]),
                 hc('div', 'collapse navbar-collapse', [
                     hc('ul', 'nav navbar-nav', [
@@ -74,6 +73,7 @@ export class Navbar {
                             icon('scale'), ' ',
                             this.data && this.render_self() || "",
                         ' ) ',
+                        this.error && this.error.message || "",
                         link('btn btn-default', '/status', 'Status'),
                     ]),
                 ]),
