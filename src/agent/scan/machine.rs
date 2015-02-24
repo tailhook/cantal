@@ -21,6 +21,26 @@ pub struct Cpu {
 }
 
 #[derive(Default, Encodable)]
+pub struct Memory {
+    pub mem_total: Option<u64>,
+    pub mem_free: Option<u64>,
+    pub mem_available: Option<u64>,
+    pub buffers: Option<u64>,
+    pub cached: Option<u64>,
+    pub swap_cached: Option<u64>,
+    pub active: Option<u64>,
+    pub inactive: Option<u64>,
+    pub unevictable: Option<u64>,
+    pub mlocked: Option<u64>,
+    pub swap_total: Option<u64>,
+    pub swap_free: Option<u64>,
+    pub dirty: Option<u64>,
+    pub writeback: Option<u64>,
+    pub commit_limit: Option<u64>,
+    pub committed_as: Option<u64>,
+}
+
+#[derive(Default, Encodable)]
 pub struct MachineStats {
     pub timestamp: u64,
     pub uptime: Option<f64>,
@@ -32,6 +52,7 @@ pub struct MachineStats {
     pub proc_total: Option<u32>,
     pub last_pid: Option<u32>,
     pub cpu_total: Option<Cpu>,
+    pub memory: Memory,
     pub boot_time: Option<u64>,
 }
 
@@ -84,6 +105,48 @@ pub fn read() -> MachineStats {
                 } else if line.starts_with("btime ") {
                     result.boot_time = FromStr::from_str(line[6..].trim());
                 }
+            }
+            Ok(())
+        }).ok();
+
+    File::open(&Path::new("/proc/meminfo"))
+        .and_then(|f| {
+            let mut f = BufferedReader::new(f);
+            for line in f.lines() {
+                let line = try!(line);
+                let mut pieces = line.words();
+                let ptr = match pieces.next() {
+                    Some("MemTotal:") => &mut result.memory.mem_total,
+                    Some("MemFree:") => &mut result.memory.mem_free,
+                    Some("MemAvailable:") => &mut result.memory.mem_available,
+                    Some("Buffers:") => &mut result.memory.buffers,
+                    Some("Cached:") => &mut result.memory.cached,
+                    Some("SwapCached:") => &mut result.memory.swap_cached,
+                    Some("Active:") => &mut result.memory.active,
+                    Some("Inactive:") => &mut result.memory.inactive,
+                    Some("Unevictable:") => &mut result.memory.unevictable,
+                    Some("Mlocked:") => &mut result.memory.mlocked,
+                    Some("SwapTotal:") => &mut result.memory.swap_total,
+                    Some("SwapFree:") => &mut result.memory.swap_free,
+                    Some("Dirty:") => &mut result.memory.dirty,
+                    Some("Writeback:") => &mut result.memory.writeback,
+                    Some("CommitLimit:") => &mut result.memory.commit_limit,
+                    Some("Committed_AS:") => &mut result.memory.committed_as,
+                    _ => continue,
+                };
+                let val = match pieces.next() {
+                    Some(val) => val,
+                    None => continue,
+                };
+                let mult = match pieces.next() {
+                    Some("kB") => 1024,
+                    Some(x) => {
+                        debug!("Unknown memory unit {:?}", x);
+                        continue;
+                    }
+                    None => continue,
+                };
+                *ptr = FromStr::from_str(val).map(|x: u64| x * mult);
             }
             Ok(())
         }).ok();
