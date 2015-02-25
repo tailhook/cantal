@@ -104,6 +104,7 @@ export class Processes {
     }
     render() {
         return hc("div", "container", [
+            h("h1", ["All Processes"]),
             hc("div", "text-right",
                 this.error ? 'Error: ' + this.error.message
                            : `Fetched in ${this.latency}ms`),

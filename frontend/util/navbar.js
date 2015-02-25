@@ -59,9 +59,7 @@ export class Navbar {
                 ]),
                 hc('div', 'collapse navbar-collapse', [
                     hc('ul', 'nav navbar-nav', [
-                        hc('li', '', [
-                            link("", "#/processes", "Processes"),
-                        ]),
+                        hc('li', '', [ link("", "#/processes", "Processes") ]),
                     ]),
                     hc('form',
                         'navbar-form navbar-right' +
@@ -74,7 +72,7 @@ export class Navbar {
                             this.data && this.render_self() || "",
                         ' ) ',
                         this.error && this.error.message || "",
-                        link('btn btn-default', '/status', 'Status'),
+                        link('btn btn-default', '#/status', 'Status'),
                     ]),
                 ]),
             ]),

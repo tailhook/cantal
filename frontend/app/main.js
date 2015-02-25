@@ -1,6 +1,8 @@
 import {tag as h} from 'util/html'
 import {Navbar} from 'util/navbar'
-import {Processes} from 'util/processes'
+
+import {Processes} from 'pages/processes'
+import {Status} from 'pages/status'
 
 
 export class App {
@@ -10,10 +12,6 @@ export class App {
     static start() {
         var app = new App();
         app.navbar.mount(document.body)
-        if(window.location.hash == '#/processes') {
-            app.page = new Processes();
-            app.page.mount(document.body)
-        }
         window.onhashchange = function() {
             if(app.page) {
                 app.page.remove();
@@ -21,7 +19,11 @@ export class App {
             if(window.location.hash == '#/processes') {
                 app.page = new Processes();
                 app.page.mount(document.body)
+            } else if(window.location.hash == '#/status') {
+                app.page = new Status();
+                app.page.mount(document.body)
             }
         }
+        window.onhashchange()
     }
 }
