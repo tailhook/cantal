@@ -1,8 +1,8 @@
 use std::ptr;
-use std::io::IoError;
+use std::io;
 use std::os::errno;
 use std::mem::size_of;
-use std::io::net::tcp::TcpListener;
+use std::net::TcpListener;
 use std::os::unix::{AsRawFd, Fd};
 
 use libc;
@@ -53,21 +53,21 @@ pub enum ReadResult {
     Read(usize, usize),
     NoData,
     Closed,
-    Fatal(IoError),
+    Fatal(io::Error),
 }
 
 pub enum WriteResult {
     Written(usize),
     Again,
     Closed,
-    Fatal(IoError),
+    Fatal(io::Error),
 }
 
 impl EPoll {
-    pub fn new() -> Result<EPoll, IoError> {
+    pub fn new() -> Result<EPoll, io::Error> {
         let fd = unsafe { linux::epoll_create1(linux::EPOLL_CLOEXEC) };
         if fd < 0 {
-            return Err(IoError::last_error());
+            return Err(io::Error::last_os_error());
         }
         return Ok(EPoll(fd));
     }
@@ -89,7 +89,7 @@ impl EPoll {
             // All documented errors are kinda resource limits, or bad
             // file descriptor. Nothing to be handled in runtime.
             panic!("Error adding fd {} to epoll: {}",
-                   fd, IoError::last_error());
+                   fd, io::Error::last_os_error());
         }
     }
     pub fn change_to_out(&self, fd: Fd) {
@@ -103,7 +103,7 @@ impl EPoll {
             // All documented errors are kinda resource limits, or bad
             // file descriptor. Nothing to be handled in runtime.
             panic!("Error adding fd {} to epoll: {}",
-                   fd, IoError::last_error());
+                   fd, io::Error::last_os_error());
         }
     }
     pub fn del_fd(&self, fd: Fd) {
@@ -113,7 +113,7 @@ impl EPoll {
             // All documented errors are kinda resource limits, or bad
             // file descriptor. Nothing to be handled in runtime.
             panic!("Error adding fd {} to epoll: {}",
-                   fd, IoError::last_error());
+                   fd, io::Error::last_os_error());
         }
     }
     pub fn next_event(&self, timeout: Option<f64>) -> EPollEvent {
@@ -131,10 +131,11 @@ impl EPoll {
                     unimplemented!();
                 }
             } else if rc < 0 {
-                if errno() == libc::EINTR as usize {
+                if errno() == libc::EINTR {
                     continue;
                 }
-                panic!("Unexpected error in loop {}", IoError::last_error());
+                panic!("Unexpected error in loop {}",
+                       io::Error::last_os_error());
             }
         }
     }
@@ -148,21 +149,21 @@ impl Drop for EPoll {
     }
 }
 
-pub fn bind_tcp_socket(host: &str, port: u16) -> Result<Fd, IoError> {
-    let stream = try!(TcpListener::bind((host, port)));
+pub fn bind_tcp_socket(host: &str, port: u16) -> Result<Fd, io::Error> {
+    let stream = try!(TcpListener::bind(&(host, port)));
     let sfd = stream.as_raw_fd();
     if unsafe { libc::listen(sfd, 1) } < 0 {
-        return Err(IoError::last_error());
+        return Err(io::Error::last_os_error());
     }
     let fd = unsafe { libc::dup(stream.as_raw_fd()) };
     if fd < 0 {
-        return Err(IoError::last_error());
+        return Err(io::Error::last_os_error());
     }
     // TODO(tailhook) set non-blocking, set cloexec
     return Ok(fd);
 }
 
-pub fn accept(fd: Fd) -> Result<Fd, IoError> {
+pub fn accept(fd: Fd) -> Result<Fd, io::Error> {
     let mut sockaddr: libc::sockaddr = libc::sockaddr {
         sa_family: 0,
         sa_data: [0u8; 14],
@@ -170,7 +171,7 @@ pub fn accept(fd: Fd) -> Result<Fd, IoError> {
     let mut addrlen: libc::socklen_t = size_of::<libc::sockaddr>() as u32;
     let child = unsafe { libc::accept(fd, &mut sockaddr, &mut addrlen) };
     if child < 0 {
-        return Err(IoError::last_error());
+        return Err(io::Error::last_os_error());
     }
     return Ok(child);
 }
@@ -185,10 +186,10 @@ pub fn read_to_vec(fd: Fd, vec: &mut Vec<u8>) -> ReadResult {
         BUFFER_SIZE as u64) };
     if bytes < 0 {
         unsafe { vec.set_len(oldlen) };
-        if errno() == libc::EAGAIN as usize {
+        if errno() == libc::EAGAIN {
             return R::NoData;
         } else {
-            return R::Fatal(IoError::last_error());
+            return R::Fatal(io::Error::last_os_error());
         }
     } else if bytes == 0 {
         return R::Closed;
@@ -203,10 +204,10 @@ pub fn write(fd: Fd, chunk: &[u8]) -> WriteResult {
         chunk.as_ptr() as *mut libc::c_void,
         chunk.len() as u64) };
     if bytes < 0 {
-        if errno() == libc::EAGAIN as usize {
+        if errno() == libc::EAGAIN {
             return W::Again;
         } else {
-            return W::Fatal(IoError::last_error());
+            return W::Fatal(io::Error::last_os_error());
         }
     } else if bytes == 0 {
         return W::Closed;
@@ -218,9 +219,9 @@ pub fn write(fd: Fd, chunk: &[u8]) -> WriteResult {
 pub fn close(fd: Fd) {
     let rc = unsafe { libc::close(fd) };
     if rc < 0 {
-        if errno() == libc::EINTR as usize {
+        if errno() == libc::EINTR {
             return;
         }
-        panic!("Close returned {}", IoError::last_error());
+        panic!("Close returned {}", io::Error::last_os_error());
     }
 }

@@ -2,22 +2,22 @@ extern crate argparse;
 extern crate cantal;
 
 use std::error::Error;
-use std::os;
+use std::env;
 use argparse::{ArgumentParser, List};
 use cantal::Metadata;
 
 
 fn main() {
-    let mut files = vec!();
+    let mut files = Vec::<Path>::new();
     {
         let mut ap = ArgumentParser::new();
         ap.refer(&mut files)
-            .add_argument("file", Box::new(List::<Path>),
+            .add_argument("file", List,
                 "List of `.values` files");
         match ap.parse_args() {
             Ok(()) => {}
             Err(x) => {
-                os::set_exit_status(x);
+                env::set_exit_status(x);
                 return;
             }
         }

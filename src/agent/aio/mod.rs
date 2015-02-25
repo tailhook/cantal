@@ -6,7 +6,7 @@
 //  our case. I.e. we only support HTTP and epoll
 
 use std::rc::Rc;
-use std::io::IoError;
+use std::io::Error;
 use std::time::Duration;
 use std::fmt::{Show, Formatter};
 use std::fmt::Error as FmtError;
@@ -32,7 +32,7 @@ enum ReadHandler<'a> {
     AcceptHttp(HttpHandler<'a>),
     ParseHttp(Box<http::Stream<'a>>),
 }
-enum WriteHandler<'a> {
+enum WriteHandler {
     TailChunk(usize, Vec<u8>),
 }
 
@@ -46,11 +46,11 @@ pub enum HandlerResult {
 pub struct MainLoop<'a> {
     epoll: lowlevel::EPoll,
     read_handlers: HashMap<Fd, ReadHandler<'a>>,
-    write_handlers: HashMap<Fd, WriteHandler<'a>>,
+    write_handlers: HashMap<Fd, WriteHandler>,
 }
 
 impl<'a> MainLoop<'a> {
-    pub fn new<'x>() -> Result<MainLoop<'x>, IoError> {
+    pub fn new<'x>() -> Result<MainLoop<'x>, Error> {
         return Ok(MainLoop {
             epoll: try!(lowlevel::EPoll::new()),
             read_handlers: HashMap::new(),
@@ -60,7 +60,7 @@ impl<'a> MainLoop<'a> {
 
     pub fn add_http_server(&mut self, host: &str, port: u16,
         handler: HttpHandler<'a>)
-        -> Result<(), IoError>
+        -> Result<(), Error>
     {
         let fd = try!(lowlevel::bind_tcp_socket(host, port));
         assert!(self.read_handlers.insert(
@@ -132,7 +132,7 @@ impl<'a> MainLoop<'a> {
                     }
                 }
                 lowlevel::EPollEvent::Output(fd) => {
-                    enum R<'a> {
+                    enum R {
                         Remove(Fd),
                         Proceed,
                     }

@@ -9,16 +9,22 @@ use std::str::FromStr;
 use std::fmt::String as FmtString;
 use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
-use std::io::{MemReader, BufferedReader};
-use std::io::IoError;
-use std::io::fs::File;
+use std::io::{Cursor, BufReader};
+use std::io::{Read, BufRead};
+use std::io::Error as IoError;
+use std::fs::File;
 use std::rc::Rc;
 use std::error::{Error, FromError};
 use serialize::json;
 use serialize::json::Json;
 
+use itertools::NextValue;
+use iotools::ReadHostBytes;
+
 
 mod util;
+pub mod itertools;
+pub mod iotools;
 
 
 #[derive(Show)]
@@ -69,18 +75,19 @@ pub struct Metadata {
 impl Metadata {
     pub fn read(path: &Path) -> Result<Metadata, MetadataError> {
         // TODO(tailhook) implement LineNumberReader
-        let mut file = BufferedReader::new(try!(File::open(path)));
+        let mut file = BufReader::new(try!(File::open(path)));
         let stat = try!(util::file_stat(file.get_ref()));
         let mut items = vec!();
-        for line in file.lines() {
-            let line = try!(line);
+        loop {
+            let mut line = String::new();
+            try!(file.read_line(&mut line));
+            if line.len() == 0 { break; }
             let mut pair = line.trim().as_slice().splitn(1, ':');
             let mut type_iter = pair.next().unwrap().split(' ');
             let typ = try!(type_iter.next()
                 .ok_or(MetadataError::ParseError("bad type name")));
-            let len: usize = try!(type_iter.next()
-                .and_then(FromStr::from_str)
-                .ok_or(MetadataError::ParseError("bad length")));
+            let len: usize = try!(type_iter.next_value()
+                .map_err(|()| MetadataError::ParseError("bad length")));
             let item = match typ {
                 "counter" => {
                     if len > 255 {
@@ -144,41 +151,26 @@ impl Metadata {
     {
         //  We should read as fast as possible to have more precise results
         //  So we buffer whole file
-        let buf = try!(File::open(path)
-            .and_then(|mut f| f.read_to_end()));
+        let mut buf = Vec::with_capacity(4096);
+        try!(File::open(path)
+            .and_then(|mut f| f.read_to_end(&mut buf)));
 
-        let mut stream = MemReader::new(buf);
+        let mut stream = BufReader::new(Cursor::new(buf));
         let mut res = vec!();
         for desc in self.items.iter() {
             let data = match desc.kind {
                 Type::Counter(8) => {
-                    if cfg!(target_endian="little") {
-                        Value::Counter(try!(stream.read_le_u64()))
-                    } else {
-                        Value::Counter(try!(stream.read_be_u64()))
-                    }
+                    Value::Counter(try!(stream.read_u64()))
                 }
                 Type::Level(8, LevelType::Signed) => {
-                    if cfg!(target_endian="little") {
-                        Value::Integer(try!(stream.read_le_i64()))
-                    } else {
-                        Value::Integer(try!(stream.read_be_i64()))
-                    }
+                    Value::Integer(try!(stream.read_i64()))
                 }
                 Type::Level(8, LevelType::Float) => {
-                    if cfg!(target_endian="little") {
-                        Value::Float(try!(stream.read_le_f64()))
-                    } else {
-                        Value::Float(try!(stream.read_be_f64()))
-                    }
+                    Value::Float(try!(stream.read_f64()))
                 }
                 Type::State(len) if len > 8 => {
-                    let time_ms = if cfg!(target_endian="little") {
-                        try!(stream.read_le_u64())
-                    } else {
-                        try!(stream.read_be_u64())
-                    };
-                    let val = try!(stream.read_exact((len - 8) as usize));
+                    let time_ms = try!(stream.read_u64());
+                    let val = try!(stream.read_bytes((len - 8) as usize));
                     let text = if let Some(end) =
                         val.as_slice().position_elem(&0)
                     {
@@ -189,12 +181,12 @@ impl Metadata {
                     Value::State(time_ms, text.to_string())
                 }
                 Type::Pad(x) => {
-                    try!(stream.read_exact(x as usize));
+                    try!(stream.read_bytes(x as usize));
                     continue;
                 }
                 x => {
                     warn!("Type {:?} cannot be read", x);
-                    try!(stream.read_exact(x.len()));
+                    try!(stream.read_bytes(x.len()));
                     continue;
                 }
             };

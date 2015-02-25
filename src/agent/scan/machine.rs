@@ -1,7 +1,8 @@
 use std::default::Default;
 use std::str::FromStr;
-use std::io::fs::File;
-use std::io::BufferedReader;
+use std::fs::File;
+use std::io::{BufReader, Read, BufRead};
+use cantal::itertools::NextValue;
 
 
 use super::{time_ms};
@@ -60,50 +61,59 @@ pub fn read() -> MachineStats {
     let mut result: MachineStats = Default::default();
 
     File::open(&Path::new("/proc/uptime"))
-        .and_then(|mut f| f.read_to_string())
+        .and_then(|mut f| {
+            let mut buf = String::with_capacity(100);
+            f.read_to_string(&mut buf)
+            .map(|_| buf)})
         .map(|buf| {
             let mut pieces = buf.words();
-            result.uptime = pieces.next().and_then(FromStr::from_str);
-            result.idle_time = pieces.next().and_then(FromStr::from_str);
+            result.uptime = pieces.next_value().ok();
+            result.idle_time = pieces.next_value().ok();
         }).ok();
 
     File::open(&Path::new("/proc/loadavg"))
-        .and_then(|mut f| f.read_to_string())
+        .and_then(|mut f| {
+            let mut buf = String::with_capacity(100);
+            f.read_to_string(&mut buf)
+            .map(|_| buf)
+        })
         .map(|buf| {
             let mut pieces = buf.words();
-            result.load_avg_1min = pieces.next().and_then(FromStr::from_str);
-            result.load_avg_5min = pieces.next().and_then(FromStr::from_str);
-            result.load_avg_15min = pieces.next().and_then(FromStr::from_str);
+            result.load_avg_1min = pieces.next_value().ok();
+            result.load_avg_5min = pieces.next_value().ok();
+            result.load_avg_15min = pieces.next_value().ok();
             let mut proc_pieces = pieces.next()
                 .map(|x| x.splitn(1, '/'))
                 .map(|mut p| {
-                    result.proc_runnable = p.next().and_then(FromStr::from_str);
-                    result.proc_total = p.next().and_then(FromStr::from_str);
+                    result.proc_runnable = p.next_value().ok();
+                    result.proc_total = p.next_value().ok();
                 });
-            result.last_pid = pieces.next().and_then(FromStr::from_str);
+            result.last_pid = pieces.next_value().ok();
         }).ok();
 
     File::open(&Path::new("/proc/stat"))
         .and_then(|f| {
-            let mut f = BufferedReader::new(f);
-            for line in f.lines() {
-                let line = try!(line);
+            let mut f = BufReader::new(f);
+            loop {
+                let mut line = String::with_capacity(100);
+                try!(f.read_line(&mut line));
+                if line.len() == 0 { break; }
                 if line.starts_with("cpu ") {
                     let mut pieces = line.words();
                     result.cpu_total = Some(Cpu {
-                        user: pieces.nth(1).and_then(FromStr::from_str),
-                        nice: pieces.next().and_then(FromStr::from_str),
-                        system: pieces.next().and_then(FromStr::from_str),
-                        idle: pieces.next().and_then(FromStr::from_str),
-                        iowait: pieces.next().and_then(FromStr::from_str),
-                        irq: pieces.next().and_then(FromStr::from_str),
-                        softirq: pieces.next().and_then(FromStr::from_str),
-                        steal: pieces.next().and_then(FromStr::from_str),
-                        guest: pieces.next().and_then(FromStr::from_str),
-                        guest_nice: pieces.next().and_then(FromStr::from_str),
+                        user: pieces.nth_value(1).ok(),
+                        nice: pieces.next_value().ok(),
+                        system: pieces.next_value().ok(),
+                        idle: pieces.next_value().ok(),
+                        iowait: pieces.next_value().ok(),
+                        irq: pieces.next_value().ok(),
+                        softirq: pieces.next_value().ok(),
+                        steal: pieces.next_value().ok(),
+                        guest: pieces.next_value().ok(),
+                        guest_nice: pieces.next_value().ok(),
                     });
                 } else if line.starts_with("btime ") {
-                    result.boot_time = FromStr::from_str(line[6..].trim());
+                    result.boot_time = FromStr::from_str(line[6..].trim()).ok();
                 }
             }
             Ok(())
@@ -111,9 +121,11 @@ pub fn read() -> MachineStats {
 
     File::open(&Path::new("/proc/meminfo"))
         .and_then(|f| {
-            let mut f = BufferedReader::new(f);
-            for line in f.lines() {
-                let line = try!(line);
+            let mut f = BufReader::new(f);
+            loop {
+                let mut line = String::with_capacity(50);
+                try!(f.read_line(&mut line));
+                if line.len() == 0 { break; }
                 let mut pieces = line.words();
                 let ptr = match pieces.next() {
                     Some("MemTotal:") => &mut result.memory.mem_total,
@@ -146,7 +158,7 @@ pub fn read() -> MachineStats {
                     }
                     None => continue,
                 };
-                *ptr = FromStr::from_str(val).map(|x: u64| x * mult);
+                *ptr = FromStr::from_str(val).map(|x: u64| x * mult).ok();
             }
             Ok(())
         }).ok();

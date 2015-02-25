@@ -1,21 +1,24 @@
 use std::str::FromStr;
-use std::os::page_size;
-use std::io::BufferedReader;
-use std::io::EndOfFile;
+use std::env::page_size;
+use std::ffi::OsStr;
+use std::os::unix::prelude::OsStrExt;
+use std::io::{BufReader, BufRead, Read};
 use std::str::from_utf8;
 use std::hash::{Hash};
-use std::io::fs::{File, readdir};
+use std::path::{Path, PathBuf};
+use std::fs::{File, read_dir};
 use std::collections::{HashMap, BTreeMap};
 use std::collections::hash_map::Entry::{Occupied, Vacant};
-use std::collections::hash_map::Hasher;
 use libc;
 
 use cantal::Metadata;
+use cantal::itertools::{NextValue, NextStr};
+use cantal::iotools::{ReadHostBytes};
 
 type Pid = u32;
 
 pub struct ReadCache {
-    metadata: HashMap<Path, Metadata>,
+    metadata: HashMap<PathBuf, Metadata>,
     tick: u32,
 }
 
@@ -34,7 +37,6 @@ pub struct MinimalProcess {
     child_user_time: u32,
     child_system_time: u32,
     cmdline: String,
-    cantal_path: Option<Path>,
 }
 
 /*
@@ -49,22 +51,19 @@ pub struct Processes {
     pub all: Vec<MinimalProcess>,
 }
 
-fn get_env_var(pid: u32) -> Option<Path> {
-    File::open(&Path::new(format!("/proc/{}/environ", pid)))
-    .map(|f| BufferedReader::new(f))
+fn get_env_var(pid: u32) -> Option<PathBuf> {
+    File::open(&format!("/proc/{}/environ", pid))
+    .map(|f| BufReader::new(f))
     .and_then(|mut f| {
         loop {
-            let line = match f.read_until(0) {
-                Ok(line) => line,
-                Err(ref e) if e.kind == EndOfFile => {
-                    return Ok(None);
-                }
-                Err(e) => return Err(e),
+            let mut line = Vec::with_capacity(4096);
+            try!(f.read_until(0, &mut line));
+            if line.len() == 0 {
+                return Ok(None);
             };
-
             if line.starts_with(b"CANTAL_PATH=") {
-                return Ok(Some(Path::new(
-                    &line["CANTAL_PATH=".len()..line.len()-1])));
+                return Ok(Some(PathBuf::new(<OsStr as OsStrExt>::from_bytes(
+                    &line["CANTAL_PATH=".len()..line.len()-1]))));
             }
         }
     })
@@ -76,28 +75,20 @@ fn get_env_var(pid: u32) -> Option<Path> {
 fn read_process(cache: &mut ReadCache, pid: Pid)
     -> Result<MinimalProcess, ()>
 {
-    let cantal_path = get_env_var(pid);
+    let cmdline = try!(File::open(&format!("/proc/{}/cmdline", pid))
+        .and_then(|mut f| f.read_chunk(4096))
+        .map_err(|e| debug!("Can't read cmdline file")));
+    // Command-line may be non-full, but we don't care
+    let cmdline = String::from_utf8_lossy(cmdline.as_slice());
 
-    let path = Path::new(format!("/proc/{}/cmdline", pid));
-    let mut cmdlinebuf = Vec::with_capacity(4096);
-    try!(File::open(&path)
-        .and_then(|mut f| f.push(4096, &mut cmdlinebuf))
-        .map_err(|e| {
-            if e.kind != EndOfFile {
-                debug!("Can't read cmdline file: {}", e);
-            }
-        }));
-    let cmdline = String::from_utf8_lossy(cmdlinebuf.as_slice());
-
-    let path = Path::new(format!("/proc/{}/stat", pid));
-    let mut buf = Vec::with_capacity(4096);
-    try!(File::open(&path)
-        .and_then(|mut f| f.push(4096, &mut buf))
+    let buf = try!(File::open(&format!("/proc/{}/stat", pid))
+        .and_then(|mut f| f.read_chunk(4096))
         .map_err(|e| debug!("Can't read stat file: {}", e)));
     if buf.len() >= 4096 {
         error!("Stat line too long");
         return Err(());
     }
+
     let name_start = try!(buf.position_elem(&b'(').ok_or(()));
     // Since there might be brackets in the name itself we should use last
     // closing paren
@@ -110,25 +101,25 @@ fn read_process(cache: &mut ReadCache, pid: Pid)
         .map_err(|e| debug!("Can't decode stat file: {}", e)))
         .words();
 
+
     return Ok(MinimalProcess {
         pid: pid,
         name: name,
-        state: words.nth(0).unwrap().char_at(0),
-        ppid: words.nth(0).and_then(FromStr::from_str).unwrap(),
-        user_time: words.nth(9).and_then(FromStr::from_str).unwrap(),
-        system_time: words.nth(0).and_then(FromStr::from_str).unwrap(),
-        child_user_time: words.nth(0).and_then(FromStr::from_str).unwrap(),
-        child_system_time: words.nth(0).and_then(FromStr::from_str).unwrap(),
-        num_threads: words.nth(2).and_then(FromStr::from_str).unwrap(),
+        state: try!(words.next_str()).char_at(0),
+        ppid: try!(words.next_value()),
+        user_time: try!(words.nth_value(9)),
+        system_time: try!(words.next_value()),
+        child_user_time: try!(words.next_value()),
+        child_system_time: try!(words.next_value()),
+        num_threads: try!(words.nth_value(2)),
         start_time: {
-            let stime: u64 = words.nth(1).and_then(FromStr::from_str).unwrap();
+            let stime: u64 = try!(words.nth_value(1));
             (stime * 1000) / cache.tick as u64 },
-        vsize: words.nth(0).and_then(FromStr::from_str).unwrap(),
+        vsize: try!(words.next_value()),
         rss: {
-            let rss: u64 = words.nth(0).and_then(FromStr::from_str).unwrap();
+            let rss: u64 = try!(words.next_value());
             rss * page_size() as u64},
         cmdline: cmdline.to_string(),
-        cantal_path: cantal_path,
     });
     /*
         cantal_path.map(|path| {
@@ -153,7 +144,7 @@ fn read_process(cache: &mut ReadCache, pid: Pid)
     */
 }
 
-fn tree_collect<K: Hash<Hasher> + Eq, V, I: Iterator<Item=(K, V)>>(mut iter: I)
+fn tree_collect<K: Hash + Eq, V, I: Iterator<Item=(K, V)>>(mut iter: I)
     -> HashMap<K, Vec<V>>
 {
     let mut result = HashMap::new();
@@ -168,18 +159,20 @@ fn tree_collect<K: Hash<Hasher> + Eq, V, I: Iterator<Item=(K, V)>>(mut iter: I)
     return result;
 }
 
-pub fn read(cache: &mut ReadCache) -> Processes {
-    let file_list = readdir(&Path::new("/proc"))
-        .map_err(|e| error!("Error listing /proc: {}", e))
-        .unwrap_or(Vec::new());
-    let processes = file_list.into_iter()
-        .map(|x| x.filename_str().and_then(FromStr::from_str))
-        .filter(|x| x.is_some())
-        .map(|x| read_process(cache, x.unwrap()))
-        .filter(|x| x.is_ok())
-        .map(|x| x.unwrap())
-        .collect::<Vec<MinimalProcess>>();
+fn read_processes(cache: &mut ReadCache) -> Result<Vec<MinimalProcess>, ()> {
+    read_dir("/proc")
+    .map_err(|e| error!("Error listing /proc: {}", e))
+    .map(|lst| lst
+        .filter_map(|x| x.ok())
+        .filter_map(|x| x.path().file_name()
+                         .and_then(|x| x.to_str())
+                         .and_then(|x| FromStr::from_str(x).ok()))
+        .filter_map(|x| read_process(cache, x).ok())
+        .collect())
+}
 
+pub fn read(cache: &mut ReadCache) -> Processes {
+    let processes = read_processes(cache).unwrap_or(Vec::new());
     {
         let children: HashMap<u32, Vec<&MinimalProcess>>;
         children = tree_collect(processes.iter().map(|p| (p.ppid, p)));

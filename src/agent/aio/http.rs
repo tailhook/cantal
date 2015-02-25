@@ -301,7 +301,7 @@ impl<'a> ResponseBuilder<'a> {
             body: b"".into_cow(),
         };
     }
-    pub fn set_body<T:IntoCow<'a, Vec<u8>, [u8]>>(&mut self, x: T)
+    pub fn set_body<T:IntoCow<'a, [u8]>>(&mut self, x: T)
     {
         self.body = x.into_cow();
     }

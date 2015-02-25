@@ -1,4 +1,4 @@
-use std::io::{IoError};
+use std::io::Error as IoError;
 use std::mem::zeroed;
 use std::os::unix::AsRawFd;
 use libc::{stat, dev_t, off_t, time_t, c_long, ino_t};
@@ -19,7 +19,7 @@ pub fn file_stat<F: AsRawFd>(file: &F) -> Result<Stat, IoError> {
     unsafe {
         stat = zeroed();
         if fstat(file.as_raw_fd(), &mut stat) != 0 {
-            return Err(IoError::last_error());
+            return Err(IoError::last_os_error());
         }
     };
     return Ok(Stat {

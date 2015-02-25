@@ -1,5 +1,5 @@
 use std::sync::{Arc, RwLock};
-use std::io::timer::sleep;
+use std::old_io::timer::sleep;
 use std::time::duration::Duration;
 
 use super::stats::Stats;
