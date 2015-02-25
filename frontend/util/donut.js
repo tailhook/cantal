@@ -33,18 +33,19 @@ function hcl_color(h, c, l) {
     return `rgb(${r},${g},${b})`
 }
 
-function sector(cx, cy, r, sa, ea) {
-    var cos = Math.cos;
-    var sin = Math.sin;
-    var x1 = cx + r * cos(-sa * RAD);
-    var x2 = cx + r * cos(-ea * RAD);
-    var xm = cx + r / 2 * cos(-(sa + (ea - sa) / 2) * RAD);
-    var y1 = cy + r * sin(-sa * RAD);
-    var y2 = cy + r * sin(-ea * RAD);
-    var ym = cy + r / 2 * sin(-(sa + (ea - sa) / 2) * RAD);
+function sector(cx, cy, r1, r2, sa, ea) {
+    var c1 = Math.cos(-sa * RAD)
+    var c2 = Math.cos(-ea * RAD)
+    var s1 = Math.sin(-sa * RAD)
+    var s2 = Math.sin(-ea * RAD)
+
+    var x1 = cx + r2 * c1;
+    var y1 = cy + r2 * s1;
     var large = +(Math.abs(ea - sa) > 180);
-    return `M ${cx}, ${cy} L ${x1}, ${y1}
-            A ${r}, ${r}, 0, ${large}, 1, ${x2}, ${y2}
+    return `M ${cx + r2*c1}, ${cy + r2*s1}
+            A ${r2}, ${r2}, 0, ${large}, 1, ${cx + r2*c2}, ${cy + r2*s2}
+            L ${cx + r1*c2}, ${cy + r1*s2}
+            A ${r1}, ${r1}, 0, ${large}, 0, ${cx + r1*c1}, ${cy + r1*s1}
             z`;
 }
 
@@ -52,10 +53,12 @@ export class DonutChart {
     constructor(width=256, height=256) {
         this.width = 256
         this.height = 256
+        this.items = [];
+        this.total_value = 1;
     }
-    set_data(total, items) {
-        this.total_value = total
-        this.items = items
+    set_data(info) {
+        this.total_value = info.total
+        this.items = info.items
     }
     render() {
         var items = this.items;
@@ -69,9 +72,10 @@ export class DonutChart {
             var it = items[i];
             var sangle = angle;
             angle -= 360 * it.value / total;
-            var path = sector(cx, cy, r, sangle, angle);
+            var path = sector(cx, cy, r*0.50, r, sangle, angle);
             paths.push({tag: 'path', attrs: {
                 fill: it.color,
+                title: it.title,
                 d: path,
                 }})
         }

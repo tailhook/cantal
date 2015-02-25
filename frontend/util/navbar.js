@@ -37,18 +37,18 @@ export class Navbar {
         ]);
     }
     render_machine() {
-        var mach = this.data.machine;
+        var data = this.data;
         return hc('span', '', [
-            title("Minute Load Average", [ mach.load_avg_1min.toFixed(2) ]),
+            title("Minute Load Average", [ data.load_avg_1min.toFixed(2) ]),
             ' / ',
             title("5 Minutes Load Average",
-                [ mach.load_avg_5min.toFixed(2) ]),
+                [ data.load_avg_5min.toFixed(2) ]),
             ' / ',
             title("15 Minutes Load Average",
-                [ mach.load_avg_15min.toFixed(2) ]),
+                [ data.load_avg_15min.toFixed(2) ]),
             ' / ',
             title("Uptime of the box running cantal", [
-                'up ', format_uptime(mach.uptime*1000) ]),
+                'up ', format_uptime(data.uptime*1000) ]),
         ]);
     }
     render() {

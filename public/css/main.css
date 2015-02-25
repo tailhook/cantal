@@ -1,3 +1,10 @@
 .title {
     cursor: default;
 }
+.small-table {
+}
+.sample {
+    display: inline-block;
+    width: 1em;
+    height: 1em;
+}
