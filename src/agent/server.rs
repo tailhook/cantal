@@ -1,7 +1,6 @@
 use std::sync::RwLock;
 use std::time::Duration;
 use serialize::json::Json;
-use serialize::json::as_pretty_json;
 
 use super::aio;
 use super::scan;
@@ -11,10 +10,21 @@ use super::stats::Stats;
 
 
 #[derive(Encodable)]
-struct StatusData<'a> {
-    startup_time: u64,
-    scan_time: u64,
-    machine: &'a scan::machine::MachineStats,
+struct StatusData {
+    pub startup_time: u64,
+    pub scan_time: u64,
+
+    pub load_avg_1min: Option<f32>,
+    pub load_avg_5min: Option<f32>,
+    pub load_avg_15min: Option<f32>,
+    pub boot_time: Option<u64>,
+}
+
+#[derive(Encodable)]
+struct DetailsData<'a> {
+    pub startup_time: u64,
+    pub scan_time: u64,
+    pub machine: &'a scan::machine::MachineStats,
 }
 
 #[derive(Encodable)]
@@ -33,25 +43,28 @@ fn handle_request(stats: &RwLock<Stats>, req: &http::Request)
         req.uri() == "/"
     {
         return staticfiles::serve(req);
-    } else if req.uri() == "/status.json" {
-        let stats = stats.read().unwrap();
-        let mut builder = http::ResponseBuilder::new(req, http::Status::Ok);
-        builder.set_body(format!("{}", as_pretty_json(&StatusData {
-            startup_time: stats.startup_time,
-            scan_time: stats.scan_time,
-            machine: &stats.machine,
-        })).into_bytes());
-        Ok(builder.take())
-    } else if req.uri() == "/all_processes.json" {
-        let stats = stats.read().unwrap();
-        let mut builder = http::ResponseBuilder::new(req, http::Status::Ok);
-        builder.set_body(format!("{}", as_pretty_json(&ProcessData {
-            boot_time: stats.machine.boot_time,
-            all: &stats.processes.all,
-            })).into_bytes());
-        Ok(builder.take())
     } else {
-        return Err(http::Error::NotFound);
+        let stats = stats.read().unwrap();
+        match req.uri() {
+            "/status.json" => Ok(http::reply_json(req, &StatusData {
+                startup_time: stats.startup_time,
+                scan_time: stats.scan_time,
+                load_avg_1min: stats.machine.load_avg_1min,
+                load_avg_5min: stats.machine.load_avg_5min,
+                load_avg_15min: stats.machine.load_avg_15min,
+                boot_time: stats.machine.boot_time,
+            })),
+            "/all_processes.json" => Ok(http::reply_json(req, &ProcessData {
+                boot_time: stats.machine.boot_time,
+                all: &stats.processes.all,
+            })),
+            "/details.json" => Ok(http::reply_json(req, &DetailsData {
+                startup_time: stats.startup_time,
+                scan_time: stats.scan_time,
+                machine: &stats.machine,
+            })),
+            _ => Err(http::Error::NotFound),
+        }
     }
 }
 

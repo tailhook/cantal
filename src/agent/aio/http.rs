@@ -3,8 +3,12 @@
 
 use std::vec::CowVec;
 use std::str::from_utf8;
+use std::fmt::Display;
 use std::borrow::{Cow, IntoCow};
 use std::os::unix::Fd;
+use serialize::json::as_pretty_json;
+use serialize::Encodable;
+
 use super::{HttpHandler, HandlerResult};
 use super::lowlevel::{read_to_vec, ReadResult};
 
@@ -48,6 +52,12 @@ pub enum Status {
     ServerError, // 500
 }
 
+enum ResponseBody<'a> {
+    Empty,
+    Chunk(CowVec<'a, u8>),
+    Text(&'a Display),
+}
+
 
 #[derive(Show)]
 pub struct RequestLine<'a>(Method, &'a str, Version);
@@ -75,7 +85,7 @@ pub struct Response {
 pub struct ResponseBuilder<'a> {
     version: Version,
     status: Status,
-    body: CowVec<'a, u8>,
+    body: ResponseBody<'a>,
 }
 
 pub struct RequestParser<'a> {
@@ -298,24 +308,53 @@ impl<'a> ResponseBuilder<'a> {
         return ResponseBuilder {
             version: req.request_line.version(),
             status: status,
-            body: b"".into_cow(),
+            body: ResponseBody::Empty,
         };
     }
     pub fn set_body<T:IntoCow<'a, [u8]>>(&mut self, x: T)
     {
-        self.body = x.into_cow();
+        self.body = ResponseBody::Chunk(x.into_cow());
+    }
+    pub fn set_body_text(&mut self, x: &'a Display)
+    {
+        self.body = ResponseBody::Text(x);
     }
     pub fn take(self) -> Response {
+        let buf = match self.body {
+            ResponseBody::Empty => format!("{} {} {}\r\n\
+                        Content-Length: 0\r\n\
+                        Connection: close\r\n\
+                        \r\n",
+                        self.version.text(),
+                        self.status.status_code(),
+                        self.status.status_text()).into_bytes(),
+            ResponseBody::Chunk(body) => format!("{} {} {}\r\n\
+                        Content-Length: {}\r\n\
+                        Connection: close\r\n\
+                        \r\n",
+                        self.version.text(),
+                        self.status.status_code(),
+                        self.status.status_text(),
+                        body.len()
+                    ).into_bytes() + (*body).as_slice(),
+            ResponseBody::Text(body) => format!("{} {} {}\r\n\
+                        Connection: close\r\n\
+                        \r\n{}",  // note, no Content-Length, use Conn: close
+                        self.version.text(),
+                        self.status.status_code(),
+                        self.status.status_text(),
+                        body).into_bytes(),
+        };
         return Response {
-            buf: format!("{} {} {}\r\n\
-                    Content-Length: {}\r\n\
-                    Connection: close\r\n\
-                    \r\n",
-                    self.version.text(),
-                    self.status.status_code(),
-                    self.status.status_text(),
-                    self.body.len()
-                ).into_bytes() + self.body.as_slice(),
+            buf: buf,
         };
     }
+}
+
+pub fn reply_json<T:Encodable>(req: &Request, val: &T) -> Response {
+    ResponseBuilder {
+        version: req.request_line.version(),
+        status: Status::Ok,
+        body: ResponseBody::Text(&as_pretty_json(val)),
+    }.take()
 }
