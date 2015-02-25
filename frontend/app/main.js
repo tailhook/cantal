@@ -15,6 +15,7 @@ export class App {
         window.onhashchange = function() {
             if(app.page) {
                 app.page.remove();
+                app.page = null;
             }
             if(window.location.hash == '#/processes') {
                 app.page = new Processes();
