@@ -1,3 +1,4 @@
+use std::rc::Rc;
 use std::str::FromStr;
 use std::env::page_size;
 use std::ffi::OsStr;
@@ -9,14 +10,15 @@ use std::path::{Path, PathBuf};
 use std::fs::{File, read_dir};
 use std::collections::{HashMap};
 use std::collections::hash_map::Entry::{Occupied, Vacant};
+use serialize::json::Json;
 use libc;
 
-use cantal::Metadata;
+use cantal::{Metadata, Descriptor, Value};
 use cantal::itertools::{NextValue, NextStr};
 use cantal::iotools::{ReadHostBytes};
 use super::super::mountpoints::{MountPrefix, parse_mount_point};
 
-type Pid = u32;
+pub type Pid = u32;
 
 pub struct ReadCache {
     metadata: HashMap<PathBuf, Metadata>,
@@ -51,6 +53,7 @@ struct Group {
 #[derive(Encodable, Default)]
 pub struct Processes {
     pub all: Vec<MinimalProcess>,
+    pub values: HashMap<Pid, Vec<(Json, Value)>>
 }
 
 fn get_env_var(pid: u32) -> Option<PathBuf> {
@@ -123,27 +126,6 @@ fn read_process(cache: &mut ReadCache, pid: Pid)
             rss * page_size() as u64},
         cmdline: cmdline.to_string(),
     });
-    /*
-        cantal_path.map(|path| {
-            let meta = match Metadata::read(&path.with_extension("meta")) {
-                Ok(meta) => meta,
-                Err(e) => {
-                    warn!("Error parsing metadata {:?}: {}", path, e);
-                    return;
-                }
-            };
-            let data = match meta.read_data(&path.with_extension("values")) {
-                Ok(data) => data,
-                Err(e) => {
-                    warn!("Error parsing data {:?}: {}", path, e);
-                    return;
-                }
-            };
-            for &(ref descr, ref item) in data.iter() {
-                println!("{} {} {:?}", pid, descr.textname, item);
-            }
-        });
-    */
 }
 
 fn tree_collect<K: Hash + Eq, V, I: Iterator<Item=(K, V)>>(mut iter: I)
@@ -220,17 +202,51 @@ fn match_mountpoint(cache: &ReadCache, pid: Pid, path: &Path)
 
 pub fn read(cache: &mut ReadCache) -> Processes {
     let processes = read_processes(cache).unwrap_or(Vec::new());
-    {
-        for prc in processes.iter() {
-            if let Some(path) = get_env_var(prc.pid) {
-                if let Ok(realpath) = match_mountpoint(cache, prc.pid, &path) {
-                    println!("Found path {:?} for pid {}", realpath, prc.pid);
+    let mut values = HashMap::new();
+    for prc in processes.iter() {
+        if let Some(path) = get_env_var(prc.pid) {
+            // TODO(tailhook) check if not already visited
+            if let Ok(realpath) = match_mountpoint(cache, prc.pid, &path) {
+                let (data, meta) = match cache.metadata.get(&path) {
+                    Some(meta) => {
+                        let data = meta
+                            .read_data(&path.with_extension("values"))
+                            .map(|data| data.into_iter()
+                                .map(|(descr, val)| (descr.json.clone(), val))
+                                .collect::<Vec<(Json, Value)>>());
+                        // TODO(tailhook) check mtime of metadata
+                        (data, None)
+                    }
+                    None => {
+                        let mres = Metadata::read(&path.with_extension("meta"));
+                        if let Ok(meta) = mres {
+                            debug!("Read new metadata {:?}", path);
+                            let data = meta
+                                .read_data(&path.with_extension("values"))
+                                .map(|data| data.into_iter()
+                                    .map(|(d, val)| (d.json.clone(), val))
+                                    .collect::<Vec<(Json, Value)>>());
+                            // TODO(tailhook) check mtime of metadata
+                            (data, Some(meta))
+                        } else {
+                            warn!("Error reading metadata {:?}: {}", path,
+                                mres.err().unwrap());
+                            continue;
+                        }
+                    }
+                };
+                if let Some(meta) = meta {
+                    cache.metadata.insert(path.clone(), meta);
+                }
+                if let Ok(value) = data {
+                    values.insert(prc.pid, value);
                 }
             }
         }
     }
     return Processes {
         all: processes,
+        values: values,
     };
 }
 

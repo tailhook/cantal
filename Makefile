@@ -1,4 +1,4 @@
-RUSTC ?= rustc #-C opt-level=3
+RUSTC ?= rustc -C opt-level=3
 
 PREFIX ?= /usr
 DESTDIR ?=

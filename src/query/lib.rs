@@ -14,6 +14,7 @@ use std::io::{Read, BufRead};
 use std::io::Error as IoError;
 use std::fs::File;
 use std::rc::Rc;
+use std::path::Path;
 use std::error::{Error, FromError};
 use serialize::json;
 use serialize::json::Json;
@@ -27,7 +28,7 @@ pub mod itertools;
 pub mod iotools;
 
 
-#[derive(Show)]
+#[derive(Show, Encodable)]
 pub enum Value {
     Counter(u64),
     Integer(i64),

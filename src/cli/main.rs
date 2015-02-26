@@ -1,14 +1,17 @@
 extern crate argparse;
 extern crate cantal;
 
-use std::error::Error;
 use std::env;
+use std::path::Path;
+use std::error::Error;
+
 use argparse::{ArgumentParser, List};
+
 use cantal::Metadata;
 
 
 fn main() {
-    let mut files = Vec::<Path>::new();
+    let mut files = Vec::<std::old_path::Path>::new();
     {
         let mut ap = ArgumentParser::new();
         ap.refer(&mut files)
@@ -23,11 +26,11 @@ fn main() {
         }
     }
     for f in files.iter() {
-        let meta = match Metadata::read(&f.with_extension("meta")) {
+        let meta = match Metadata::read(&Path::new(&f.with_extension("meta"))) {
             Ok(meta) => meta,
             Err(e) => panic!("Error parsing metadata: {}", e),
         };
-        let data = match meta.read_data(f) {
+        let data = match meta.read_data(&Path::new(f)) {
             Ok(data) => data,
             Err(e) => panic!("Error parsing data: {}", e.description()),
         };

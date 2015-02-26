@@ -1,5 +1,6 @@
 use std::sync::RwLock;
 use std::time::Duration;
+use std::collections::{HashMap};
 use serialize::json::Json;
 
 use super::aio;
@@ -7,6 +8,8 @@ use super::scan;
 use super::staticfiles;
 use super::aio::http;
 use super::stats::Stats;
+use super::scan::processes::Pid;
+use cantal::{Value};
 
 
 #[derive(Encodable)]
@@ -31,6 +34,11 @@ struct DetailsData<'a> {
 struct ProcessData<'a> {
     boot_time: Option<u64>,
     all: &'a Vec<scan::processes::MinimalProcess>,
+}
+
+#[derive(Encodable)]
+struct ValuesData<'a> {
+    pub values: &'a HashMap<Pid, Vec<(Json, Value)>>
 }
 
 
@@ -62,6 +70,9 @@ fn handle_request(stats: &RwLock<Stats>, req: &http::Request)
                 startup_time: stats.startup_time,
                 scan_time: stats.scan_time,
                 machine: &stats.machine,
+            })),
+            "/values.json" => Ok(http::reply_json(req, &ValuesData {
+                values: &stats.processes.values,
             })),
             _ => Err(http::Error::NotFound),
         }
