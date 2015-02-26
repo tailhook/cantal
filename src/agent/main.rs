@@ -19,6 +19,7 @@ mod stats;
 mod staticfiles;
 mod scanner;
 mod scan;
+mod mountpoints;
 
 
 fn main() {

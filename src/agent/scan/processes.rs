@@ -7,19 +7,21 @@ use std::str::from_utf8;
 use std::hash::{Hash};
 use std::path::{Path, PathBuf};
 use std::fs::{File, read_dir};
-use std::collections::{HashMap, BTreeMap};
+use std::collections::{HashMap};
 use std::collections::hash_map::Entry::{Occupied, Vacant};
 use libc;
 
 use cantal::Metadata;
 use cantal::itertools::{NextValue, NextStr};
 use cantal::iotools::{ReadHostBytes};
+use super::super::mountpoints::{MountPrefix, parse_mount_point};
 
 type Pid = u32;
 
 pub struct ReadCache {
     metadata: HashMap<PathBuf, Metadata>,
     tick: u32,
+    mountpoints: HashMap<(i32, i32), Vec<MountPrefix>>,
 }
 
 #[derive(Encodable)]
@@ -171,15 +173,81 @@ fn read_processes(cache: &mut ReadCache) -> Result<Vec<MinimalProcess>, ()> {
         .collect())
 }
 
+fn match_mountpoint(cache: &ReadCache, pid: Pid, path: &Path)
+    -> Result<PathBuf, ()>
+{
+    let mut best_match = None;
+    let mut file = BufReader::new(try!(
+        File::open(&format!("/proc/{}/mountinfo", pid))
+        .map_err(|e| debug!("Error reading mountinfo: {}", e))));
+    loop {
+        let mut line = String::with_capacity(256);
+        try!(file.read_line(&mut line)
+            .map_err(|e| error!("Error reading mountinfo: {}", e)));
+        if line.len() == 0 { break; }
+        let mp = try!(parse_mount_point(&line)
+            .map_err(|()| error!("Error parsing mount point: {:?}", line)));
+        if path.starts_with(mp.mounted_at) {
+            if let Some((ref mut pref, ref mut dev)) = best_match {
+                // Modify only if new path is longer
+                if Path::new(mp.mounted_at).starts_with(pref) {
+                    *pref = PathBuf::new(mp.mounted_at);
+                    *dev = mp.device_id;
+                }
+            } else {
+                best_match = Some((PathBuf::new(mp.mounted_at), mp.device_id));
+            }
+        }
+    }
+    let (prefix, device) = try!(best_match.ok_or(()));
+    let suffix = path.relative_from(&prefix).unwrap();
+    let suffix_root = Path::new("/").join(&suffix);
+    if let Some(ref mprefixes) = cache.mountpoints.get(&device) {
+        for pref in mprefixes.iter() {
+            if Path::new(&pref.prefix) == Path::new("/") ||
+                suffix_root.starts_with(&pref.prefix)
+            {
+                // TODO(tailhook) check name_to_handle_at
+                return Ok(pref.mounted_at.join(&suffix));
+            }
+        }
+    }
+    info!("Can't find mountpoint for \
+           dev: {:?}, pid: {}, prefix: {:?}, path: {:?}",
+        device, pid, prefix, path);
+    return Err(());
+}
+
 pub fn read(cache: &mut ReadCache) -> Processes {
     let processes = read_processes(cache).unwrap_or(Vec::new());
     {
-        let children: HashMap<u32, Vec<&MinimalProcess>>;
-        children = tree_collect(processes.iter().map(|p| (p.ppid, p)));
+        for prc in processes.iter() {
+            if let Some(path) = get_env_var(prc.pid) {
+                if let Ok(realpath) = match_mountpoint(cache, prc.pid, &path) {
+                    println!("Found path {:?} for pid {}", realpath, prc.pid);
+                }
+            }
+        }
     }
     return Processes {
         all: processes,
     };
+}
+
+fn parse_mountpoints() -> Result<HashMap<(i32, i32), Vec<MountPrefix>>, ()> {
+    let mut tmp = vec!();
+    let mut file = BufReader::new(try!(File::open("/proc/self/mountinfo")
+        .map_err(|e| error!("Error reading mountinfo: {}", e))));
+    loop {
+        let mut line = String::with_capacity(256);
+        try!(file.read_line(&mut line)
+            .map_err(|e| error!("Error reading mountinfo: {}", e)));
+        if line.len() == 0 { break; }
+        let mp = try!(parse_mount_point(&line)
+            .map_err(|()| error!("Error parsing mount point: {:?}", line)));
+        tmp.push((mp.device_id, MountPrefix::from_mount_point(&mp)));
+    }
+    return Ok(tree_collect(tmp.into_iter()));
 }
 
 impl ReadCache {
@@ -189,6 +257,7 @@ impl ReadCache {
             tick: unsafe {
                 libc::sysconf(libc::consts::os::sysconf::_SC_CLK_TCK) as u32
             },
+            mountpoints: parse_mountpoints().unwrap(),
         }
     }
 }
