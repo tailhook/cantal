@@ -3,6 +3,7 @@ import {Navbar} from 'util/navbar'
 
 import {Processes} from 'pages/processes'
 import {Status} from 'pages/status'
+import {Values} from 'pages/values'
 
 
 export class App {
@@ -14,16 +15,20 @@ export class App {
         app.navbar.mount(document.body)
         window.onhashchange = function() {
             if(app.page) {
-                app.page.remove();
-                app.page = null;
+                app.page.remove()
+                app.page = null
             }
             if(window.location.hash == '#/processes') {
-                app.page = new Processes();
+                app.page = new Processes()
                 app.page.mount(document.body)
             } else if(window.location.hash == '#/status') {
-                app.page = new Status();
+                app.page = new Status()
+                app.page.mount(document.body)
+            } else if(window.location.hash == '#/values') {
+                app.page = new Values()
                 app.page.mount(document.body)
             }
+            app.navbar.update()
         }
         window.onhashchange()
     }

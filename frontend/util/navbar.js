@@ -3,22 +3,32 @@ import {tag_class as hc, tag as h, link, icon,
 import {format_uptime, till_now_ms, from_ms} from 'util/time'
 import {RefreshJson} from 'util/request'
 
+
+function nav(classname, href, ...args) {
+    if(href == window.location.hash) {
+        classname += ' active'
+    }
+    return link(classname, href, ...args)
+}
+
+
 export class Navbar {
     constructor() {
     }
     mount(elem) {
-        this._node = cito.vdom.append(elem, () => this.render());
+        this._node = cito.vdom.append(elem, () => this.render())
+        this._page = ''
         this._refresher = new RefreshJson("/status.json", (data, latency) => {
-            this.latency = latency;
+            this.latency = latency
             if(data instanceof Error) {
-                this.error = data;
+                this.error = data
             } else {
-                this.data = data;
-                this.error = null;
+                this.data = data
+                this.error = null
             }
             this.update()
         });
-        this._refresher.start();
+        this._refresher.start()
     }
     update() {
         cito.vdom.update(this._node, this.render())
@@ -52,6 +62,7 @@ export class Navbar {
         ]);
     }
     render() {
+        var hash = window.location.hash;
         return hc("div", "navbar navbar-default", [
             hc('div', 'container-fluid', [
                 hc('div', 'navbar-header', [
@@ -59,7 +70,10 @@ export class Navbar {
                 ]),
                 hc('div', 'collapse navbar-collapse', [
                     hc('ul', 'nav navbar-nav', [
-                        hc('li', '', [ link("", "#/processes", "Processes") ]),
+                        hc('li', hash == "#/processes" ? 'active' : '',
+                            [ link("", "#/processes", "Processes") ]),
+                        hc('li', hash == "#/values" ? 'active' : '',
+                            [ link("", "#/values", "Values") ]),
                     ]),
                     hc('form',
                         'navbar-form navbar-right' +
@@ -72,7 +86,7 @@ export class Navbar {
                             this.data && this.render_self() || "",
                         ' ) ',
                         this.error && this.error.message || "",
-                        link('btn btn-default', '#/status', 'Status'),
+                        nav('btn btn-default', '#/status', 'Status'),
                     ]),
                 ]),
             ]),

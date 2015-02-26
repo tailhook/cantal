@@ -1,5 +1,7 @@
 import {tag_class as hc, tag as h, link, icon, button_xs as button,
-        title_span as title, tag_key as hk, tag_map} from 'util/html'
+        title_span as title, tag_key as hk, tag_map,
+        td_left, td_right, th_left, th_right,
+        } from 'util/html'
 import {format_uptime, till_now_ms, from_ms} from 'util/time'
 import {RefreshJson} from 'util/request'
 
@@ -57,7 +59,7 @@ export class Processes {
         var children = this.tree[process.pid];
         var is_open = this.open_items[process.pid];
         var head = hk("tr", process.pid, [
-            h('td', [
+            td_left([
                 {tag: 'div', attrs: {
                     style: {display: 'inline-block', width: `${16*level}px`}}},
                 (children
@@ -75,13 +77,11 @@ export class Processes {
                     : ""),
                 ' ' + process.pid.toString(),
             ]),
-            h('td', title(process.cmdline.split('\u{0000}').join(' '),
+            td_left(title(process.cmdline.split('\u{0000}').join(' '),
                      [process.name.toString()])),
-            h('td', [
-                format_uptime(till_now_ms(from_ms(
-                    process.start_time + this.uptime_base*1000))),
-            ]),
-            hc('td', 'text-right', (process.rss / 1048576).toFixed(1)),
+            td_left(format_uptime(till_now_ms(from_ms(
+                    process.start_time + this.uptime_base*1000)))),
+            td_right((process.rss / 1048576).toFixed(1)),
         ]);
         if(children && this.open_items[process.pid]) {
             var ch = children.map(this.render_process.bind(this, level+1))
@@ -93,12 +93,12 @@ export class Processes {
     }
     render_processes() {
         return hc("table", "table table-hover", [
-            h("thead", h("tr", tag_map('th')([
-                'pid',
-                'name',
-                'uptime',
-                'mem (MiB)',
-                ]))),
+            h("thead", h("tr", [
+                th_left('pid'),
+                th_left('name'),
+                th_left('uptime'),
+                th_right('mem (MiB)'),
+                ])),
             h("tbody", this.toplevel.map(this.render_process.bind(this, 0))),
         ]);
     }

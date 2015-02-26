@@ -38,3 +38,16 @@ export function button_xs(kind, children, handler) {
         events: { click: handler },
         children: children };
 }
+
+export function td_left(value) {
+    return tag_class('td', 'text-left', value)
+}
+export function td_right(value) {
+    return tag_class('td', 'text-right', value)
+}
+export function th_left(value) {
+    return tag_class('th', 'text-left', value)
+}
+export function th_right(value) {
+    return tag_class('th', 'text-right', value)
+}
