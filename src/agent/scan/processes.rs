@@ -28,19 +28,19 @@ pub struct ReadCache {
 
 #[derive(Encodable)]
 pub struct MinimalProcess {
-    pid: Pid,
-    ppid: Pid,
-    name: String,
-    state: char,
-    vsize: u64,
-    rss: u64,
-    num_threads: u32,
-    start_time: u64,
-    user_time: u32,
-    system_time: u32,
-    child_user_time: u32,
-    child_system_time: u32,
-    cmdline: String,
+    pub pid: Pid,
+    pub ppid: Pid,
+    pub name: String,
+    pub state: char,
+    pub vsize: u64,
+    pub rss: u64,
+    pub num_threads: u32,
+    pub start_time: u64,
+    pub user_time: u32,
+    pub system_time: u32,
+    pub child_user_time: u32,
+    pub child_system_time: u32,
+    pub cmdline: String,
 }
 
 /*

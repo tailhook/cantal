@@ -31,14 +31,21 @@ struct DetailsData<'a> {
 }
 
 #[derive(Encodable)]
-struct ProcessData<'a> {
+struct ProcessesData<'a> {
     boot_time: Option<u64>,
     all: &'a Vec<scan::processes::MinimalProcess>,
 }
 
 #[derive(Encodable)]
+struct ProcessData<'a> {
+    pub pid: Pid,
+    pub process: &'a scan::processes::MinimalProcess,
+    pub values: &'a Vec<(Json, Value)>,
+}
+
+#[derive(Encodable)]
 struct ValuesData<'a> {
-    pub values: &'a HashMap<Pid, Vec<(Json, Value)>>
+    pub items: Vec<ProcessData<'a>>,
 }
 
 
@@ -62,7 +69,7 @@ fn handle_request(stats: &RwLock<Stats>, req: &http::Request)
                 load_avg_15min: stats.machine.load_avg_15min,
                 boot_time: stats.machine.boot_time,
             })),
-            "/all_processes.json" => Ok(http::reply_json(req, &ProcessData {
+            "/all_processes.json" => Ok(http::reply_json(req, &ProcessesData {
                 boot_time: stats.machine.boot_time,
                 all: &stats.processes.all,
             })),
@@ -72,7 +79,14 @@ fn handle_request(stats: &RwLock<Stats>, req: &http::Request)
                 machine: &stats.machine,
             })),
             "/values.json" => Ok(http::reply_json(req, &ValuesData {
-                values: &stats.processes.values,
+                items: stats.processes.all.iter()
+                    .filter_map(|prc| stats.processes.values.get(&prc.pid)
+                        .map(|val| ProcessData {
+                            pid: prc.pid,
+                            process: prc,
+                            values: val,
+                            }))
+                    .collect(),
             })),
             _ => Err(http::Error::NotFound),
         }
