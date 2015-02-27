@@ -6,7 +6,7 @@ use std::os::unix::prelude::OsStrExt;
 use std::io::{BufReader, BufRead, Read};
 use std::str::from_utf8;
 use std::hash::{Hash};
-use std::path::{Path, PathBuf};
+use std::path::{Path, PathBuf, Component};
 use std::fs::{File, read_dir};
 use std::collections::{HashMap};
 use std::collections::hash_map::Entry::{Occupied, Vacant};
@@ -155,6 +155,22 @@ fn read_processes(cache: &mut ReadCache) -> Result<Vec<MinimalProcess>, ()> {
         .collect())
 }
 
+fn _relative(path: &Path) -> PathBuf {
+    let mut cmp = path.components();
+    assert!(cmp.next() == Some(Component::RootDir));
+    return cmp.as_path().to_path_buf();
+}
+fn relative_from(path: &Path, prefix: &Path) -> PathBuf {
+    if prefix == Path::new("/") {
+        // Unfortunately rust-1.0.0-alpha.2 doen't make paths relative to root
+        // directory. I believe it's a but that will be fixed, but we
+        // need to cope with it for now
+        return _relative(path);
+    } else {
+        return path.relative_from(prefix).unwrap().to_path_buf();
+    }
+}
+
 fn match_mountpoint(cache: &ReadCache, pid: Pid, path: &Path)
     -> Result<PathBuf, ()>
 {
@@ -170,27 +186,31 @@ fn match_mountpoint(cache: &ReadCache, pid: Pid, path: &Path)
         let mp = try!(parse_mount_point(&line)
             .map_err(|()| error!("Error parsing mount point: {:?}", line)));
         if path.starts_with(mp.mounted_at) {
-            if let Some((ref mut pref, ref mut dev)) = best_match {
+            if let Some((ref mut pref, ref mut pt, ref mut dev)) = best_match {
                 // Modify only if new path is longer
                 if Path::new(mp.mounted_at).starts_with(pref) {
-                    *pref = PathBuf::new(mp.mounted_at);
+                    *pref = PathBuf::new(mp.prefix);
+                    *pt = PathBuf::new(mp.mounted_at);
                     *dev = mp.device_id;
                 }
             } else {
-                best_match = Some((PathBuf::new(mp.mounted_at), mp.device_id));
+                best_match = Some((
+                    PathBuf::new(mp.prefix),
+                    PathBuf::new(mp.mounted_at),
+                    mp.device_id));
             }
         }
     }
-    let (prefix, device) = try!(best_match.ok_or(()));
-    let suffix = path.relative_from(&prefix).unwrap();
-    let suffix_root = Path::new("/").join(&suffix);
+    let (prefix, mountpoint, device) = try!(best_match.ok_or(()));
+    let suffix = prefix.join(&relative_from(&path, &mountpoint));
     if let Some(ref mprefixes) = cache.mountpoints.get(&device) {
         for pref in mprefixes.iter() {
             if Path::new(&pref.prefix) == Path::new("/") ||
-                suffix_root.starts_with(&pref.prefix)
+                suffix.starts_with(&pref.prefix)
             {
                 // TODO(tailhook) check name_to_handle_at
-                return Ok(pref.mounted_at.join(&suffix));
+                return Ok(pref.mounted_at.join(
+                    &relative_from(&suffix, &pref.prefix)));
             }
         }
     }
@@ -210,7 +230,7 @@ pub fn read(cache: &mut ReadCache) -> Processes {
                 let (data, meta) = match cache.metadata.get(&path) {
                     Some(meta) => {
                         let data = meta
-                            .read_data(&path.with_extension("values"))
+                            .read_data(&realpath.with_extension("values"))
                             .map(|data| data.into_iter()
                                 .map(|(descr, val)| (descr.json.clone(), val))
                                 .collect::<Vec<(Json, Value)>>());
@@ -218,18 +238,19 @@ pub fn read(cache: &mut ReadCache) -> Processes {
                         (data, None)
                     }
                     None => {
-                        let mres = Metadata::read(&path.with_extension("meta"));
+                        let mpath = realpath.with_extension("meta");
+                        let mres = Metadata::read(&mpath);
                         if let Ok(meta) = mres {
-                            debug!("Read new metadata {:?}", path);
+                            debug!("Read new metadata {:?}", realpath);
                             let data = meta
-                                .read_data(&path.with_extension("values"))
+                                .read_data(&realpath.with_extension("values"))
                                 .map(|data| data.into_iter()
                                     .map(|(d, val)| (d.json.clone(), val))
                                     .collect::<Vec<(Json, Value)>>());
                             // TODO(tailhook) check mtime of metadata
                             (data, Some(meta))
                         } else {
-                            warn!("Error reading metadata {:?}: {}", path,
+                            warn!("Error reading metadata {:?}: {}", mpath,
                                 mres.err().unwrap());
                             continue;
                         }
