@@ -227,7 +227,7 @@ pub fn read(cache: &mut ReadCache) -> Processes {
         if let Some(path) = get_env_var(prc.pid) {
             // TODO(tailhook) check if not already visited
             if let Ok(realpath) = match_mountpoint(cache, prc.pid, &path) {
-                let (data, meta) = match cache.metadata.get(&path) {
+                let (data, meta) = match cache.metadata.get(&realpath) {
                     Some(meta) => {
                         let data = meta
                             .read_data(&realpath.with_extension("values"))
@@ -257,7 +257,7 @@ pub fn read(cache: &mut ReadCache) -> Processes {
                     }
                 };
                 if let Some(meta) = meta {
-                    cache.metadata.insert(path.clone(), meta);
+                    cache.metadata.insert(realpath, meta);
                 }
                 if let Ok(value) = data {
                     values.insert(prc.pid, value);
