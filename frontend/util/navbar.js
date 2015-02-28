@@ -58,7 +58,7 @@ export class Navbar {
                 [ data.load_avg_15min.toFixed(2) ]),
             ' / ',
             title("Uptime of the box running cantal", [
-                'up ', format_uptime(data.uptime*1000) ]),
+                'up ', format_uptime(till_now_ms(from_ms(data.boot_time*1000))) ]),
         ]);
     }
     render() {
