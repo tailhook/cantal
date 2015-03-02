@@ -67,6 +67,7 @@ export class Values {
     render_process(item) {
         return hc("div", "col-xs-12", [
             h("h2", `${item.pid} ${item.process.name}`),
+            h("p", item.process.cmdline.split('\u{0000}').join(' ')),
             hc("table", "table table-hover", [
                 h("thead", h("tr", [
                     th_left('name'),
