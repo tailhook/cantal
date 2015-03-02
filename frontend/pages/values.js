@@ -45,17 +45,28 @@ export class Values {
     render_value(pair) {
         var [name, value] = pair;
         if(value.variant == 'State') {
-            return {children: [
-                h('tr', [
-                    td_left(JSON.stringify(name)),
-                    td_left(TYPE_TO_ICON[value.variant] || value.variant),
-                    td_right(format_uptime(
-                        till_now_ms(from_ms(value.fields[0])))),
-                    ]),
-                h('tr', {tag: 'td', attrs: { 'colspan': 100, class: 'bg-info' }, children: [
-                    icon('arrow-up'), ' ', value.fields[1]
-                ]})
-            ]}
+            var time = value.fields[0];
+            if(time == 0) {
+                return {children: [
+                    h('tr', [
+                        td_left(JSON.stringify(name)),
+                        td_left(TYPE_TO_ICON[value.variant] || value.variant),
+                        td_right('--'),
+                        ]),
+                ]}
+            } else {
+                return {children: [
+                    h('tr', [
+                        td_left(JSON.stringify(name)),
+                        td_left(TYPE_TO_ICON[value.variant] || value.variant),
+                        td_right(format_uptime(till_now_ms(from_ms(time)))),
+                        ]),
+                    hc('tr', 'bg-info',
+                        {tag: 'td', attrs: {colspan: 100 }, children: [
+                            icon('arrow-up'), ' ', value.fields[1]
+                    ]}),
+                ]};
+            }
         } else {
             return h('tr', [
                 td_left(JSON.stringify(name)),
