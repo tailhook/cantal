@@ -48,7 +48,7 @@ pub enum Type {
     Counter(u8),
     Level(u8, LevelType),
     State(u16),
-    Pad(u8),
+    Pad(u16),
     Unknown(u16),
 }
 
@@ -116,13 +116,13 @@ impl Metadata {
                     Type::State(len as u16)
                 }
                 "pad" => {
-                    if len > 255 {
+                    if len > 65535 {
                         return Err(MetadataError::BadLength(len));
                     }
                     items.push(Rc::new(Descriptor {
                         textname: "".to_string(),
                         json: Json::Null,
-                        kind: Type::Pad(len as u8),
+                        kind: Type::Pad(len as u16),
                     }));
                     continue;
                 }
