@@ -61,18 +61,27 @@ export class DonutChart {
         this.items = info.items
     }
     render() {
-        var items = this.items;
-        var total = this.total_value;
-        var paths = [];
-        var angle = 0;
-        var cx = this.width >> 1;
-        var cy = this.width >> 1;
-        var r = Math.min(cx, cy) - 10;
+        var items = this.items
+        var total = this.total_value
+        var paths = []
+        var angle = 0
+        var cx = this.width >> 1
+        var cy = this.width >> 1
+        var r = Math.min(cx, cy) - 10
         for(var i = 0, il = items.length; i < il; ++i) {
-            var it = items[i];
-            var sangle = angle;
-            angle -= 360 * it.value / total;
-            var path = sector(cx, cy, r*0.50, r, sangle, angle);
+            var it = items[i]
+            if(it.value == 0) {
+                continue;
+            }
+            var sangle = angle
+            if(total == 0) {
+                angle = sangle + 360
+            } else if (it.value == total) {
+                angle -= 360 * it.value / total - 0.01;
+            } else {
+                angle -= 360 * it.value / total;
+            }
+            var path = sector(cx, cy, r*0.50, r, sangle, angle)
             paths.push({tag: 'path', attrs: {
                 fill: it.color,
                 title: it.title,
@@ -81,9 +90,9 @@ export class DonutChart {
         }
 
         return { tag: "svg", attrs: { style: {
-            width: '256px',
-            height: '256px',
-        }}, children: paths,
+                width: '256px',
+                height: '256px',
+            }}, children: paths,
         };
     }
 }

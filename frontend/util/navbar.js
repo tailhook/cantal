@@ -74,6 +74,8 @@ export class Navbar {
                             [ link("", "#/processes", "Processes") ]),
                         hc('li', hash == "#/values" ? 'active' : '',
                             [ link("", "#/values", "Values") ]),
+                        hc('li', hash == "#/totals" ? 'active' : '',
+                            [ link("", "#/totals", "Totals") ]),
                     ]),
                     hc('form',
                         'navbar-form navbar-right' +

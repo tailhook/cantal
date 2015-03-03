@@ -4,6 +4,7 @@ import {Navbar} from 'util/navbar'
 import {Processes} from 'pages/processes'
 import {Status} from 'pages/status'
 import {Values} from 'pages/values'
+import {Totals} from 'pages/totals'
 
 
 export class App {
@@ -26,6 +27,9 @@ export class App {
                 app.page.mount(document.body)
             } else if(window.location.hash == '#/values') {
                 app.page = new Values()
+                app.page.mount(document.body)
+            } else if(window.location.hash == '#/totals') {
+                app.page = new Totals()
                 app.page.mount(document.body)
             }
             app.navbar.update()
