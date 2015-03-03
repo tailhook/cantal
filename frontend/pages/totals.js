@@ -3,6 +3,7 @@ import {tag_class as hc, tag as h, link, icon, button_xs as button,
         td_left, td_right, th_left, th_right,
         } from 'util/html'
 import {format_uptime, till_now_ms, from_ms} from 'util/time'
+import {Chart} from 'util/chart'
 import {DonutChart} from 'util/donut'
 import {RefreshJson} from 'util/request'
 
@@ -84,7 +85,10 @@ export class Totals {
         for(var name in states) {
             var chart = this._charts[name]
             if(!chart) {
-                chart = new DonutChart()
+                chart = new Chart(new DonutChart(), {
+                    title: name,
+                    unit: 'ms',
+                    })
             }
             var items = [];
             var total = 0;
@@ -92,7 +96,7 @@ export class Totals {
             var colors = COLORS.concat();
             for(var k in dur) {
                 const val = dur[k]
-                items.push({'title': name, value: dur[k], color: colors.pop()})
+                items.push({'title': k, value: dur[k], color: colors.pop()})
                 total += val
             }
             if(total != 0) {
@@ -104,12 +108,6 @@ export class Totals {
 
         this._process_time = new Date() - start
     }
-    render_chart(name) {
-        return {children:[
-            h('h2', name),
-            this._charts[name].render(),
-        ]}
-    }
     render() {
         return hc("div", "container", [
             h("h1", ["States"]),
@@ -118,9 +116,8 @@ export class Totals {
                    ? 'Error: ' + this.error.message
                    : `Fetched in ${this.latency}ms / ${this._process_time}ms`),
         ].concat(
-            this._charts
-                ? Object.keys(this._charts).map(this.render_chart.bind(this))
-                : []
+            Object.keys(this._charts).sort()
+            .map((name) => this._charts[name].render())
         ));
     }
     update() {
