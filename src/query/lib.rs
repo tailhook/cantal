@@ -195,6 +195,10 @@ impl Metadata {
         }
         return Ok(res);
     }
+    pub fn still_fresh(&self, path: &Path) -> bool {
+        let stat = util::path_stat(path);
+        return Ok(&self.stat) == stat.as_ref();
+    }
 }
 
 impl Error for MetadataError {

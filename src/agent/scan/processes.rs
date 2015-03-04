@@ -13,7 +13,7 @@ use std::collections::hash_map::Entry::{Occupied, Vacant};
 use serialize::json::Json;
 use libc;
 
-use cantal::{Metadata, Descriptor, Value};
+use cantal::{Metadata, MetadataError, Descriptor, Value};
 use cantal::itertools::{NextValue, NextStr};
 use cantal::iotools::{ReadHostBytes};
 use super::super::mountpoints::{MountPrefix, parse_mount_point};
@@ -220,6 +220,44 @@ fn match_mountpoint(cache: &ReadCache, pid: Pid, path: &Path)
     return Err(());
 }
 
+fn read_values(cache: &ReadCache, path: &PathBuf)
+    -> (Option<Vec<(Json, Value)>>, Option<Metadata>)
+{
+    let mpath = path.with_extension("meta");
+    if let Some(meta) = cache.metadata.get(path) {
+        let data = meta
+            .read_data(&path.with_extension("values"))
+            .map(|data| data.into_iter()
+                .map(|(descr, val)| (descr.json.clone(), val))
+                .collect::<Vec<(Json, Value)>>());
+        // TODO(tailhook) check mtime of metadata
+        if meta.still_fresh(&mpath) {
+            return (data.ok(), None);
+        }
+    }
+    for _ in 0..1 {
+        let mres = Metadata::read(&mpath);
+        if let Ok(meta) = mres {
+            debug!("Read new metadata {:?}", path);
+            let data = meta
+                .read_data(&path.with_extension("values"))
+                .map(|data| data.into_iter()
+                    .map(|(d, val)| (d.json.clone(), val))
+                    .collect::<Vec<(Json, Value)>>());
+            if !meta.still_fresh(&mpath) {
+                continue;
+            }
+            return (data.ok(), Some(meta));
+        } else {
+            let err = mres.err().unwrap();
+            info!("Error reading metadata {:?}: {}", mpath, err);
+            return (None, None);
+        }
+    }
+    warn!("Constantly changing metadata {:?}", mpath);
+    return (None, None);
+}
+
 pub fn read(cache: &mut ReadCache) -> Processes {
     let processes = read_processes(cache).unwrap_or(Vec::new());
     let mut values = HashMap::new();
@@ -227,39 +265,11 @@ pub fn read(cache: &mut ReadCache) -> Processes {
         if let Some(path) = get_env_var(prc.pid) {
             // TODO(tailhook) check if not already visited
             if let Ok(realpath) = match_mountpoint(cache, prc.pid, &path) {
-                let (data, meta) = match cache.metadata.get(&realpath) {
-                    Some(meta) => {
-                        let data = meta
-                            .read_data(&realpath.with_extension("values"))
-                            .map(|data| data.into_iter()
-                                .map(|(descr, val)| (descr.json.clone(), val))
-                                .collect::<Vec<(Json, Value)>>());
-                        // TODO(tailhook) check mtime of metadata
-                        (data, None)
-                    }
-                    None => {
-                        let mpath = realpath.with_extension("meta");
-                        let mres = Metadata::read(&mpath);
-                        if let Ok(meta) = mres {
-                            debug!("Read new metadata {:?}", realpath);
-                            let data = meta
-                                .read_data(&realpath.with_extension("values"))
-                                .map(|data| data.into_iter()
-                                    .map(|(d, val)| (d.json.clone(), val))
-                                    .collect::<Vec<(Json, Value)>>());
-                            // TODO(tailhook) check mtime of metadata
-                            (data, Some(meta))
-                        } else {
-                            warn!("Error reading metadata {:?}: {}", mpath,
-                                mres.err().unwrap());
-                            continue;
-                        }
-                    }
-                };
+                let (data, meta) = read_values(cache, &realpath);
                 if let Some(meta) = meta {
                     cache.metadata.insert(realpath, meta);
                 }
-                if let Ok(value) = data {
+                if let Some(value) = data {
                     values.insert(prc.pid, value);
                 }
             }
