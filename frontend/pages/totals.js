@@ -20,9 +20,24 @@ const COLORS = [
 ]
 
 
+class StateText {
+    constructor(title, value) {
+        this.title = title
+        this.value = value
+    }
+    render() {
+        return {children: [
+            h('h2', this.title),
+            h('p', this.value),
+        ]}
+    }
+}
+
+
 export class Totals {
     mount(elem) {
         this._charts = {}
+        this._items = []
         this._node = cito.vdom.append(elem, () => this.render());
         this._refresher = new RefreshJson("/values.json", (data, latency) => {
             this.latency = latency;
@@ -67,7 +82,7 @@ export class Totals {
                    metric.fields[0] > 0) {
                     var st = states[dim.state]
                     if(!st) {
-                        states[stname] = st = {
+                        states[dim.state] = st = {
                             counters: {},
                             durations: {},
                             states: {},
@@ -81,30 +96,42 @@ export class Totals {
             }
         }
 
+        var newitems = []
         var newcharts = {}
         for(var name in states) {
-            var chart = this._charts[name]
-            if(!chart) {
-                chart = new Chart(new DonutChart(), {
-                    title: name,
-                    unit: 'ms',
-                    })
-            }
-            var items = [];
-            var total = 0;
-            var dur = states[name].durations;
-            var colors = COLORS.concat();
-            for(var k in dur) {
-                const val = dur[k]
-                items.push({'title': k, value: dur[k], color: colors.pop()})
-                total += val
-            }
-            if(total != 0) {
-            chart.set_data({total, items})
-            newcharts[name] = chart;
+            var state = states[name];
+            var keys = Object.keys(state.durations);
+            if(keys.length > 1) {
+                var chart = this._charts[name]
+                if(!chart) {
+                    chart = new Chart(new DonutChart(), {
+                        title: name,
+                        unit: 'ms',
+                        })
+                }
+                var items = [];
+                var total = 0;
+                var dur = states[name].durations;
+                var colors = COLORS.concat();
+                for(var k in dur) {
+                    const val = dur[k]
+                    items.push({
+                        'title': k,
+                        value: dur[k],
+                        color: colors.pop(),
+                        })
+                    total += val
+                }
+                chart.set_data({total, items})
+                newcharts[name] = chart;
+                newitems.push(chart)
+            } else {
+                newitems.push(new StateText(name, keys[0]))
             }
         }
         this._charts = newcharts
+        newitems.sort((a, b) => a.title.localeCompare(b.title))
+        this._items = newitems
 
         this._process_time = new Date() - start
     }
@@ -115,10 +142,7 @@ export class Totals {
                 this.error
                    ? 'Error: ' + this.error.message
                    : `Fetched in ${this.latency}ms / ${this._process_time}ms`),
-        ].concat(
-            Object.keys(this._charts).sort()
-            .map((name) => this._charts[name].render())
-        ));
+        ].concat(this._items.map((item) => item.render())));
     }
     update() {
         cito.vdom.update(this._node, this.render())
