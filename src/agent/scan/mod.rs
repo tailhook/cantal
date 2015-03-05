@@ -9,6 +9,7 @@ use cantal::itertools::NextValue;
 
 pub mod machine;
 pub mod processes;
+pub mod values;
 
 // TODO(tailhook) use some time/date crate
 
@@ -48,5 +49,8 @@ impl Tip {
     }
     pub fn get(&self, key: &Key) -> Option<Value> {
         self.map.get(key).map(|x| x.clone())
+    }
+    pub fn len(&self) -> usize {
+        return self.map.len();
     }
 }

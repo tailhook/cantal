@@ -75,7 +75,7 @@ fn handle_request(stats: &RwLock<Stats>, req: &http::Request)
             })),
             "/all_processes.json" => Ok(http::reply_json(req, &ProcessesData {
                 boot_time: stats.boot_time,
-                all: &stats.processes.all,
+                all: &stats.processes,
             })),
             /*
             "/details.json" => Ok(http::reply_json(req, &DetailsData {
@@ -83,7 +83,6 @@ fn handle_request(stats: &RwLock<Stats>, req: &http::Request)
                 scan_time: stats.scan_time,
                 machine: &stats.machine,
             })),
-            */
             "/values.json" => Ok(http::reply_json(req, &ValuesData {
                 items: stats.processes.all.iter()
                     .filter_map(|prc| stats.processes.values.get(&prc.pid)
@@ -94,6 +93,7 @@ fn handle_request(stats: &RwLock<Stats>, req: &http::Request)
                             }))
                     .collect(),
             })),
+            */
             _ => Err(http::Error::NotFound),
         }
     }

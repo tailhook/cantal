@@ -6,28 +6,33 @@ use super::stats::Stats;
 use super::scan::Tip;
 use super::scan::machine;
 use super::scan::processes;
+use super::scan::values;
 use super::scan::time_ms;
 
 
 pub fn scan_loop(stats: Arc<RwLock<Stats>>) {
     let mut process_cache = processes::ReadCache::new();
+    let mut values_cache = values::ReadCache::new();
     loop {
         let start = time_ms();
         let mut tip = Tip::new();
 
         let boot_time = machine::read(&mut tip);
-        if let Ok(ref mut stats) = stats.write() {
-            stats.boot_time = boot_time.or(stats.boot_time);
-        }
-
 
         let processes = processes::read(&mut process_cache);
-        stats.write().unwrap().processes = processes;
+        values::read(&mut tip, &mut values_cache, &processes);
 
-        stats.write().unwrap().tip = tip;
         let scan_time = time_ms() - start;
         stats.write().unwrap().scan_time = scan_time;
-        debug!("Scan time {} ms", scan_time);
+        debug!("Got {} values and {} processes in {} ms",
+            tip.len(), processes.len(), scan_time);
+
+        if let Ok(ref mut stats) = stats.write() {
+            stats.boot_time = boot_time.or(stats.boot_time);
+            stats.tip = tip;
+            stats.processes = processes;
+        }
+
         sleep(Duration::seconds(2));
     }
 }

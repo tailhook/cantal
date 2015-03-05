@@ -12,7 +12,7 @@ pub struct Stats {
     pub scan_time: u64,
     pub boot_time: Option<u64>,
     pub tip: scan::Tip,
-    pub processes: scan::processes::Processes,
+    pub processes: Vec<scan::processes::MinimalProcess>,
 }
 
 impl Stats {
@@ -54,6 +54,11 @@ impl Key {
     }
     pub fn metric(metric: &str) -> Key {
         return Key::from_pair("metric", metric);
+    }
+    pub fn add_pair(self, key: &str, val: &str) -> Key {
+        let Key(mut res) = self;
+        res.insert(key.to_string(), val.to_string());
+        return Key(res);
     }
 }
 

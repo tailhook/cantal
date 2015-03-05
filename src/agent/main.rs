@@ -1,4 +1,4 @@
-#![feature(unboxed_closures)]
+#![feature(env, rustc_private)]
 
 extern crate libc;
 #[macro_use] extern crate log;
