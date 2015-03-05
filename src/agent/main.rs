@@ -3,6 +3,7 @@
 extern crate libc;
 #[macro_use] extern crate log;
 extern crate serialize;
+extern crate msgpack;
 
 extern crate argparse;
 extern crate cantal;

@@ -7,9 +7,10 @@ use super::aio;
 use super::scan;
 use super::staticfiles;
 use super::aio::http;
-use super::stats::Stats;
+use super::stats::{Stats, Key};
 use super::scan::processes::Pid;
-use cantal::{Value};
+use cantal::{Value, RawAccess};
+
 
 
 #[derive(Encodable)]
@@ -17,18 +18,20 @@ struct StatusData {
     pub startup_time: u64,
     pub scan_time: u64,
 
-    pub load_avg_1min: Option<f32>,
-    pub load_avg_5min: Option<f32>,
-    pub load_avg_15min: Option<f32>,
+    pub load_avg_1min: Option<f64>,
+    pub load_avg_5min: Option<f64>,
+    pub load_avg_15min: Option<f64>,
     pub boot_time: Option<u64>,
 }
 
+/*
 #[derive(Encodable)]
 struct DetailsData<'a> {
     pub startup_time: u64,
     pub scan_time: u64,
     pub machine: &'a scan::machine::MachineStats,
 }
+*/
 
 #[derive(Encodable)]
 struct ProcessesData<'a> {
@@ -60,24 +63,27 @@ fn handle_request(stats: &RwLock<Stats>, req: &http::Request)
         return staticfiles::serve(req);
     } else {
         let stats = stats.read().unwrap();
+        let ref t = stats.tip; // temporarily
         match req.uri() {
             "/status.json" => Ok(http::reply_json(req, &StatusData {
                 startup_time: stats.startup_time,
                 scan_time: stats.scan_time,
-                load_avg_1min: stats.machine.load_avg_1min,
-                load_avg_5min: stats.machine.load_avg_5min,
-                load_avg_15min: stats.machine.load_avg_15min,
-                boot_time: stats.machine.boot_time,
+                load_avg_1min: t.get(&Key::metric("load_avg_1min")).as_f64(),
+                load_avg_5min: t.get(&Key::metric("load_avg_5min")).as_f64(),
+                load_avg_15min: t.get(&Key::metric("load_avg_15min")).as_f64(),
+                boot_time: stats.boot_time,
             })),
             "/all_processes.json" => Ok(http::reply_json(req, &ProcessesData {
-                boot_time: stats.machine.boot_time,
+                boot_time: stats.boot_time,
                 all: &stats.processes.all,
             })),
+            /*
             "/details.json" => Ok(http::reply_json(req, &DetailsData {
                 startup_time: stats.startup_time,
                 scan_time: stats.scan_time,
                 machine: &stats.machine,
             })),
+            */
             "/values.json" => Ok(http::reply_json(req, &ValuesData {
                 items: stats.processes.all.iter()
                     .filter_map(|prc| stats.processes.values.get(&prc.pid)

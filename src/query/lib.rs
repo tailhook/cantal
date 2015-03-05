@@ -28,7 +28,7 @@ pub mod itertools;
 pub mod iotools;
 
 
-#[derive(Show, Encodable)]
+#[derive(Clone, Show, Encodable)]
 pub enum Value {
     Counter(u64),
     Integer(i64),
@@ -71,6 +71,34 @@ pub struct Descriptor {
 pub struct Metadata {
     items: Vec<Rc<Descriptor>>,
     stat: util::Stat,
+}
+
+pub trait RawAccess {
+    fn as_f64(&self) -> Option<f64>;
+    fn as_u64(&self) -> Option<u64>;
+}
+
+impl RawAccess for Value {
+    fn as_f64(&self) -> Option<f64> {
+        match *self {
+            Value::Float(x) => Some(x),
+            _ => None,
+        }
+    }
+    fn as_u64(&self) -> Option<u64> {
+        match *self {
+            Value::Counter(x) => Some(x),
+            _ => None,
+        }
+    }
+}
+impl RawAccess for Option<Value> {
+    fn as_f64(&self) -> Option<f64> {
+        self.as_ref().and_then(|x| x.as_f64())
+    }
+    fn as_u64(&self) -> Option<u64> {
+        self.as_ref().and_then(|x| x.as_u64())
+    }
 }
 
 impl Metadata {
