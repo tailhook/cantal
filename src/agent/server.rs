@@ -9,7 +9,7 @@ use super::staticfiles;
 use super::aio::http;
 use super::stats::{Stats, Key};
 use super::scan::processes::Pid;
-use cantal::{Value, RawAccess};
+use super::history::{Value, RawAccess};
 
 
 
@@ -39,6 +39,7 @@ struct ProcessesData<'a> {
     all: &'a Vec<scan::processes::MinimalProcess>,
 }
 
+/*
 #[derive(Encodable)]
 struct ProcessData<'a> {
     pub pid: Pid,
@@ -50,6 +51,7 @@ struct ProcessData<'a> {
 struct ValuesData<'a> {
     pub items: Vec<ProcessData<'a>>,
 }
+*/
 
 
 fn handle_request(stats: &RwLock<Stats>, req: &http::Request)
@@ -63,7 +65,7 @@ fn handle_request(stats: &RwLock<Stats>, req: &http::Request)
         return staticfiles::serve(req);
     } else {
         let stats = stats.read().unwrap();
-        let ref t = stats.tip; // temporarily
+        let ref t = stats.history; // temporarily
         match req.uri() {
             "/status.json" => Ok(http::reply_json(req, &StatusData {
                 startup_time: stats.startup_time,

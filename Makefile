@@ -6,6 +6,7 @@ DESTDIR ?=
 # ------------------ RUST BINARIES -----------------------
 CANTALLIB = libcantal.rlib
 ARGPARSELIB = rust-argparse/libargparse.rlib
+MSGPACKLIB = rust-msgpack/libmsgpack.rlib
 
 all: bin js
 
@@ -18,10 +19,11 @@ libcantal.rlib: $(ARGPARSELIB) src/query/lib.rs src/query/*.rs
 	$(RUSTC) src/query/lib.rs -g -o $@ \
 		-L rust-argparse -L .
 
-cantal_agent: $(ARGPARSELIB) libcantal.rlib src/agent/main.rs src/agent/*.rs
+cantal_agent: $(ARGPARSELIB) $(MSGPACKLIB)
+cantal_agent: libcantal.rlib src/agent/main.rs src/agent/*.rs
 cantal_agent: src/agent/*/*.rs
 	$(RUSTC) src/agent/main.rs -g -o $@ \
-		-L rust-argparse -L .
+		-L rust-argparse -L rust-msgpack -L .
 
 cantal: $(ARGPARSELIB) libcantal.rlib src/cli/main.rs src/cli/*.rs
 	$(RUSTC) src/cli/main.rs -g -o $@ \
@@ -29,6 +31,10 @@ cantal: $(ARGPARSELIB) libcantal.rlib src/cli/main.rs src/cli/*.rs
 
 $(ARGPARSELIB):
 	make -C rust-argparse libargparse.rlib
+
+$(MSGPACKLIB):
+	cd rust-msgpack; cargo build
+	cp rust-msgpack/target/*.rlib $@
 
 # ------------------ JAVASCRIPTS -----------------------
 

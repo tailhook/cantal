@@ -1,6 +1,10 @@
 use std::sync::{Arc, RwLock};
+use std::fs::File;
+use std::io::Write;
 use std::old_io::timer::sleep;
 use std::time::duration::Duration;
+
+use msgpack::Encoder as Mencoder;
 
 use super::stats::Stats;
 use super::scan::Tip;
@@ -25,12 +29,17 @@ pub fn scan_loop(stats: Arc<RwLock<Stats>>) {
         let scan_time = time_ms() - start;
         stats.write().unwrap().scan_time = scan_time;
         debug!("Got {} values and {} processes in {} ms",
-            tip.len(), processes.len(), scan_time);
+            tip.map.len(), processes.len(), scan_time);
 
         if let Ok(ref mut stats) = stats.write() {
+            let start = time_ms();
+            stats.history.push(start, scan_time as u32, tip);
             stats.boot_time = boot_time.or(stats.boot_time);
-            stats.tip = tip;
             stats.processes = processes;
+
+            let buf = Mencoder::to_msgpack(&**stats).unwrap();
+            debug!("Stored in {} ms / {} bytes",
+                time_ms() - start, buf.len());
         }
 
         sleep(Duration::seconds(2));

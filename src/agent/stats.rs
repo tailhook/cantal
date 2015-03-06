@@ -1,17 +1,19 @@
 use std::hash::{Hash, Hasher};
 use std::default::Default;
 use std::collections::BTreeMap;
+
+use serialize::json::Json;
+
 use super::scan::time_ms;
 use super::scan;
-use serialize::json::Json;
-use msgpack::Value as Mpack;
-use msgpack::Encoder as Mencoder;
+use super::history::History;
 
+#[derive(Encodable)]
 pub struct Stats {
     pub startup_time: u64,
     pub scan_time: u64,
     pub boot_time: Option<u64>,
-    pub tip: scan::Tip,
+    pub history: History,
     pub processes: Vec<scan::processes::MinimalProcess>,
 }
 
@@ -21,13 +23,13 @@ impl Stats {
             startup_time: time_ms(),
             scan_time: 0,
             boot_time: None,
-            tip: scan::Tip::new(),
+            history: History::new(),
             processes: Default::default(),
         };
     }
 }
 
-#[derive(Hash, PartialEq, Eq, PartialOrd, Ord, Debug)]
+#[derive(Hash, PartialEq, Eq, PartialOrd, Ord, Debug, Encodable, Decodable)]
 pub struct Key(BTreeMap<String, String>);
 
 impl Key {

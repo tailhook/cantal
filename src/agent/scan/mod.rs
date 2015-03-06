@@ -24,8 +24,9 @@ pub fn time_ms() -> u64 {
     return (tv.tv_sec as u64)*1000 +  (tv.tv_usec as u64) / 1000;
 }
 
+#[derive(Encodable)]
 pub struct Tip {
-    map: HashMap<Key, Value>,
+    pub map: HashMap<Key, Value>,
 }
 
 impl Tip {
@@ -46,11 +47,5 @@ impl Tip {
         if let Ok(x) = iter.next_value() {
             self.map.insert(Key::metric(metric), Value::Counter(x));
         }
-    }
-    pub fn get(&self, key: &Key) -> Option<Value> {
-        self.map.get(key).map(|x| x.clone())
-    }
-    pub fn len(&self) -> usize {
-        return self.map.len();
     }
 }

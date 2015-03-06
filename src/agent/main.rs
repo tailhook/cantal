@@ -21,6 +21,7 @@ mod staticfiles;
 mod scanner;
 mod scan;
 mod mountpoints;
+mod history;
 
 
 fn main() {

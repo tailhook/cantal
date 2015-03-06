@@ -35,6 +35,11 @@ commands:
     - all
     - install
 
+  mpack: !Command
+    description: Run interactive python with msgpack (to debug file format)
+    container: msgpack
+    run: python
+
 containers:
 
   ubuntu:
@@ -49,7 +54,7 @@ containers:
     - !BuildDeps [ca-certificates]
     - !TarInstall
       url: "http://static.rust-lang.org/dist/rust-1.0.0-alpha.2-x86_64-unknown-linux-gnu.tar.gz"
-      script: "./install.sh --prefix=/usr --components=rustc"
+      script: "./install.sh --prefix=/usr --components=rustc,cargo"
 
     environ:
       HOME: /tmp
@@ -58,4 +63,9 @@ containers:
     setup:
     - !Alpine v3.1
     - !Install [py-sphinx, make]
+
+  msgpack:
+    setup:
+    - !Alpine v3.1
+    - !Py2Install [msgpack-python]
 
