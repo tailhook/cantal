@@ -5,6 +5,11 @@ commands:
     container: ubuntu
     run: [make]
 
+  test: !Command
+    description: Build and run tests
+    container: ubuntu
+    run: [make, test]
+
   py3: !Command
     description: Run python3 example
     container: ubuntu

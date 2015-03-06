@@ -1,19 +1,20 @@
 use std::f64::NAN;
 use std::cmp::min;
-use std::num::Int;
 use std::collections::VecDeque;
 use std::collections::HashMap;
 use std::collections::hash_map::Entry::{Occupied, Vacant};
+use serialize::json::Json;
 
 use super::stats::Key;
 use super::scan::Tip;
+use super::deltabuf::{DeltaBuf, Delta};
 use cantal::Value as TipValue;
 
 
-#[derive(Clone, Debug, Encodable, Decodable)]
+#[derive(Debug, Encodable, Decodable)]
 pub enum Value {
-    Counter(u64, u64, VecDeque<u8>),
-    Integer(i64, u64, VecDeque<u8>),
+    Counter(u64, u64, DeltaBuf),
+    Integer(i64, u64, DeltaBuf),
     Float(f64, u64, VecDeque<f64>),  // No compression, sorry
     State((u64, String), u64),  // No useful history
 }
@@ -61,9 +62,9 @@ impl Source for TipValue {
     fn begin_history(self, age: u64) -> Value {
         match self {
             TipValue::Counter(val)
-            => Value::Counter(val, age, VecDeque::new()),
+            => Value::Counter(val, age, DeltaBuf::new()),
             TipValue::Integer(val)
-            => Value::Integer(val, age, VecDeque::new()),
+            => Value::Integer(val, age, DeltaBuf::new()),
             TipValue::Float(val)
             => Value::Float(val, age, VecDeque::new()),
             TipValue::State(ts, val)
@@ -72,82 +73,12 @@ impl Source for TipValue {
     }
 }
 
-fn add_level_delta(old_value: i64, new_value: i64,
-                    mut age_diff: u64, buf: &mut VecDeque<u8>)
-{
-    if age_diff == 0 {
-        warn!("Duplicate write at same age"); // Shouldn't we panic?
-        return;
-    }
-    const SIGN_BIT: u8 = 0b00100000;
-    const SKIP_BIT: u8 = 0b01000000;
-    const MAX_DIFF: u64 = 63;
-    const FIRST_BYTE_MASK: i64 = 0x00011111;
-    const FIRST_BYTE_SHIFT: usize = 5;
-    const CONTINUATION_BIT: u8 = 0b10000000;
-    const CONTINUATION_MASK: i64 = 0x01111111;
-    const CONTINUATION_SHIFT: usize = 7;
-    age_diff -= 1;
-    while age_diff > 0 {
-        let cd = min(age_diff, MAX_DIFF);
-        buf.push_front(SKIP_BIT | cd as u8);
-        age_diff -= cd;
-    }
-    let (mut delta, sign) = if old_value > new_value {
-        (old_value - new_value, SIGN_BIT)
-    } else {
-        (new_value - old_value, 0)
-    };
-    buf.push_front(sign | (delta & FIRST_BYTE_MASK) as u8);
-    delta >>= FIRST_BYTE_SHIFT;
-    while delta > 0 {
-        buf.push_front((delta & CONTINUATION_MASK) as u8 | CONTINUATION_BIT);
-        delta >>= CONTINUATION_SHIFT;
-    }
-}
-
-fn add_counter_delta(old_value: u64, new_value: u64,
-                    mut age_diff: u64, buf: &mut VecDeque<u8>)
-{
-    if age_diff == 0 {
-        warn!("Duplicate write at same age"); // Shouldn't we panic?
-        return;
-    }
-    const RESET_BIT: u8 = 0b00100000;
-    const SKIP_BIT: u8 = 0b01000000;
-    const MAX_DIFF: u64 = 63;
-    const FIRST_BYTE_MASK: u64 = 0x00011111;
-    const FIRST_BYTE_SHIFT: usize = 5;
-    const CONTINUATION_BIT: u8 = 0b10000000;
-    const CONTINUATION_MASK: u64 = 0x01111111;
-    const CONTINUATION_SHIFT: usize = 7;
-    age_diff -= 1;
-    while age_diff > 0 {
-        let cd = min(age_diff, MAX_DIFF);
-        buf.push_front(SKIP_BIT | cd as u8);
-        age_diff -= cd;
-    }
-    //  When old_value is bigger, we think of it as of counter reset
-    //  and write new value instead of delta
-    let (mut delta, sign) = if old_value > new_value {
-        (new_value, RESET_BIT)
-    } else {
-        (new_value - old_value, 0)
-    };
-    buf.push_front(sign | (delta & FIRST_BYTE_MASK) as u8);
-    delta >>= FIRST_BYTE_SHIFT;
-    while delta > 0 {
-        buf.push_front((delta & CONTINUATION_MASK) as u8 | CONTINUATION_BIT);
-        delta >>= CONTINUATION_SHIFT;
-    }
-}
-
 impl Value {
     fn push(&mut self, tip: TipValue, age: u64) -> Option<TipValue> {
         match self {
             &mut Value::Counter(ref mut oval, ref mut oage, ref mut buf) => {
                 if let TipValue::Counter(nval) = tip {
-                    add_counter_delta(*oval, nval, age - *oage, buf);
+                    buf.push(*oval, nval, age - *oage);
                     *oval = nval;
                     *oage = age;
                     return None;
@@ -155,7 +86,7 @@ impl Value {
             }
             &mut Value::Integer(ref mut oval, ref mut oage, ref mut buf) => {
                 if let TipValue::Integer(nval) = tip {
-                    add_level_delta(*oval, nval, age - *oage, buf);
+                    buf.push(*oval, nval, age - *oage);
                     *oval = nval;
                     *oage = age;
                     return None;
@@ -176,41 +107,74 @@ impl Value {
         }
         return Some(tip);
     }
-}
-
-pub trait RawAccess {
-    fn as_f64(&self) -> Option<f64>;
-    fn as_u64(&self) -> Option<u64>;
-}
-
-impl RawAccess for Value {
-    fn as_f64(&self) -> Option<f64> {
-        match *self {
-            Value::Float(x, _, _) => Some(x),
-            _ => None,
+    fn json_history(&self, mut num: usize, current_age: u64) -> Json {
+        match self {
+            &Value::Counter(tip, age, ref buf) => {
+                let mut res = vec!();
+                for _ in 0..min(current_age - age, num as u64) {
+                    num -= 1;
+                    res.push(Json::Null);
+                }
+                res.push(Json::U64(tip));
+                num -= 1;
+                let mut val = tip;
+                for dlt in buf.deltas(num) {
+                    match dlt {
+                        Delta::Positive(x) => {
+                            val -= x as u64;
+                            res.push(Json::U64(val));
+                        }
+                        Delta::Negative(x) => {
+                            val += x as u64;
+                            res.push(Json::U64(val));
+                        }
+                        Delta::Skip => res.push(Json::Null),
+                    }
+                }
+                return Json::Array(res);
+            }
+            &Value::Integer(tip, age, ref buf) => {
+                let mut res = vec!();
+                for _ in 0..min(current_age - age, num as u64) {
+                    num -= 1;
+                    res.push(Json::Null);
+                }
+                res.push(Json::I64(tip));
+                num -= 1;
+                let mut val = tip;
+                for dlt in buf.deltas(num) {
+                    match dlt {
+                        Delta::Positive(x) => {
+                            val -= x as i64;
+                            res.push(Json::I64(val));
+                        }
+                        Delta::Negative(x) => {
+                            val += x as i64;
+                            res.push(Json::I64(val));
+                        }
+                        Delta::Skip => res.push(Json::Null),
+                    }
+                }
+                return Json::Array(res);
+            }
+            &Value::Float(tip, age, ref buf) => {
+                let mut res = vec!();
+                for _ in 0..min(current_age - age, num as u64) {
+                    num -= 1;
+                    res.push(Json::Null);
+                }
+                res.push(Json::F64(tip));
+                num -= 1;
+                for (idx, val) in buf.iter().enumerate() {
+                    if idx > num { break; }
+                    res.push(Json::F64(*val));
+                }
+                return Json::Array(res);
+            }
+            &Value::State((ts, ref text), age) => {
+                return Json::Null;  // No history for State
+            }
         }
-    }
-    fn as_u64(&self) -> Option<u64> {
-        match *self {
-            Value::Counter(x, _, _) => Some(x),
-            _ => None,
-        }
-    }
-}
-impl RawAccess for Option<Value> {
-    fn as_f64(&self) -> Option<f64> {
-        self.as_ref().and_then(|x| x.as_f64())
-    }
-    fn as_u64(&self) -> Option<u64> {
-        self.as_ref().and_then(|x| x.as_u64())
-    }
-}
-impl<'a> RawAccess for Option<&'a Value> {
-    fn as_f64(&self) -> Option<f64> {
-        self.as_ref().and_then(|x| x.as_f64())
-    }
-    fn as_u64(&self) -> Option<u64> {
-        self.as_ref().and_then(|x| x.as_u64())
     }
 }
 
@@ -252,9 +216,40 @@ impl History {
         self.coarse_timestamps.push_front((timestamp, duration));
         self.tip_timestamp = (timestamp, duration);
     }
-    // TEMPORARY
-    pub fn get(&self, key: &Key) -> Option<&Value> {
+    pub fn get_tip_json(&self, key: &Key) -> Json {
         self.fine.get(key)
         .or_else(|| self.coarse.get(key))
+        .map(|x| match *x {
+            Value::Counter(c, _, _) => Json::U64(c),
+            Value::Integer(c, _, _) => Json::I64(c),
+            Value::Float(c, _, _) => Json::F64(c),
+            Value::State((ts, ref text), _) => Json::Array(vec!(
+                Json::U64(ts),
+                Json::String(text.clone()),
+                )),
+        })
+        .or_else(||
+            self.tip.get(key)
+            .map(|x| match *x {
+                TipValue::Counter(c) => Json::U64(c),
+                TipValue::Integer(c) => Json::I64(c),
+                TipValue::Float(c) => Json::F64(c),
+                TipValue::State(ts, ref text) => Json::Array(vec!(
+                    Json::U64(ts),
+                    Json::String(text.clone()),
+                    )),
+            }))
+        .unwrap_or(Json::Null)
+    }
+    pub fn get_history_json(&self, key: &Key, num: usize) -> Json {
+        self.fine.get(key)
+            .map(|x| Json::Object(vec!(
+                ("fine".to_string(), x.json_history(num, self.age)),
+                ).into_iter().collect()))
+        .or_else(|| self.coarse.get(key)
+            .map(|x| Json::Object(vec!(
+                ("coarse".to_string(), x.json_history(num, self.age)),
+                ).into_iter().collect())))
+        .unwrap_or(Json::Null)
     }
 }

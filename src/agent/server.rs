@@ -9,7 +9,7 @@ use super::staticfiles;
 use super::aio::http;
 use super::stats::{Stats, Key};
 use super::scan::processes::Pid;
-use super::history::{Value, RawAccess};
+use super::history::{Value};
 
 
 
@@ -18,9 +18,13 @@ struct StatusData {
     pub startup_time: u64,
     pub scan_time: u64,
 
-    pub load_avg_1min: Option<f64>,
-    pub load_avg_5min: Option<f64>,
-    pub load_avg_15min: Option<f64>,
+    pub load_avg_1min: Json,
+    pub load_avg_5min: Json,
+    pub load_avg_15min: Json,
+    pub cpu_user: Json,
+    pub cpu_nice: Json,
+    pub cpu_system: Json,
+    pub cpu_idle: Json,
     pub boot_time: Option<u64>,
 }
 
@@ -70,9 +74,13 @@ fn handle_request(stats: &RwLock<Stats>, req: &http::Request)
             "/status.json" => Ok(http::reply_json(req, &StatusData {
                 startup_time: stats.startup_time,
                 scan_time: stats.scan_time,
-                load_avg_1min: t.get(&Key::metric("load_avg_1min")).as_f64(),
-                load_avg_5min: t.get(&Key::metric("load_avg_5min")).as_f64(),
-                load_avg_15min: t.get(&Key::metric("load_avg_15min")).as_f64(),
+                load_avg_1min: t.get_tip_json(&Key::metric("load_avg_1min")),
+                load_avg_5min: t.get_tip_json(&Key::metric("load_avg_5min")),
+                load_avg_15min: t.get_tip_json(&Key::metric("load_avg_15min")),
+                cpu_user: t.get_history_json(&Key::metric("cpu.user"), 30),
+                cpu_nice: t.get_history_json(&Key::metric("cpu.nice"), 30),
+                cpu_system: t.get_history_json(&Key::metric("cpu.system"), 30),
+                cpu_idle: t.get_history_json(&Key::metric("cpu.idle"), 30),
                 boot_time: stats.boot_time,
             })),
             "/all_processes.json" => Ok(http::reply_json(req, &ProcessesData {

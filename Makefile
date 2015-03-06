@@ -25,6 +25,12 @@ cantal_agent: src/agent/*/*.rs
 	$(RUSTC) src/agent/main.rs -g -o $@ \
 		-L rust-argparse -L rust-msgpack -L .
 
+cantal_test: $(ARGPARSELIB) $(MSGPACKLIB)
+cantal_test: libcantal.rlib src/agent/main.rs src/agent/*.rs
+cantal_test: src/agent/*/*.rs
+	$(RUSTC) src/agent/main.rs -g -o $@ --test \
+		-L rust-argparse -L rust-msgpack -L .
+
 cantal: $(ARGPARSELIB) libcantal.rlib src/cli/main.rs src/cli/*.rs
 	$(RUSTC) src/cli/main.rs -g -o $@ \
 		-L rust-argparse -L .
