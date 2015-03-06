@@ -2,6 +2,7 @@ import {tag_class as hc, tag as h, link, icon,
         title_span as title} from 'util/html'
 import {format_uptime, till_now_ms, from_ms} from 'util/time'
 import {RefreshJson} from 'util/request'
+import {Sparkline} from 'util/sparkline'
 
 
 function nav(classname, href, ...args) {
@@ -23,7 +24,7 @@ export class Navbar {
             if(data instanceof Error) {
                 this.error = data
             } else {
-                this.data = data
+                this._preprocess(data)
                 this.error = null
             }
             this.update()
@@ -32,6 +33,29 @@ export class Navbar {
     }
     update() {
         cito.vdom.update(this._node, this.render())
+    }
+    _preprocess(data) {
+        this.data = data
+        const user = data.cpu_user.fine
+        const nice = data.cpu_nice.fine
+        const idle = data.cpu_idle.fine
+        const system = data.cpu_system.fine
+        const cpu_graph = []
+        let prev_use
+        let prev_total
+        for(var i = data.history_timestamps.length-1; i >= 0; --i) {
+            const use = user[i] + nice[i] + system[i]
+            const total = use + idle[i]
+            if(prev_total) {
+                cpu_graph.push([
+                    data.history_timestamps[i][0],
+                    (use - prev_use) / (total - prev_total),
+                    ])
+            }
+            prev_use = use
+            prev_total = total
+        }
+        this.cpu_sparkline = new Sparkline(cpu_graph)
     }
     render_self() {
         var stats = this.data;
@@ -58,7 +82,10 @@ export class Navbar {
                 [ data.load_avg_15min.toFixed(2) ]),
             ' / ',
             title("Uptime of the box running cantal", [
-                'up ', format_uptime(till_now_ms(from_ms(data.boot_time*1000))) ]),
+                'up ', format_uptime(till_now_ms(from_ms(data.boot_time*1000)))
+            ]),
+            ' ',
+            this.cpu_sparkline ? this.cpu_sparkline.render() : '',
         ]);
     }
     render() {

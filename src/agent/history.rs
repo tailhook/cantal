@@ -252,4 +252,7 @@ impl History {
                 ).into_iter().collect())))
         .unwrap_or(Json::Null)
     }
+    pub fn get_timestamps(&self, num: usize) -> Vec<(u64, u32)> {
+         self.fine_timestamps.iter().take(num).cloned().collect()
+    }
 }

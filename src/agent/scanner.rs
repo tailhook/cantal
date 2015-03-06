@@ -32,16 +32,16 @@ pub fn scan_loop(stats: Arc<RwLock<Stats>>) {
             tip.map.len(), processes.len(), scan_time);
 
         if let Ok(ref mut stats) = stats.write() {
-            let start = time_ms();
+            let postprocess_start = time_ms();
             stats.history.push(start, scan_time as u32, tip);
             stats.boot_time = boot_time.or(stats.boot_time);
             stats.processes = processes;
 
             let buf = Mencoder::to_msgpack(&**stats).unwrap();
             debug!("Stored in {} ms / {} bytes",
-                time_ms() - start, buf.len());
+                time_ms() - postprocess_start, buf.len());
         }
 
-        sleep(Duration::seconds(2));
+        sleep(Duration::milliseconds(2000 - time_ms() as i64 % 2000));
     }
 }

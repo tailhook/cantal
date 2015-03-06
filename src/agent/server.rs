@@ -12,20 +12,25 @@ use super::scan::processes::Pid;
 use super::history::{Value};
 
 
+const SHORT_HISTORY: usize = 30;
+
 
 #[derive(Encodable)]
 struct StatusData {
     pub startup_time: u64,
     pub scan_time: u64,
+    pub boot_time: Option<u64>,
 
     pub load_avg_1min: Json,
     pub load_avg_5min: Json,
     pub load_avg_15min: Json,
+
+    pub history_timestamps: Vec<(u64, u32)>,
     pub cpu_user: Json,
     pub cpu_nice: Json,
     pub cpu_system: Json,
     pub cpu_idle: Json,
-    pub boot_time: Option<u64>,
+
 }
 
 /*
@@ -69,19 +74,26 @@ fn handle_request(stats: &RwLock<Stats>, req: &http::Request)
         return staticfiles::serve(req);
     } else {
         let stats = stats.read().unwrap();
-        let ref t = stats.history; // temporarily
+        let ref h = stats.history;
         match req.uri() {
             "/status.json" => Ok(http::reply_json(req, &StatusData {
                 startup_time: stats.startup_time,
                 scan_time: stats.scan_time,
-                load_avg_1min: t.get_tip_json(&Key::metric("load_avg_1min")),
-                load_avg_5min: t.get_tip_json(&Key::metric("load_avg_5min")),
-                load_avg_15min: t.get_tip_json(&Key::metric("load_avg_15min")),
-                cpu_user: t.get_history_json(&Key::metric("cpu.user"), 30),
-                cpu_nice: t.get_history_json(&Key::metric("cpu.nice"), 30),
-                cpu_system: t.get_history_json(&Key::metric("cpu.system"), 30),
-                cpu_idle: t.get_history_json(&Key::metric("cpu.idle"), 30),
                 boot_time: stats.boot_time,
+
+                load_avg_1min: h.get_tip_json(&Key::metric("load_avg_1min")),
+                load_avg_5min: h.get_tip_json(&Key::metric("load_avg_5min")),
+                load_avg_15min: h.get_tip_json(&Key::metric("load_avg_15min")),
+
+                history_timestamps: h.get_timestamps(SHORT_HISTORY),
+                cpu_user: h.get_history_json(
+                    &Key::metric("cpu.user"), SHORT_HISTORY),
+                cpu_nice: h.get_history_json(
+                    &Key::metric("cpu.nice"), SHORT_HISTORY),
+                cpu_system: h.get_history_json(
+                    &Key::metric("cpu.system"), SHORT_HISTORY),
+                cpu_idle: h.get_history_json(
+                    &Key::metric("cpu.idle"), SHORT_HISTORY),
             })),
             "/all_processes.json" => Ok(http::reply_json(req, &ProcessesData {
                 boot_time: stats.boot_time,

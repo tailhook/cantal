@@ -1,8 +1,9 @@
 export NODE_PATH=/usr/local/lib/node_modules
 
 JSDIR=../public/js
-JS=util/request.js util/html.js util/time.js util/navbar.js \
-	util/donut.js util/chart.js\
+JS=util/request.js util/html.js util/time.js \
+	util/donut.js util/chart.js util/sparkline.js \
+	util/navbar.js \
 	pages/processes.js pages/status.js pages/values.js pages/totals.js
 
 js: $(JSDIR)/lib.js $(JSDIR)/app.js
