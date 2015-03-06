@@ -51,8 +51,8 @@ function sector(cx, cy, r1, r2, sa, ea) {
 
 export class DonutChart {
     constructor(width=256, height=256) {
-        this.width = 256
-        this.height = 256
+        this.width = width
+        this.height = height
         this.items = [];
         this.total_value = 1;
     }
@@ -67,7 +67,7 @@ export class DonutChart {
         var angle = 0
         var cx = this.width >> 1
         var cy = this.width >> 1
-        var r = Math.min(cx, cy) - 10
+        var r = Math.min(cx, cy)
         for(var i = 0, il = items.length; i < il; ++i) {
             var it = items[i]
             if(it.value == 0) {
@@ -81,7 +81,7 @@ export class DonutChart {
             } else {
                 angle -= 360 * it.value / total;
             }
-            var path = sector(cx, cy, r*0.50, r, sangle, angle)
+            var path = sector(cx, cy, r > 50 ? r*0.50 : r*0.2, r, sangle, angle)
             paths.push({tag: 'path', attrs: {
                 fill: it.color,
                 title: it.title,
@@ -90,8 +90,9 @@ export class DonutChart {
         }
 
         return { tag: "svg", attrs: { style: {
-                width: '256px',
-                height: '256px',
+                'vertical-align': 'middle',
+                width: `${this.width}px`,
+                height: `${this.height}px`,
             }}, children: paths,
         };
     }

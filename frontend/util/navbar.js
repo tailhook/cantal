@@ -3,6 +3,7 @@ import {tag_class as hc, tag as h, link, icon,
 import {format_uptime, till_now_ms, from_ms} from 'util/time'
 import {RefreshJson} from 'util/request'
 import {Sparkline} from 'util/sparkline'
+import {DonutChart} from 'util/donut'
 
 
 function nav(classname, href, ...args) {
@@ -17,6 +18,7 @@ export class Navbar {
     constructor() {
     }
     mount(elem) {
+        this._memory_donut = new DonutChart(32, 32)
         this._node = cito.vdom.append(elem, () => this.render())
         this._page = ''
         this._refresher = new RefreshJson("/status.json", (data, latency) => {
@@ -36,6 +38,19 @@ export class Navbar {
     }
     _preprocess(data) {
         this.data = data
+        this._cpu_graph(data)
+        this._memory_graph(data)
+    }
+    _memory_graph(d) {
+        this._memory_donut.set_data({total: d.mem_total, items: [
+            {color: '#e5f5f9', title: 'Free', value: d.mem_free},
+            {color: '#99d8c9', title: 'Free', value: d.mem_buffers},
+            {color: '#2ca25f', title: 'Free', value: d.mem_cached},
+            {color: '#a0a0a0', title: 'Free', value:
+                d.mem_total - d.mem_free - d.mem_buffers - d.mem_cached},
+        ]})
+    }
+    _cpu_graph(data) {
         const user = data.cpu_user.fine
         const nice = data.cpu_nice.fine
         const idle = data.cpu_idle.fine
@@ -55,7 +70,7 @@ export class Navbar {
             prev_use = use
             prev_total = total
         }
-        this.cpu_sparkline = new Sparkline(cpu_graph)
+        this._cpu_sparkline = new Sparkline(cpu_graph)
     }
     render_self() {
         var stats = this.data;
@@ -85,7 +100,9 @@ export class Navbar {
                 'up ', format_uptime(till_now_ms(from_ms(data.boot_time*1000)))
             ]),
             ' ',
-            this.cpu_sparkline ? this.cpu_sparkline.render() : '',
+            this._cpu_sparkline ? this._cpu_sparkline.render() : '',
+            ' ',
+            this._memory_donut ? this._memory_donut.render() : '',
         ]);
     }
     render() {

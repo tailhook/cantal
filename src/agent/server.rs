@@ -24,6 +24,10 @@ struct StatusData {
     pub load_avg_1min: Json,
     pub load_avg_5min: Json,
     pub load_avg_15min: Json,
+    pub mem_total: Json,
+    pub mem_free: Json,
+    pub mem_cached: Json,
+    pub mem_buffers: Json,
 
     pub history_timestamps: Vec<(u64, u32)>,
     pub cpu_user: Json,
@@ -84,6 +88,11 @@ fn handle_request(stats: &RwLock<Stats>, req: &http::Request)
                 load_avg_1min: h.get_tip_json(&Key::metric("load_avg_1min")),
                 load_avg_5min: h.get_tip_json(&Key::metric("load_avg_5min")),
                 load_avg_15min: h.get_tip_json(&Key::metric("load_avg_15min")),
+                mem_total: h.get_tip_json(&Key::metric("memory.MemTotal")),
+                mem_free: h.get_tip_json(&Key::metric("memory.MemFree")),
+                mem_buffers: h.get_tip_json(&Key::metric("memory.Buffers")),
+                mem_cached: h.get_tip_json(&Key::metric("memory.Cached")),
+
 
                 history_timestamps: h.get_timestamps(SHORT_HISTORY),
                 cpu_user: h.get_history_json(
