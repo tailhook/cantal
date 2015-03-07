@@ -39,14 +39,19 @@ impl Tip {
         //println!("Adding {:?}: {:?}", key, value);
         self.map.insert(key, value);
     }
-    pub fn add_next_float<I:NextValue>(&mut self, metric: &str, mut iter: I) {
+    pub fn add_next_float<I:NextValue>(&mut self, key: Key, mut iter: I) {
         if let Ok(x) = iter.next_value() {
-            self.map.insert(Key::metric(metric), Value::Float(x));
+            self.add(key, Value::Float(x));
         }
     }
-    pub fn add_next_cnt<I:NextValue>(&mut self, metric: &str, mut iter: I) {
+    pub fn add_next_int<I:NextValue>(&mut self, key: Key, mut iter: I) {
         if let Ok(x) = iter.next_value() {
-            self.map.insert(Key::metric(metric), Value::Counter(x));
+            self.add(key, Value::Integer(x));
+        }
+    }
+    pub fn add_next_cnt<I:NextValue>(&mut self, key: Key, mut iter: I) {
+        if let Ok(x) = iter.next_value() {
+            self.add(key, Value::Counter(x));
         }
     }
 }
