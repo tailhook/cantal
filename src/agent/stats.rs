@@ -49,6 +49,13 @@ impl Key {
             return Err(());
         }
     }
+    pub fn pairs(pairs: &[(&str, &str)]) -> Key {
+        let mut res = BTreeMap::new();
+        for &(key, val) in pairs.iter() {
+            res.insert(key.to_string(), val.to_string());
+        }
+        return Key(res);
+    }
     pub fn from_pair(key: &str, val: &str) -> Key {
         let mut res = BTreeMap::new();
         res.insert(key.to_string(), val.to_string());

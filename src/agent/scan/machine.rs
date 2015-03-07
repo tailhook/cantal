@@ -98,5 +98,41 @@ pub fn read(t: &mut Tip) -> Option<u64> {
             }
             Ok(())
         }).ok();
+    File::open(&Path::new("/proc/net/dev"))
+        .and_then(|f| {
+            let mut f = BufReader::new(f);
+            let mut line = String::with_capacity(200);
+            try!(f.read_line(&mut line));
+            let mut line = String::with_capacity(200);
+            try!(f.read_line(&mut line));
+            let mut slices = line.splitn(2, '|');
+            slices.next();
+            let mut fields = vec!();
+            for i in slices.next().unwrap_or("").words() {
+                fields.push(format!("net.rx.{}", i));
+            }
+            for i in slices.next().unwrap_or("").words() {
+                fields.push(format!("net.tx.{}", i));
+            }
+            loop {
+                let mut line = String::with_capacity(200);
+                try!(f.read_line(&mut line));
+                if line.len() == 0 { break; }
+                let mut pieces = line.words();
+                let interface = pieces.next().unwrap_or("unknown:")
+                                .trim_right_matches(':');
+                for (k, v) in fields.iter().zip(pieces) {
+                    FromStr::from_str(v).map(|x|
+                        t.add(
+                            Key::pairs(&[
+                                ("interface", interface),
+                                ("metric", &k),
+                                ]),
+                            Counter(x)))
+                    .ok();
+                }
+            }
+            Ok(())
+        }).ok();
     return boot_time;
 }

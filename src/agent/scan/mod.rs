@@ -36,6 +36,7 @@ impl Tip {
         }
     }
     pub fn add(&mut self, key: Key, value: Value) {
+        //println!("Adding {:?}: {:?}", key, value);
         self.map.insert(key, value);
     }
     pub fn add_next_float<I:NextValue>(&mut self, metric: &str, mut iter: I) {
