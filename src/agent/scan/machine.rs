@@ -109,10 +109,10 @@ pub fn read(t: &mut Tip) -> Option<u64> {
             slices.next();
             let mut fields = vec!();
             for i in slices.next().unwrap_or("").words() {
-                fields.push(format!("net.rx.{}", i));
+                fields.push(format!("net.interface.rx.{}", i));
             }
             for i in slices.next().unwrap_or("").words() {
-                fields.push(format!("net.tx.{}", i));
+                fields.push(format!("net.interface.tx.{}", i));
             }
             loop {
                 let mut line = String::with_capacity(200);
@@ -134,5 +134,34 @@ pub fn read(t: &mut Tip) -> Option<u64> {
             }
             Ok(())
         }).ok();
+    File::open(&Path::new("/proc/net/netstat"))
+    .and_then(|f| {
+        let mut f = BufReader::new(f);
+        loop {
+            let mut header_line = String::with_capacity(2048);
+            try!(f.read_line(&mut header_line));
+            if header_line.len() == 0 { break; }
+            let mut header = header_line.words();
+
+            let mut values_line = String::with_capacity(1024);
+            try!(f.read_line(&mut values_line));
+            if values_line.len() == 0 { break; }
+            let mut values = values_line.words();
+
+            let first = header.next();
+            if first != values.next() {
+                break;
+            }
+            let prefix = first.unwrap().trim_right_matches(':');
+            for (k, v) in header.zip(values) {
+                FromStr::from_str(v).map(|x|
+                    t.add(
+                        Key::metric(&format!("net.{}.{}", prefix, k)),
+                        Counter(x)))
+                .ok();
+            }
+        }
+        Ok(())
+    }).ok();
     return boot_time;
 }
