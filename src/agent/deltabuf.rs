@@ -4,9 +4,11 @@ use std::fmt::Display;
 use std::collections::VecDeque;
 
 const SIGN_BIT: u8 = 0b00100000;
-const SKIP_BIT: u8 = 0b01000000;
-const SKIP_MASK: u8 = 0b00111111;
-const MAX_SKIPS: u64 = 63;
+const SPECIAL_BIT: u8 = 0b01000000;
+const SPECIAL_BITS: u8 = 0b01100000;
+const SPECIAL_MASK: u8 = 0b00011111;
+const SKIP_BITS: u8 = 0b01100000;
+const ZERO_BITS: u8 = 0b01000000;
 const FIRST_BYTE_SHIFT: usize = 5;
 const CONTINUATION_BIT: u8 = 0b10000000;
 const CONTINUATION_SHIFT: usize = 7;
@@ -41,8 +43,8 @@ impl DeltaBuf {
         }
         age_diff -= 1;
         while age_diff > 0 {
-            let cd = min(age_diff, MAX_SKIPS);
-            deque.push_front(SKIP_BIT | cd as u8);
+            let cd = min(age_diff, SPECIAL_MASK as u64);
+            deque.push_front(SKIP_BITS | cd as u8);
             age_diff -= cd;
         }
         let (mut delta, sign) = if old_value > new_value {
@@ -50,6 +52,17 @@ impl DeltaBuf {
         } else {
             (new_value - old_value, 0)
         };
+        if delta == Int::zero() {
+            if deque.len() > 0 && deque[0] & SPECIAL_BITS == ZERO_BITS {
+                let old_val = deque[0] & SPECIAL_MASK;
+                if old_val < SPECIAL_MASK {
+                    deque[0] = (old_val+1) | ZERO_BITS;
+                    return;
+                }
+            }
+            deque.push_front(ZERO_BITS | 1);
+            return;
+        }
         deque.push_front(sign | (delta & first_byte_mask).to_u8().unwrap());
         delta = delta >> FIRST_BYTE_SHIFT;
         while delta > FromPrimitive::from_u8(0).unwrap() {
@@ -68,9 +81,17 @@ impl DeltaBuf {
                 delta <<= CONTINUATION_SHIFT;
                 delta |= (byte & CONTINUATION_MASK) as u64;
             } else {
-                if byte & SKIP_BIT != 0 {
-                    for _ in 0..(byte & SKIP_MASK) {
-                        res.push(Delta::Skip);
+                if byte & SPECIAL_BIT != 0 {
+                    if byte & SPECIAL_BIT == SKIP_BITS {
+                        for _ in 0..(byte & SPECIAL_MASK) {
+                            res.push(Delta::Skip);
+                        }
+                    } else if byte & SPECIAL_BIT == ZERO_BITS {
+                        for _ in 0..(byte & SPECIAL_MASK) {
+                            res.push(Delta::Positive(0));
+                        }
+                    } else {
+                        unreachable!();
                     }
                 } else {
                     delta <<= FIRST_BYTE_SHIFT;
@@ -123,8 +144,9 @@ mod test {
 
     #[test]
     fn u64_no_skips() {
-        assert_eq!(deltify(&[1u64, 2, 10, 1000, 100000, 5, 10]),
-            vec!(Positive(5), Negative(99995), Positive(99000),
+        assert_eq!(deltify(&[1u64, 2, 10, 1000, 100000, 5, 5, 5, 5, 10]),
+            vec!(Positive(5), Positive(0), Positive(0), Positive(0),
+                 Negative(99995), Positive(99000),
                  Positive(990), Positive(8), Positive(1) ));
     }
     #[test]
