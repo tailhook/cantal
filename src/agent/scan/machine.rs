@@ -1,14 +1,17 @@
 use std::default::Default;
 use std::str::FromStr;
+use std::num::{FromStrRadix, FromPrimitive};
 use std::fs::File;
 use std::io::{BufReader, Read, BufRead};
-use cantal::itertools::NextValue;
+use std::collections::HashMap;
+use std::collections::hash_map::Entry::{Vacant,Occupied};
 
+use cantal::itertools::NextValue;
+use cantal::Value::{Float, Counter, Integer};
 
 use super::{time_ms};
 use super::Tip;
 use super::super::stats::Key;
-use cantal::Value::{Float, Counter, Integer};
 
 
 pub fn read(t: &mut Tip) -> Option<u64> {
@@ -218,6 +221,131 @@ pub fn read(t: &mut Tip) -> Option<u64> {
                             ("device", device),
                             ("metric", "disk.weighted_time"),
                             ]), &mut pieces);
+        }
+        Ok(())
+    }).ok();
+    File::open(&Path::new("/proc/net/tcp")).and_then(|f| {
+        #[derive(FromPrimitive)]
+        enum S {
+            UNKNOWN,
+            ESTABLISHED,
+            SYN_SENT,
+            SYN_RECV,
+            FIN_WAIT1,
+            FIN_WAIT2,
+            TIME_WAIT,
+            CLOSE,
+            CLOSE_WAIT,
+            LAST_ACK,
+            LISTEN,
+            CLOSING,
+        };
+        let mut f = BufReader::new(f);
+        let mut line = String::with_capacity(200);
+        try!(f.read_line(&mut line));
+        let mut tx_queue = 0;
+        let mut rx_queue = 0;
+        let mut cli = HashMap::new();
+        let mut serv = HashMap::new();
+        let mut close_wait = 0;
+        let mut time_wait = 0;
+        let mut established = 0;
+        let mut listening = 0;
+        loop {
+            let mut line = String::with_capacity(200);
+            try!(f.read_line(&mut line));
+            if line.len() == 0 { break; }
+            let mut pieces = line.words();
+            pieces.next(); // Skip slot number
+            let local = pieces.next()
+                .and_then(|x| if x.len() == 13 { Some(x) } else { None })
+                .and_then(|x| FromStrRadix::from_str_radix(&x[9..13], 16).ok())
+                .unwrap_or(0u16);
+            let remote = pieces.next()
+                .and_then(|x| if x.len() == 13 { Some(x) } else { None })
+                .and_then(|x| FromStrRadix::from_str_radix(&x[9..13], 16).ok())
+                .unwrap_or(0u16);
+            let status = pieces.next()
+                .and_then(|x| FromStrRadix::from_str_radix(x, 16).ok())
+                .unwrap_or(0);
+            let mut queues = pieces.next().unwrap_or("0:0").split(':');
+            let tx = queues.next()
+                .and_then(|x| FromStrRadix::from_str_radix(x, 16).ok())
+                .unwrap_or(0);
+            let rx = queues.next()
+                .and_then(|x| FromStrRadix::from_str_radix(x, 16).ok())
+                .unwrap_or(0);
+            {
+                // TODO(tailhook) read ephemeral port range
+                let mut pair = if local > 0 && local < 32768 {
+                    // Consider this inbound connection
+                    Some((&mut serv, local))
+                } else if remote > 0 && remote < 32768 {
+                    // Consider this outbound connection
+                    Some((&mut cli, remote))
+                } else {
+                    // Don't know, probably rare enough to ignore
+                    None
+                };
+                if let Some((ref mut coll, port)) = pair {
+                    let estab = if status == S::ESTABLISHED as i32 {1} else {0};
+                    match coll.entry(port) {
+                        Vacant(e) => {
+                            e.insert((estab, tx, rx));
+                        }
+                        Occupied(mut e) => {
+                            let &mut (ref mut pestab, ref mut ptx, ref mut prx)
+                                = e.get_mut();
+                            *pestab += estab;
+                            *ptx += tx;
+                            *prx += rx;
+                        }
+                    };
+                }
+            }
+            tx_queue += tx;
+            rx_queue += rx;
+            match FromPrimitive::from_i32(status) {
+                Some(S::ESTABLISHED) => established += 1,
+                Some(S::CLOSE_WAIT) => close_wait += 1,
+                Some(S::TIME_WAIT) => time_wait += 1,
+                Some(S::LISTEN) => listening += 1,
+                _ => {}
+            }
+        }
+        t.add(Key::metric("net.tcp.established"), Integer(established));
+        t.add(Key::metric("net.tcp.close_wait"), Integer(close_wait));
+        t.add(Key::metric("net.tcp.time_wait"), Integer(time_wait));
+        t.add(Key::metric("net.tcp.listening"), Integer(listening));
+        t.add(Key::metric("net.tcp.tx_queue"), Integer(tx_queue));
+        t.add(Key::metric("net.tcp.rx_queue"), Integer(rx_queue));
+        for (port, (estab, ptx, prx)) in cli.into_iter() {
+            t.add(Key::pairs(&[
+                ("metric", "net.tcp.active.established"),
+                ("port", &format!("{}", port)),
+                ]), Integer(estab));
+            t.add(Key::pairs(&[
+                ("metric", "net.tcp.active.tx_queue"),
+                ("port", &format!("{}", port)),
+                ]), Integer(ptx));
+            t.add(Key::pairs(&[
+                ("metric", "net.tcp.active.rx_queue"),
+                ("port", &format!("{}", port)),
+                ]), Integer(prx));
+        }
+        for (port, (estab, ptx, prx)) in serv.into_iter() {
+            t.add(Key::pairs(&[
+                ("metric", "net.tcp.passive.established"),
+                ("port", &format!("{}", port)),
+                ]), Integer(estab));
+            t.add(Key::pairs(&[
+                ("metric", "net.tcp.passive.tx_queue"),
+                ("port", &format!("{}", port)),
+                ]), Integer(ptx));
+            t.add(Key::pairs(&[
+                ("metric", "net.tcp.passive.rx_queue"),
+                ("port", &format!("{}", port)),
+                ]), Integer(prx));
         }
         Ok(())
     }).ok();
