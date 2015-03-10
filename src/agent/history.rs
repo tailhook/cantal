@@ -255,4 +255,28 @@ impl History {
     pub fn get_timestamps(&self, num: usize) -> Vec<(u64, u32)> {
          self.fine_timestamps.iter().take(num).cloned().collect()
     }
+    pub fn filter<'x, F:Fn(&Key) -> bool>(&'x self, predicate: F)
+        -> Vec<(Json, Json)>
+    {
+        let mut res = Vec::new();
+        for (key, _) in self.fine.iter() {
+            if predicate(key) {
+                // TODO(tailhook) optimize lookups
+                res.push((key.to_json(), self.get_tip_json(key)));
+            }
+        }
+        for (key, _) in self.coarse.iter() {
+            if predicate(key) {
+                // TODO(tailhook) optimize lookups
+                res.push((key.to_json(), self.get_tip_json(key)));
+            }
+        }
+        for (key, _) in self.tip.iter() {
+            if predicate(key) {
+                // TODO(tailhook) optimize lookups
+                res.push((key.to_json(), self.get_tip_json(key)));
+            }
+        }
+        return res;
+    }
 }

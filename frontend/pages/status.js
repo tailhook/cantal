@@ -5,37 +5,38 @@ import {DonutChart} from 'util/donut'
 import {Chart} from 'util/chart'
 import {RefreshJson} from 'util/request'
 
-const MEM_ITEMS = [
-    ['', 'Total', 'mem_total'],
-    ['#e5f5f9', 'Free', 'mem_free'],
-    ['#99d8c9', 'Buffers', 'buffers'],
-    ['#2ca25f', 'Cached', 'cached'],
-    ['#a0a0a0', 'Used', 'used'],
-    ['', 'Available', 'mem_available'],
-    ['', 'Swap Cached', 'swap_cached'],
-    ['', 'Active', 'active'],
-    ['', 'Inactive', 'inactive'],
-    ['', 'Unevictable', 'unevictable'],
-    ['', 'Memory Locked', 'mlocked'],
-    ['', 'Swap Total', 'swap_total'],
-    ['', 'Swap Free', 'swap_free'],
-    ['', 'Dirty', 'dirty'],
-    ['', 'Writeback', 'writeback'],
-    ['', 'Commit Limit', 'commit_limit'],
-    ['', 'Committed Address Space', 'committed_as'],
-];
+const MEM_COLORS = {
+    MemFree: '#e5f5f9',
+    Buffers: '#99d8c9',
+    Cached: '#2ca25f',
+    Used: '#a0a0a0',
+};
+
+const MEM_ORDER = {
+    MemTotal: 1,
+    Used: 2,
+    Cached: 3,
+    Buffers: 4,
+    MemFree: 5,
+    Dirty: 6,
+    Writeback: 7,
+    SwapTotal: 8,
+    Committed_AS: 9,
+    CommitLimit: 10,
+}
 
 function memchart(mem) {
     return {
-        total: mem.mem_total,
-        items: MEM_ITEMS.map(([color, title, property]) => {
+        total: mem.MemTotal,
+        items: Object.keys(mem).map(key => {
+            var item = mem[key];
             return {
-                color: color,
-                title: title,
-                value: mem[property],
-                text: (mem[property]/1048576).toFixed(1),
+                color: MEM_COLORS[key],
+                title: key,
+                value: mem[key],
+                text: (mem[key]/1048576).toFixed(1),
             }
-        })
+        }).sort((a, b) => (MEM_ORDER[a.title] || 10000) - (MEM_ORDER[b.title] || 10000))
     }
 }
 
@@ -61,11 +62,16 @@ export class Status {
         this._refresher.start()
     }
     _preprocess(data) {
-        var mem = data.machine.memory;
-        mem.used = mem.mem_total
-                   - mem.mem_free
-                   - mem.buffers
-                   - mem.cached
+        var mem = {}
+        for(var item of data.metrics) {
+            if(item[0].metric.substr(0, 7) == 'memory.') {
+                mem[item[0].metric.substr(7)] = item[1]
+            }
+        }
+        mem.Used = mem.MemTotal
+                   - mem.MemFree
+                   - mem.Buffers
+                   - mem.Cached
         this._mem_chart.set_data(memchart(mem))
     }
     render() {
