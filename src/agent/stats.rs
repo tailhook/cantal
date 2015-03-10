@@ -2,7 +2,7 @@ use std::hash::{Hash, Hasher};
 use std::default::Default;
 use std::collections::BTreeMap;
 
-use serialize::json::Json;
+use serialize::json::{Json, ToJson};
 
 use super::scan::time_ms;
 use super::scan;
@@ -56,6 +56,10 @@ impl Key {
         }
         return Key(res);
     }
+    pub fn to_json(&self) -> Json {
+        let &Key(ref res) = self;
+        return res.to_json();
+    }
     pub fn from_pair(key: &str, val: &str) -> Key {
         let mut res = BTreeMap::new();
         res.insert(key.to_string(), val.to_string());
@@ -68,6 +72,10 @@ impl Key {
         let Key(mut res) = self;
         res.insert(key.to_string(), val.to_string());
         return Key(res);
+    }
+    pub fn get<'x>(&'x self, key: &str) -> Option<&'x str> {
+        let &Key(ref map) = self;
+        return map.get(key).map(|x| &x[..]);
     }
 }
 

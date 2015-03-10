@@ -37,14 +37,10 @@ struct StatusData {
 
 }
 
-/*
 #[derive(Encodable)]
-struct DetailsData<'a> {
-    pub startup_time: u64,
-    pub scan_time: u64,
-    pub machine: &'a scan::machine::MachineStats,
+struct Metrics {
+    pub metrics: Vec<(Json, Json)>,
 }
-*/
 
 #[derive(Encodable)]
 struct ProcessesData<'a> {
@@ -108,12 +104,14 @@ fn handle_request(stats: &RwLock<Stats>, req: &http::Request)
                 boot_time: stats.boot_time,
                 all: &stats.processes,
             })),
-            /*
-            "/details.json" => Ok(http::reply_json(req, &DetailsData {
-                startup_time: stats.startup_time,
-                scan_time: stats.scan_time,
-                machine: &stats.machine,
+            "/details.json" => Ok(http::reply_json(req, &Metrics {
+                metrics: stats.history.filter(|key| {
+                    key.get("metric")
+                    .map(|x| x.starts_with("memory."))
+                    .unwrap_or(false)
+                }),
             })),
+            /*
             "/values.json" => Ok(http::reply_json(req, &ValuesData {
                 items: stats.processes.all.iter()
                     .filter_map(|prc| stats.processes.values.get(&prc.pid)
