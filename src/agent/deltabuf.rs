@@ -17,10 +17,10 @@ const CONTINUATION_SHIFT: usize = 7;
 const FIRST_BYTE_MASK: u8 = 0b00011111;
 const CONTINUATION_MASK: u8 = 0b01111111;
 
-#[derive(Decodable, Encodable, Debug)]
+#[derive(Decodable, Encodable, Debug, Clone)]
 pub struct DeltaBuf(VecDeque<u8>);
 
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Eq, Debug, Clone, Copy)]
 pub enum Delta {
     Positive(u64),
     Negative(u64),
@@ -77,7 +77,7 @@ impl DeltaBuf {
         let DeltaBuf(ref deque) = *self;
         let mut res = vec!();
         let mut delta: u64 = 0;
-        for byte in deque.iter() {
+        'outer: for byte in deque.iter() {
             if res.len() >= limit { break; }
             if byte & CONTINUATION_BIT != 0 {
                 delta <<= CONTINUATION_SHIFT;
@@ -87,10 +87,12 @@ impl DeltaBuf {
                     if byte & SPECIAL_BITS == SKIP_BITS {
                         for _ in 0..(byte & SPECIAL_MASK) {
                             res.push(Delta::Skip);
+                            if res.len() >= limit { break 'outer; }
                         }
                     } else if byte & SPECIAL_BITS == ZERO_BITS {
                         for _ in 0..(byte & SPECIAL_MASK) {
                             res.push(Delta::Positive(0));
+                            if res.len() >= limit { break 'outer; }
                         }
                     } else {
                         unreachable!();
@@ -108,6 +110,53 @@ impl DeltaBuf {
             }
         }
         return res;
+    }
+    pub fn truncate(&mut self, limit: usize) -> usize {
+        if limit == 0 {
+            *self = DeltaBuf::new();  // Is this efficient?
+            return 0;
+        }
+        match self._truncate_bytes(limit) {
+            Ok((limit_bytes, truncate_num)) => {
+                let DeltaBuf(ref mut deque) = *self;
+                if truncate_num > 0 {
+                    let b = deque[limit_bytes-1];
+                    debug_assert!(b & CONTINUATION_BIT == 0);
+                    debug_assert!(b & SPECIAL_MASK > truncate_num);
+                    deque[limit_bytes-1] = (b & SPECIAL_BITS) |
+                        ((b & SPECIAL_MASK) - truncate_num);
+                }
+                deque.truncate(limit_bytes);
+                limit
+            }
+            Err(num_current) => num_current,
+        }
+    }
+    fn _truncate_bytes(&self, limit: usize) -> Result<(usize, u8), usize> {
+        let DeltaBuf(ref deque) = *self;
+        let mut counter = 0usize;
+        for (idx, byte) in deque.iter().enumerate() {
+            if byte & CONTINUATION_BIT != 0 {
+                continue;
+            }
+            if byte & SPECIAL_BIT != 0 {
+                let cnt = byte & SPECIAL_MASK;
+                let newcnt = counter + cnt as usize;
+                if newcnt == limit {
+                    return Ok((idx+1, 0));
+                } else if newcnt > limit {
+                    return Ok((idx+1, cnt - (limit - counter) as u8));
+                } else {
+                    counter = newcnt;
+                }
+            } else {
+                counter += 1;
+                if counter >= limit {
+                    return Ok((idx+1, 0));
+                }
+            }
+        }
+        return Err(counter);
     }
 }
 
@@ -168,5 +217,37 @@ mod test {
             vec!(Positive(5), Negative(99995), Positive(99000),
                  Skip, Skip, Skip, Skip,
                  Positive(990), Positive(8), Skip, Positive(1) ));
+    }
+
+    #[test]
+    fn u64_partial_read() {
+        let buf = to_buf_opt(&[Some(1u64), Some(2), None, Some(10),
+                               Some(1000), None, None, None, None,
+                               Some(100000), Some(5), Some(10)]);
+        let result = vec!(Positive(5), Negative(99995), Positive(99000),
+                          Skip, Skip, Skip, Skip,
+                          Positive(990), Positive(8), Skip, Positive(1));
+        for i in 0..result.len() {
+            assert_eq!(&buf.deltas(i)[..], &result[..i]);
+        }
+    }
+
+    #[test]
+    fn u64_truncate() {
+        let buf = to_buf_opt(&[Some(1u64), Some(2), None, Some(10),
+                               Some(1000), None, None, None, None,
+                               Some(100000), Some(5), Some(10)]);
+        let result = vec!(Positive(5), Negative(99995), Positive(99000),
+                          Skip, Skip, Skip, Skip,
+                          Positive(990), Positive(8), Skip, Positive(1));
+        for i in 0..result.len() {
+            let mut b = buf.clone();
+            assert_eq!(b.truncate(i), i);
+            assert_eq!(&b.deltas(100)[..], &result[..i]);
+        }
+        let mut b = buf.clone();
+        assert_eq!(b.deltas(100).len(), 11);
+        assert_eq!(b.truncate(100), 11);
+        assert_eq!(b.deltas(100), result);
     }
 }

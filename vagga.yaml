@@ -8,6 +8,8 @@ commands:
   test: !Command
     description: Build and run tests
     container: ubuntu
+    environ:
+      RUST_BACKTRACE: 1
     run: [make, test]
 
   py3: !Command
