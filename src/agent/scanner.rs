@@ -12,9 +12,10 @@ use super::scan::machine;
 use super::scan::processes;
 use super::scan::values;
 use super::scan::time_ms;
+use super::util::Cell;
 
 
-pub fn scan_loop(stats: Arc<RwLock<Stats>>) {
+pub fn scan_loop(stats: &RwLock<Stats>, cell: Option<&Cell<Vec<u8>>>) {
     let mut process_cache = processes::ReadCache::new();
     let mut values_cache = values::ReadCache::new();
     loop {

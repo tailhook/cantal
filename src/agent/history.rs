@@ -27,7 +27,7 @@ pub enum Interval {
 }
 
 
-#[derive(Show, Encodable, Decodable)]
+#[derive(Debug, Encodable, Decodable)]
 pub struct History {
     age: u64,
 
