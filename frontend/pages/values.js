@@ -17,16 +17,17 @@ const TYPE_TO_ICON = {
 export class Values {
     mount(elem) {
         this._node = cito.vdom.append(elem, () => this.render());
-        this._refresher = new RefreshJson("/values.json", (data, latency) => {
-            this.latency = latency;
-            if(data instanceof Error) {
-                this.error = data;
-            } else {
-                this.data = data;
-                this.error = null;
-            }
-            this.update()
-        });
+        this._refresher = new RefreshJson("/process_values.json",
+            (data, latency) => {
+                this.latency = latency;
+                if(data instanceof Error) {
+                    this.error = data;
+                } else {
+                    this.data = data;
+                    this.error = null;
+                }
+                this.update()
+            });
         this._refresher.start()
     }
     render() {
@@ -37,14 +38,15 @@ export class Values {
                            : `Fetched in ${this.latency}ms`),
         ].concat(
             this.data
-                ? this.data.items.map(this.render_process.bind(this))
+                ? this.data.processes.map(this.render_process.bind(this))
                 : []
         ));
     }
     render_value(pair) {
         var [name, value] = pair;
-        if(value.variant == 'State') {
-            var time = value.fields[0];
+        delete name.pid
+        if(value.length !== undefined) {
+            var time = value[0];
             if(time == 0) {
                 return {children: [
                     h('tr', [
@@ -62,7 +64,7 @@ export class Values {
                         ]),
                     hc('tr', 'bg-info',
                         {tag: 'td', attrs: {colspan: 100 }, children: [
-                            icon('arrow-up'), ' ', value.fields[1]
+                            icon('arrow-up'), ' ', value[1]
                     ]}),
                 ]};
             }
@@ -70,7 +72,7 @@ export class Values {
             return h('tr', [
                 td_left(JSON.stringify(name)),
                 td_left(TYPE_TO_ICON[value.variant] || value.variant),
-                td_right(value.fields[0].toString()),
+                td_right(value.toString()),
                 ])
         }
     }

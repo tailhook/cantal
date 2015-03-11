@@ -2,7 +2,6 @@ use std::rc::Rc;
 use std::io::{BufReader, BufRead, Read};
 use std::fs::{File};
 use std::ffi::OsStr;
-use std::hash::{Hash};
 use std::os::unix::prelude::OsStrExt;
 use std::path::{Path, PathBuf, Component};
 use std::collections::{HashMap};
@@ -11,6 +10,7 @@ use serialize::json::Json;
 use cantal::{Metadata, Value, Descriptor};
 
 use super::Tip;
+use super::super::util::tree_collect;
 use super::super::stats::Key;
 use super::processes::{Pid, MinimalProcess};
 use super::super::mountpoints::{MountPrefix, parse_mount_point};
@@ -19,21 +19,6 @@ use super::super::mountpoints::{MountPrefix, parse_mount_point};
 pub struct ReadCache {
     metadata: HashMap<PathBuf, Metadata>,
     mountpoints: HashMap<(i32, i32), Vec<MountPrefix>>,
-}
-
-fn tree_collect<K: Hash + Eq, V, I: Iterator<Item=(K, V)>>(mut iter: I)
-    -> HashMap<K, Vec<V>>
-{
-    let mut result = HashMap::new();
-    for (k, v) in iter {
-        if let Some(vec) = result.get_mut(&k) {
-            let mut val: &mut Vec<V> = vec;
-            val.push(v);
-            continue;
-        }
-        result.insert(k, vec!(v));
-    }
-    return result;
 }
 
 fn get_env_var(pid: u32) -> Option<PathBuf> {

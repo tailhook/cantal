@@ -15,6 +15,7 @@ use argparse::{ArgumentParser, Store};
 
 
 mod aio;
+mod util;
 mod server;
 mod stats;
 mod staticfiles;

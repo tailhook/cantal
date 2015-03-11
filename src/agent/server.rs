@@ -1,3 +1,4 @@
+use std::str::FromStr;
 use std::sync::RwLock;
 use std::time::Duration;
 use std::collections::{HashMap};
@@ -7,6 +8,7 @@ use super::aio;
 use super::scan;
 use super::staticfiles;
 use super::aio::http;
+use super::util::tree_collect;
 use super::stats::{Stats, Key};
 use super::scan::processes::Pid;
 use super::history::{Value};
@@ -48,19 +50,34 @@ struct ProcessesData<'a> {
     all: &'a Vec<scan::processes::MinimalProcess>,
 }
 
-/*
 #[derive(Encodable)]
 struct ProcessData<'a> {
     pub pid: Pid,
     pub process: &'a scan::processes::MinimalProcess,
-    pub values: &'a Vec<(Json, Value)>,
+    pub values: Vec<(Json, Json)>,
 }
 
 #[derive(Encodable)]
-struct ValuesData<'a> {
-    pub items: Vec<ProcessData<'a>>,
+struct ProcessValues<'a> {
+    pub processes: Vec<ProcessData<'a>>,
 }
-*/
+
+fn process_values<'x>(stats: &'x Stats) -> Vec<ProcessData<'x>> {
+    let mut tree = tree_collect(stats.history
+        .filter(|key| key.get("pid").is_some())
+        .into_iter().map(|(key, val)| {
+            let pid = FromStr::from_str(
+                key["pid"].as_string().unwrap_or("0")).unwrap_or(0);
+            (pid, (key, val))
+        }));
+    stats.processes.iter().filter_map(|p| {
+        tree.remove(&p.pid).map(|val| ProcessData {
+            pid: p.pid,
+            process: p,
+            values: val,
+        })
+    }).collect()
+}
 
 
 fn handle_request(stats: &RwLock<Stats>, req: &http::Request)
@@ -110,6 +127,9 @@ fn handle_request(stats: &RwLock<Stats>, req: &http::Request)
                     .map(|x| x.starts_with("memory."))
                     .unwrap_or(false)
                 }),
+            })),
+            "/process_values.json" => Ok(http::reply_json(req, &ProcessValues {
+                processes: process_values(&*stats),
             })),
             "/states.json" => Ok(http::reply_json(req, &Metrics {
                 metrics: stats.history.filter(|key| {
