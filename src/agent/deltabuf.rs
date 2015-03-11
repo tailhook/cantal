@@ -7,8 +7,10 @@ const SIGN_BIT: u8 = 0b00100000;
 const SPECIAL_BIT: u8 = 0b01000000;
 const SPECIAL_BITS: u8 = 0b01100000;
 const SPECIAL_MASK: u8 = 0b00011111;
+//                       vv
 const SKIP_BITS: u8 = 0b01100000;
 const ZERO_BITS: u8 = 0b01000000;
+//                       ^^
 const FIRST_BYTE_SHIFT: usize = 5;
 const CONTINUATION_BIT: u8 = 0b10000000;
 const CONTINUATION_SHIFT: usize = 7;
@@ -82,11 +84,11 @@ impl DeltaBuf {
                 delta |= (byte & CONTINUATION_MASK) as u64;
             } else {
                 if byte & SPECIAL_BIT != 0 {
-                    if byte & SPECIAL_BIT == SKIP_BITS {
+                    if byte & SPECIAL_BITS == SKIP_BITS {
                         for _ in 0..(byte & SPECIAL_MASK) {
                             res.push(Delta::Skip);
                         }
-                    } else if byte & SPECIAL_BIT == ZERO_BITS {
+                    } else if byte & SPECIAL_BITS == ZERO_BITS {
                         for _ in 0..(byte & SPECIAL_MASK) {
                             res.push(Delta::Positive(0));
                         }
@@ -118,15 +120,15 @@ mod test {
     use super::{Delta, DeltaBuf};
     use super::Delta::*;
 
-    fn deltify<T:Int+FromPrimitive+Display>(values: &[T]) -> Vec<Delta> {
+    fn to_buf<T:Int+FromPrimitive+Display>(values: &[T]) -> DeltaBuf {
         let mut buf = DeltaBuf::new();
         for idx in 0..(values.len()-1) {
             buf.push(values[idx], values[idx+1], 1);
         }
-        return buf.deltas(100)
+        return buf;
     }
-    fn deltify_opt<T:Int+FromPrimitive+Display>(values: &[Option<T>])
-        -> Vec<Delta>
+    fn to_buf_opt<T:Int+FromPrimitive+Display>(values: &[Option<T>])
+        -> DeltaBuf
     {
         let mut buf = DeltaBuf::new();
         let mut off = 0;
@@ -139,7 +141,16 @@ mod test {
                 off = 0;
             });
         }
-        return buf.deltas(100)
+        return buf;
+    }
+
+    fn deltify<T:Int+FromPrimitive+Display>(values: &[T]) -> Vec<Delta> {
+        return to_buf(values).deltas(100)
+    }
+    fn deltify_opt<T:Int+FromPrimitive+Display>(values: &[Option<T>])
+        -> Vec<Delta>
+    {
+        return to_buf_opt(values).deltas(100)
     }
 
     #[test]
