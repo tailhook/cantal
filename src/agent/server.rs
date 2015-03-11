@@ -111,18 +111,11 @@ fn handle_request(stats: &RwLock<Stats>, req: &http::Request)
                     .unwrap_or(false)
                 }),
             })),
-            /*
-            "/values.json" => Ok(http::reply_json(req, &ValuesData {
-                items: stats.processes.all.iter()
-                    .filter_map(|prc| stats.processes.values.get(&prc.pid)
-                        .map(|val| ProcessData {
-                            pid: prc.pid,
-                            process: prc,
-                            values: val,
-                            }))
-                    .collect(),
+            "/states.json" => Ok(http::reply_json(req, &Metrics {
+                metrics: stats.history.filter(|key| {
+                    key.get("state").is_some()
+                }),
             })),
-            */
             _ => Err(http::Error::NotFound),
         }
     }

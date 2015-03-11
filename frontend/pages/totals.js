@@ -39,7 +39,7 @@ export class Totals {
         this._charts = {}
         this._items = []
         this._node = cito.vdom.append(elem, () => this.render());
-        this._refresher = new RefreshJson("/values.json", (data, latency) => {
+        this._refresher = new RefreshJson("/states.json", (data, latency) => {
             this.latency = latency;
             if(data instanceof Error) {
                 this.error = data;
@@ -55,44 +55,39 @@ export class Totals {
         var start = new Date();
 
         var states = {}
-        for(var item of data.items) {
-            for(var pair of item.values) {
-                var [dim, metric] = pair;
-                if(dim.state && dim.state.indexOf('.') > 0) {
-                    var stchunks = dim.state.split('.')
-                    var sub = stchunks.pop()
-                    var stname = stchunks.join('.')
-                    var st = states[stname]
-                    if(!st) {
-                        states[stname] = st = {
-                            counters: {},
-                            durations: {},
-                            states: {},
-                        }
-                    }
-                    if(dim.metric == 'count') {
-                        st.counters[sub] = (st.counters[sub] || 0) +
-                            metric.fields[0]
-                    } else if(dim.metric == 'duration') {
-                        st.durations[sub] = (st.durations[sub] || 0) +
-                            metric.fields[0]
+        for(var item of data.metrics) {
+            var [dim, metric] = item;
+            if(dim.state && dim.state.indexOf('.') > 0) {
+                var stchunks = dim.state.split('.')
+                var sub = stchunks.pop()
+                var stname = stchunks.join('.')
+                var st = states[stname]
+                if(!st) {
+                    states[stname] = st = {
+                        counters: {},
+                        durations: {},
+                        states: {},
                     }
                 }
-                if(dim.state && metric.variant == 'State' &&
-                   metric.fields[0] > 0) {
-                    var st = states[dim.state]
-                    if(!st) {
-                        states[dim.state] = st = {
-                            counters: {},
-                            durations: {},
-                            states: {},
-                        }
-                    }
-                    var state = metric.fields[1];
-                    st.states[state] = (st.states[state] || 0) + 1
-                    st.durations[state] = (st.durations[state] || 0) +
-                        till_now_ms(from_ms(metric.fields[0]))
+                if(dim.metric == 'count') {
+                    st.counters[sub] = (st.counters[sub] || 0) + metric
+                } else if(dim.metric == 'duration') {
+                    st.durations[sub] = (st.durations[sub] || 0) + metric
                 }
+            }
+            if(dim.state && metric.length !== undefined && metric[0] != 0) {
+                var st = states[dim.state]
+                if(!st) {
+                    states[dim.state] = st = {
+                        counters: {},
+                        durations: {},
+                        states: {},
+                    }
+                }
+                var state = metric[1];
+                st.states[state] = (st.states[state] || 0) + 1
+                st.durations[state] = (st.durations[state] || 0) +
+                    till_now_ms(from_ms(metric[0]))
             }
         }
 
