@@ -1,5 +1,5 @@
 use std::sync::{RwLock};
-use std::fs::{File, rename};
+use std::fs::{File, rename, soft_link};
 use std::io::Write;
 use super::util::Cell;
 use super::stats::Stats;
@@ -13,22 +13,29 @@ pub struct Buffer {
 
 
 pub fn storage_loop(cell: &Cell<Buffer>, path: &Path, stats: &RwLock<Stats>) {
+    let tmp = path.join("current.tmp");
+    let tmplink = path.join("current.tmp.link");
+    let current = path.join("current.msgpack");
     loop {
         let buf = cell.get();
         let start_time = time_ms();
-        let filename = path
-            .join(buf.snapshot.as_ref().map(|x| &x[..]).unwrap_or("current"));
-        File::create(&filename.with_extension("tmp"))
+        File::create(&tmp)
         .and_then(|mut f| f.write_all(&buf.data))
         .and_then(|()| {
-            rename(&filename.with_extension("tmp"),
-                   &filename.with_extension("msgpack"))
+            if let Some(ref filename) = buf.snapshot {
+                let filename = path.join(filename).with_extension("msgpack");
+                try!(soft_link(&filename, &tmplink));
+                try!(rename(&tmp, &filename));
+                rename(&tmplink, &current)
+            } else {
+                rename(&tmp, &current)
+            }
         })
         .map(|()| {
             let time = time_ms();
             let dur = (time - start_time) as u32;
             debug!("Stored {:?}: {} bytes in {} ms",
-                &filename, buf.data.len(), dur);
+                &buf.snapshot, buf.data.len(), dur);
             if let Ok(mut stats) = stats.write() {
                 stats.store_duration = dur;
                 stats.store_time = time;
@@ -36,6 +43,7 @@ pub fn storage_loop(cell: &Cell<Buffer>, path: &Path, stats: &RwLock<Stats>) {
                 stats.store_size = buf.data.len();
             }
         })
-        .map_err(|e| error!("Error storing snapshot {:?}: {}", filename, e));
+        .map_err(|e| error!("Error storing snapshot: {}", e))
+        .ok();
     }
 }

@@ -21,6 +21,7 @@ const SNAPSHOT_INTERVAL: u64 = 60000;
 
 pub fn scan_loop(stats: &RwLock<Stats>, cell: Option<&Cell<Buffer>>) {
     let mut last_store = time_ms();
+    let mut last_hourly = last_store / 3_600_000;
     let mut process_cache = processes::ReadCache::new();
     let mut values_cache = values::ReadCache::new();
     loop {
@@ -45,10 +46,17 @@ pub fn scan_loop(stats: &RwLock<Stats>, cell: Option<&Cell<Buffer>>) {
 
             if start - last_store > SNAPSHOT_INTERVAL {
                 last_store = start;
+                let hourly = start / 3_600_000;
+                let mut snapshot = None;
+                if hourly > last_hourly {
+                    stats.history.truncate_by_time(last_hourly*3_600_000);
+                    snapshot = Some(format!("hourly-{}", hourly));
+                    last_hourly = hourly;
+                }
                 if let Some(cell) = cell {
                     cell.put(Buffer {
                         timestamp: start,
-                        snapshot: None,
+                        snapshot: snapshot,
                         data: Mencoder::to_msgpack(&stats.history).unwrap(),
                     });
                 }

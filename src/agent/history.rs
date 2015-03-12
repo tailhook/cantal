@@ -176,6 +176,20 @@ impl Value {
             }
         }
     }
+    fn truncate(&mut self, trim_age: u64) {
+        match self {
+            &mut Value::Counter(_, ref age, ref mut buf) => {
+                buf.truncate((age - trim_age) as usize);
+            }
+            &mut Value::Integer(_, ref age, ref mut buf) => {
+                buf.truncate((age - trim_age) as usize);
+            }
+            &mut Value::Float(_, ref age, ref mut queue) => {
+                queue.truncate((age - trim_age) as usize);
+            }
+            &mut Value::State(_, _) => {},
+        }
+    }
 }
 
 impl History {
@@ -278,5 +292,23 @@ impl History {
             }
         }
         return res;
+    }
+    pub fn truncate_by_time(&mut self, timestamp: u64) {
+        let fine_ts = self.fine_timestamps.iter().enumerate()
+            .skip_while(|&(idx, &(ts, dur))| ts >= timestamp).next();
+        if let Some((idx, _)) = fine_ts {
+            let target_age = self.age - idx as u64;
+            for (_, ref mut value) in self.fine.iter_mut() {
+                value.truncate(target_age);
+            }
+        }
+        let coarse_ts = self.coarse_timestamps.iter().enumerate()
+            .skip_while(|&(_, &(ts, _))| ts >= timestamp).next();
+        if let Some((idx, _)) = coarse_ts {
+            let target_age = self.age - idx as u64;
+            for (_, ref mut value) in self.coarse.iter_mut() {
+                value.truncate(target_age);
+            }
+        }
     }
 }
