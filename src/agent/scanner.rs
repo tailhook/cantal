@@ -1,4 +1,4 @@
-use std::sync::{Arc, RwLock};
+use std::sync::{RwLock};
 use std::fs::File;
 use std::io::Write;
 use std::old_io::timer::sleep;
@@ -13,9 +13,14 @@ use super::scan::processes;
 use super::scan::values;
 use super::scan::time_ms;
 use super::util::Cell;
+use super::storage::Buffer;
 
 
-pub fn scan_loop(stats: &RwLock<Stats>, cell: Option<&Cell<Vec<u8>>>) {
+const SNAPSHOT_INTERVAL: u64 = 60000;
+
+
+pub fn scan_loop(stats: &RwLock<Stats>, cell: Option<&Cell<Buffer>>) {
+    let mut last_store = time_ms();
     let mut process_cache = processes::ReadCache::new();
     let mut values_cache = values::ReadCache::new();
     loop {
@@ -27,20 +32,27 @@ pub fn scan_loop(stats: &RwLock<Stats>, cell: Option<&Cell<Vec<u8>>>) {
         let processes = processes::read(&mut process_cache);
         values::read(&mut tip, &mut values_cache, &processes);
 
-        let scan_time = time_ms() - start;
-        stats.write().unwrap().scan_time = scan_time;
-        debug!("Got {} values and {} processes in {} ms",
-            tip.map.len(), processes.len(), scan_time);
+        let scan_duration = (time_ms() - start) as u32;
 
         if let Ok(ref mut stats) = stats.write() {
-            let postprocess_start = time_ms();
-            stats.history.push(start, scan_time as u32, tip);
+            stats.scan_duration = scan_duration;
+            debug!("Got {} values and {} processes in {} ms",
+                tip.map.len(), processes.len(), scan_duration);
+
+            stats.history.push(start, scan_duration, tip);
             stats.boot_time = boot_time.or(stats.boot_time);
             stats.processes = processes;
 
-            let buf = Mencoder::to_msgpack(&**stats).unwrap();
-            debug!("Stored in {} ms / {} bytes",
-                time_ms() - postprocess_start, buf.len());
+            if start - last_store > SNAPSHOT_INTERVAL {
+                last_store = start;
+                if let Some(cell) = cell {
+                    cell.put(Buffer {
+                        timestamp: start,
+                        snapshot: None,
+                        data: Mencoder::to_msgpack(&stats.history).unwrap(),
+                    });
+                }
+            }
         }
 
         sleep(Duration::milliseconds(2000 - time_ms() as i64 % 2000));

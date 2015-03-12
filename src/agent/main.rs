@@ -10,7 +10,11 @@ extern crate cantal;
 
 use std::env;
 use std::thread;
+use std::old_io::fs::File;
 use std::sync::RwLock;
+
+use serialize::Decodable;
+use msgpack::{Decoder};
 use argparse::{ArgumentParser, Store, StoreOption};
 
 
@@ -54,9 +58,15 @@ fn main() {
     let cell = &util::Cell::new();
 
     let _storage = storage_dir.as_ref().map(|path| {
+        let result = File::open(&path.join("current.msgpack"))
+            .and_then(|f| Decodable::decode(&mut Decoder::new(f)))
+            .map_err(|e| error!("Error reading old data: {}. Ignoring...", e));
+        if let Ok(history) = result {
+            stats.write().unwrap().history = history;
+        }
         let path = path.clone();
         thread::scoped(move || {
-            storage::storage_loop(cell, &path)
+            storage::storage_loop(cell, &path, stats)
         })
     });
 

@@ -20,7 +20,11 @@ const SHORT_HISTORY: usize = 30;
 #[derive(Encodable)]
 struct StatusData {
     pub startup_time: u64,
-    pub scan_time: u64,
+    pub scan_duration: u32,
+    pub store_time: u64,
+    pub store_timestamp: u64,
+    pub store_duration: u32,
+    pub store_size: usize,
     pub boot_time: Option<u64>,
 
     pub load_avg_1min: Json,
@@ -95,7 +99,11 @@ fn handle_request(stats: &RwLock<Stats>, req: &http::Request)
         match req.uri() {
             "/status.json" => Ok(http::reply_json(req, &StatusData {
                 startup_time: stats.startup_time,
-                scan_time: stats.scan_time,
+                scan_duration: stats.scan_duration,
+                store_time: stats.store_time,
+                store_duration: stats.store_duration,
+                store_timestamp: stats.store_timestamp,
+                store_size: stats.store_size,
                 boot_time: stats.boot_time,
 
                 load_avg_1min: h.get_tip_json(&Key::metric("load_avg_1min")),

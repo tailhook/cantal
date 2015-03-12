@@ -10,9 +10,15 @@ use super::history::History;
 
 #[derive(Encodable)]
 pub struct Stats {
+
     pub startup_time: u64,
-    pub scan_time: u64,
+    pub scan_duration: u32,
     pub boot_time: Option<u64>,
+    pub store_time: u64,
+    pub store_timestamp: u64,
+    pub store_duration: u32,
+    pub store_size: usize,
+
     pub history: History,
     pub processes: Vec<scan::processes::MinimalProcess>,
 }
@@ -21,8 +27,12 @@ impl Stats {
     pub fn new() -> Stats {
         return Stats {
             startup_time: time_ms(),
-            scan_time: 0,
+            scan_duration: 0,
             boot_time: None,
+            store_time: 0,
+            store_timestamp: 0,
+            store_duration: 0,
+            store_size: 0,
             history: History::new(),
             processes: Default::default(),
         };

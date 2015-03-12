@@ -82,7 +82,7 @@ export class Navbar {
                   [ this.latency.toFixed(0), 'ms']),
             ' / ',
             title("Time it takes for cantal to read all stats once",
-                  [ stats.scan_time.toString(), 'ms']),
+                  [ stats.scan_duration.toString(), 'ms']),
         ]);
     }
     render_machine() {
