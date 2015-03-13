@@ -4,28 +4,28 @@ import {tag_class as hc, tag as h, link, icon, button_xs as button,
         } from 'util/html'
 import {format_uptime, till_now_ms, from_ms} from 'util/time'
 import {RefreshJson} from 'util/request'
+import {Component} from 'util/base'
 
 
-export class Processes {
-    mount(elem) {
-        this._node = cito.vdom.append(elem, () => this.render());
-        this._refresher = new RefreshJson("/all_processes.json",
-            (data, latency) => {
-                this.latency = latency;
-                if(data instanceof Error) {
-                    this.error = data;
-                } else {
-                    this.set_data(data);
-                    this.error = null;
-                }
-                this.update()
-            }, 5000);
-        this._refresher.start();
+export class Processes extends Component {
+    constructor() {
+        super()
         this.open_items = {};
     }
-    set_data(data) {
-        this.uptime_base = data.boot_time;
-        this.all = data.all;
+    init() {
+        this.guard('json', new RefreshJson("/all_processes.json", 5000))
+        .process((data, latency) => {
+            if(data instanceof Error) {
+                return {error: data, latency}
+            } else {
+                const res = this.build_tree(data)
+                res['error'] = null
+                res['latency'] = latency
+                return res
+            }
+        })
+    }
+    build_tree(data) {
         var toplevel = [];
         var by_id = {};
         var tree = {};
@@ -45,15 +45,13 @@ export class Processes {
                 new_open[p.pid] = true;
             }
         }
-        this.open_items = new_open;
-        this.toplevel = toplevel;
-        this.tree = tree;
-    }
-    update() {
-        cito.vdom.update(this._node, this.render())
-    }
-    remove() {
-        cito.vdom.remove(this._node);
+        return {
+            all: data.all,
+            uptime_base: data.boot_time,
+            open_items: new_open,
+            toplevel,
+            tree,
+        }
     }
     render_process(level=0, process) {
         var children = this.tree[process.pid];

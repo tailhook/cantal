@@ -1,5 +1,5 @@
 export class Sparkline {
-    constructor(points, options={}) {
+    init(points, options={}) {
         this.width = points.length*2 + 2
         const h = this.height = options.height || 32
         const path = points

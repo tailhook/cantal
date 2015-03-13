@@ -4,6 +4,7 @@ import {tag_class as hc, tag as h, link, icon, button_xs as button,
         } from 'util/html'
 import {format_uptime, till_now_ms, from_ms} from 'util/time'
 import {RefreshJson} from 'util/request'
+import {Component} from 'util/base'
 
 
 const TYPE_TO_ICON = {
@@ -14,21 +15,16 @@ const TYPE_TO_ICON = {
 }
 
 
-export class Values {
-    mount(elem) {
-        this._node = cito.vdom.append(elem, () => this.render());
-        this._refresher = new RefreshJson("/process_values.json",
-            (data, latency) => {
-                this.latency = latency;
-                if(data instanceof Error) {
-                    this.error = data;
-                } else {
-                    this.data = data;
-                    this.error = null;
-                }
-                this.update()
-            });
-        this._refresher.start()
+export class Values extends Component {
+    init() {
+        this.guard('json', new RefreshJson('/process_values.json'))
+        .process((data, latency) => {
+            let error = null;
+            if(data instanceof Error) {
+                error = data
+            }
+            return {error, data, latency}
+        })
     }
     render() {
         return hc("div", "container", [
@@ -88,11 +84,5 @@ export class Values {
                     ])),
                 h("tbody", item.values.map(this.render_value.bind(this))),
             ])])
-    }
-    update() {
-        cito.vdom.update(this._node, this.render())
-    }
-    remove() {
-        cito.vdom.remove(this._node);
     }
 }

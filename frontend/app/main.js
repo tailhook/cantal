@@ -1,5 +1,6 @@
 import {tag as h} from 'util/html'
 import {Navbar} from 'util/navbar'
+import {Context} from 'util/base'
 
 import {Processes} from 'pages/processes'
 import {Status} from 'pages/status'
@@ -9,7 +10,7 @@ import {Totals} from 'pages/totals'
 
 export class App {
     constructor() {
-        this.navbar = new Navbar()
+        this.navbar = new Context(new Navbar())
     }
     static start() {
         var app = new App();
@@ -20,19 +21,19 @@ export class App {
                 app.page = null
             }
             if(window.location.hash == '#/processes') {
-                app.page = new Processes()
+                app.page = new Context(new Processes())
                 app.page.mount(document.body)
             } else if(window.location.hash == '#/status') {
-                app.page = new Status()
+                app.page = new Context(new Status())
                 app.page.mount(document.body)
             } else if(window.location.hash == '#/values') {
-                app.page = new Values()
+                app.page = new Context(new Values())
                 app.page.mount(document.body)
             } else if(window.location.hash == '#/totals') {
-                app.page = new Totals()
+                app.page = new Context(new Totals())
                 app.page.mount(document.body)
             }
-            app.navbar.update()
+            app.navbar.refresh()
         }
         window.onhashchange()
     }

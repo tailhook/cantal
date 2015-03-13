@@ -1,6 +1,7 @@
 import {tag_class as hc, tag as h, link, icon,
         title_span as title} from 'util/html'
 import {format_uptime, till_now_ms, from_ms} from 'util/time'
+import {component, Component} from 'util/base'
 import {RefreshJson} from 'util/request'
 import {Sparkline} from 'util/sparkline'
 import {DonutChart} from 'util/donut'
@@ -13,64 +14,54 @@ function nav(classname, href, ...args) {
     return link(classname, href, ...args)
 }
 
-
-export class Navbar {
-    constructor() {
-    }
-    mount(elem) {
-        this._memory_donut = new DonutChart(32, 32)
-        this._node = cito.vdom.append(elem, () => this.render())
-        this._page = ''
-        this._refresher = new RefreshJson("/status.json", (data, latency) => {
-            this.latency = latency
-            if(data instanceof Error) {
-                this.error = data
-            } else {
-                this._preprocess(data)
-                this.error = null
-            }
-            this.update()
-        });
-        this._refresher.start()
-    }
-    update() {
-        cito.vdom.update(this._node, this.render())
-    }
-    _preprocess(data) {
-        this.data = data
-        this._cpu_graph(data)
-        this._memory_graph(data)
-    }
-    _memory_graph(d) {
-        this._memory_donut.set_data({total: d.mem_total, items: [
-            {color: '#e5f5f9', title: 'Free', value: d.mem_free},
-            {color: '#99d8c9', title: 'Free', value: d.mem_buffers},
-            {color: '#2ca25f', title: 'Free', value: d.mem_cached},
-            {color: '#a0a0a0', title: 'Free', value:
-                d.mem_total - d.mem_free - d.mem_buffers - d.mem_cached},
-        ]})
-    }
-    _cpu_graph(data) {
-        const user = data.cpu_user.fine
-        const nice = data.cpu_nice.fine
-        const idle = data.cpu_idle.fine
-        const system = data.cpu_system.fine
-        const cpu_graph = []
-        let prev_use
-        let prev_total
-        for(var i = data.history_timestamps.length-1; i >= 0; --i) {
-            const use = user[i] + nice[i] + system[i]
-            const total = use + idle[i]
-            if(prev_total) {
-                cpu_graph.push([
-                    data.history_timestamps[i][0],
-                    (use - prev_use) / (total - prev_total),
-                    ])
-            }
-            prev_use = use
-            prev_total = total
+function cpu_graph_data(data) {
+    const user = data.cpu_user.fine
+    const nice = data.cpu_nice.fine
+    const idle = data.cpu_idle.fine
+    const system = data.cpu_system.fine
+    const cpu_graph = []
+    let prev_use
+    let prev_total
+    for(var i = data.history_timestamps.length-1; i >= 0; --i) {
+        const use = user[i] + nice[i] + system[i]
+        const total = use + idle[i]
+        if(prev_total) {
+            cpu_graph.push([
+                data.history_timestamps[i][0],
+                (use - prev_use) / (total - prev_total),
+                ])
         }
-        this._cpu_sparkline = new Sparkline(cpu_graph)
+        prev_use = use
+        prev_total = total
+    }
+    return cpu_graph
+}
+
+function memory_graph_data(d) {
+    return {total: d.mem_total, items: [
+        {color: '#e5f5f9', title: 'Free', value: d.mem_free},
+        {color: '#99d8c9', title: 'Free', value: d.mem_buffers},
+        {color: '#2ca25f', title: 'Free', value: d.mem_cached},
+        {color: '#a0a0a0', title: 'Free', value:
+            d.mem_total - d.mem_free - d.mem_buffers - d.mem_cached},
+    ]}
+}
+
+
+export class Navbar extends Component {
+    init() {
+        //this._memory_donut = new DonutChart(32, 32)
+        this.guard('status', new RefreshJson("/status.json"))
+        .process((data, latency) => {
+            let error = null;
+            if(data instanceof Error) {
+                error = data
+            }
+            return {data, error, latency,
+                cpu_chart: cpu_graph_data(data),
+                memory_chart: memory_graph_data(data),
+                }
+        })
     }
     render_self() {
         var stats = this.data;
@@ -100,9 +91,9 @@ export class Navbar {
                 'up ', format_uptime(till_now_ms(from_ms(data.boot_time*1000)))
             ]),
             ' ',
-            this._cpu_sparkline ? this._cpu_sparkline.render() : '',
+            component(Sparkline, this.cpu_chart),
             ' ',
-            this._memory_donut ? this._memory_donut.render() : '',
+            component(DonutChart, this.memory_chart, {width: 32, height: 32}),
         ]);
     }
     render() {

@@ -50,15 +50,11 @@ function sector(cx, cy, r1, r2, sa, ea) {
 }
 
 export class DonutChart {
-    constructor(width=256, height=256) {
-        this.width = width
-        this.height = height
-        this.items = [];
-        this.total_value = 1;
-    }
-    set_data(info) {
-        this.total_value = info.total
-        this.items = info.items
+    init(data, options={}) {
+        this.width = options.width || 256
+        this.height = options.height || 256
+        this.items = data.items || []
+        this.total_value = data.total || 1
     }
     render() {
         var items = this.items

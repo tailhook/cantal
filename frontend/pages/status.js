@@ -1,6 +1,7 @@
 import {tag_class as hc, tag as h, link, icon, button_xs as button,
         title_span as title, tag_key as hk, tag_map} from 'util/html'
 import {format_uptime, till_now_ms, from_ms} from 'util/time'
+import {Component, component} from 'util/base'
 import {DonutChart} from 'util/donut'
 import {Chart} from 'util/chart'
 import {RefreshJson} from 'util/request'
@@ -25,8 +26,20 @@ const MEM_ORDER = {
     CommitLimit: 10,
 }
 
-function memchart(mem) {
+function memchart(data) {
+    var mem = {}
+    for(var item of data.metrics) {
+        if(item[0].metric.substr(0, 7) == 'memory.') {
+            mem[item[0].metric.substr(7)] = item[1]
+        }
+    }
+    mem.Used = mem.MemTotal
+               - mem.MemFree
+               - mem.Buffers
+               - mem.Cached
     return {
+        title: 'Memory',
+        unit: 'MiB',
         total: mem.MemTotal,
         items: Object.keys(mem).map(key => {
             var item = mem[key];
@@ -40,51 +53,32 @@ function memchart(mem) {
     }
 }
 
-
-
-export class Status {
-    mount(elem) {
-        this._mem_chart = new Chart(new DonutChart(), {
-            title: 'Memory',
-            unit: 'MiB',
-        })
-        this._node = cito.vdom.append(elem, () => this.render());
-        this._refresher = new RefreshJson("/details.json", (data, latency) => {
-            this.latency = latency;
-            if(data instanceof Error) {
-                this.error = data;
-            } else {
-                this._preprocess(data)
-                this.error = null;
-            }
-            this.update()
-        });
-        this._refresher.start()
+export class Status extends Component {
+    constructor() {
+        super()
+        this.mem_chart = {items:[]}
     }
-    _preprocess(data) {
-        var mem = {}
-        for(var item of data.metrics) {
-            if(item[0].metric.substr(0, 7) == 'memory.') {
-                mem[item[0].metric.substr(7)] = item[1]
+    init(elem) {
+        this.guard('json', new RefreshJson("/details.json"))
+        .process((data, latency) => {
+            if(data instanceof Error) {
+                return {error, latency}
+            } else {
+                return {
+                    error: null,
+                    mem_chart: memchart(data),
+                }
             }
-        }
-        mem.Used = mem.MemTotal
-                   - mem.MemFree
-                   - mem.Buffers
-                   - mem.Cached
-        this._mem_chart.set_data(memchart(mem))
+        })
     }
     render() {
         return hc("div", "container", [
             h("h1", "System Status"),
             this.error ? h("div", "Error: " + this.error) : "",
-            this._mem_chart.render(),
-        ]);
-    }
-    update() {
-        cito.vdom.update(this._node, this.render())
-    }
-    remove() {
-        cito.vdom.remove(this._node);
+            component(Chart, component(DonutChart,
+                {total: this.mem_chart.total,
+                 items: this.mem_chart.items.filter(x => x.color)}),
+                this.mem_chart),
+        ])
     }
 }

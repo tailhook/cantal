@@ -3,6 +3,7 @@ import {tag_class as hc, tag as h, link, icon, button_xs as button,
         td_left, td_right, th_left, th_right,
         } from 'util/html'
 import {format_uptime, till_now_ms, from_ms} from 'util/time'
+import {Component, component} from 'util/base'
 import {Chart} from 'util/chart'
 import {DonutChart} from 'util/donut'
 import {RefreshJson} from 'util/request'
@@ -20,8 +21,8 @@ const COLORS = [
 ]
 
 
-class StateText {
-    constructor(title, value) {
+class StateText extends Component {
+    init(title, value) {
         this.title = title
         this.value = value
     }
@@ -33,102 +34,89 @@ class StateText {
     }
 }
 
-
-export class Totals {
-    mount(elem) {
-        this._charts = {}
-        this._items = []
-        this._node = cito.vdom.append(elem, () => this.render());
-        this._refresher = new RefreshJson("/states.json", (data, latency) => {
-            this.latency = latency;
-            if(data instanceof Error) {
-                this.error = data;
-            } else {
-                this.data = this._aggregate(data);
-                this.error = null;
+function aggregate(data) {
+    var start = new Date();
+    var states = {}
+    for(var item of data.metrics) {
+        var [dim, metric] = item;
+        if(dim.state && dim.state.indexOf('.') > 0) {
+            var stchunks = dim.state.split('.')
+            var sub = stchunks.pop()
+            var stname = stchunks.join('.')
+            var st = states[stname]
+            if(!st) {
+                states[stname] = st = {
+                    counters: {},
+                    durations: {},
+                    states: {},
+                }
             }
-            this.update()
-        });
-        this._refresher.start()
+            if(dim.metric == 'count') {
+                st.counters[sub] = (st.counters[sub] || 0) + metric
+            } else if(dim.metric == 'duration') {
+                st.durations[sub] = (st.durations[sub] || 0) + metric
+            }
+        }
+        if(dim.state && metric.length !== undefined && metric[0] != 0) {
+            var st = states[dim.state]
+            if(!st) {
+                states[dim.state] = st = {
+                    counters: {},
+                    durations: {},
+                    states: {},
+                }
+            }
+            var state = metric[1];
+            st.states[state] = (st.states[state] || 0) + 1
+            st.durations[state] = (st.durations[state] || 0) +
+                till_now_ms(from_ms(metric[0]))
+        }
     }
-    _aggregate(data) {
-        var start = new Date();
 
-        var states = {}
-        for(var item of data.metrics) {
-            var [dim, metric] = item;
-            if(dim.state && dim.state.indexOf('.') > 0) {
-                var stchunks = dim.state.split('.')
-                var sub = stchunks.pop()
-                var stname = stchunks.join('.')
-                var st = states[stname]
-                if(!st) {
-                    states[stname] = st = {
-                        counters: {},
-                        durations: {},
-                        states: {},
-                    }
-                }
-                if(dim.metric == 'count') {
-                    st.counters[sub] = (st.counters[sub] || 0) + metric
-                } else if(dim.metric == 'duration') {
-                    st.durations[sub] = (st.durations[sub] || 0) + metric
-                }
+    var charts = []
+    for(var name in states) {
+        var state = states[name];
+        var keys = Object.keys(state.durations);
+        if(keys.length > 1) {
+            var items = [];
+            var total = 0;
+            var dur = states[name].durations;
+            var colors = COLORS.concat();
+            for(var k in dur) {
+                const val = dur[k]
+                items.push({
+                    'title': k,
+                    value: dur[k],
+                    color: colors.pop(),
+                    })
+                total += val
             }
-            if(dim.state && metric.length !== undefined && metric[0] != 0) {
-                var st = states[dim.state]
-                if(!st) {
-                    states[dim.state] = st = {
-                        counters: {},
-                        durations: {},
-                        states: {},
-                    }
-                }
-                var state = metric[1];
-                st.states[state] = (st.states[state] || 0) + 1
-                st.durations[state] = (st.durations[state] || 0) +
-                    till_now_ms(from_ms(metric[0]))
-            }
+            const chart = {total, items, title: name, unit: 'ms'};
+            charts.push(chart)
+        } else {
+            charts.push({title: name, text: keys[0]})
         }
+    }
+    charts.sort((a, b) => a.title.localeCompare(b.title))
 
-        var newitems = []
-        var newcharts = {}
-        for(var name in states) {
-            var state = states[name];
-            var keys = Object.keys(state.durations);
-            if(keys.length > 1) {
-                var chart = this._charts[name]
-                if(!chart) {
-                    chart = new Chart(new DonutChart(), {
-                        title: name,
-                        unit: 'ms',
-                        })
-                }
-                var items = [];
-                var total = 0;
-                var dur = states[name].durations;
-                var colors = COLORS.concat();
-                for(var k in dur) {
-                    const val = dur[k]
-                    items.push({
-                        'title': k,
-                        value: dur[k],
-                        color: colors.pop(),
-                        })
-                    total += val
-                }
-                chart.set_data({total, items})
-                newcharts[name] = chart;
-                newitems.push(chart)
-            } else {
-                newitems.push(new StateText(name, keys[0]))
+    return charts
+}
+
+
+export class Totals extends Component {
+    constructor() {
+        super()
+        this.charts = []
+    }
+    init() {
+        this.guard('json', new RefreshJson("/states.json"))
+        .process((data, latency) => {
+            var error = null;
+            if(data instanceof Error) {
+                error = data;
             }
-        }
-        this._charts = newcharts
-        newitems.sort((a, b) => a.title.localeCompare(b.title))
-        this._items = newitems
-
-        this._process_time = new Date() - start
+            return {error, latency, charts: aggregate(data)}
+        });
     }
     render() {
         return hc("div", "container", [
@@ -136,13 +124,13 @@ export class Totals {
             hc("div", "text-right",
                 this.error
                    ? 'Error: ' + this.error.message
-                   : `Fetched in ${this.latency}ms / ${this._process_time}ms`),
-        ].concat(this._items.map((item) => item.render())));
-    }
-    update() {
-        cito.vdom.update(this._node, this.render())
-    }
-    remove() {
-        cito.vdom.remove(this._node);
+                   : `Fetched in ${this.latency}ms`),
+        ].concat(this.charts.map((item) => {
+            if(item.hasOwnProperty('text')) {
+                return component(StateText, item.title, item.text)
+            } else {
+                return component(Chart, component(DonutChart, item), item)
+            }
+        })));
     }
 }

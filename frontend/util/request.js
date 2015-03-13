@@ -1,9 +1,11 @@
 
 export class RefreshJson {
-    constructor(url, handler, interval=2000) {
+    constructor(url, interval=2000) {
         this.url = url;
-        this.handler = handler;
         this.interval = interval;
+    }
+    set_handler(fun) {
+        this.handler = fun
     }
     start() {
         if(this._timer) {
