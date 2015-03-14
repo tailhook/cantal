@@ -108,6 +108,7 @@ export function component(cls, ...args) {
                 children: e.toString(),
                 }
         }
+        el['component'] = cmp
         var ev = el.events || (el.events = {})
         ev['$destroy'] = function() {
             cmp.destroy()

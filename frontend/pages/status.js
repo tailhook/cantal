@@ -2,6 +2,7 @@ import {tag_class as hc, tag as h, link, icon, button_xs as button,
         title_span as title, tag_key as hk, tag_map} from 'util/html'
 import {format_uptime, till_now_ms, from_ms} from 'util/time'
 import {Component, component} from 'util/base'
+import {toggle} from 'util/events'
 import {DonutChart} from 'util/donut'
 import {Chart} from 'util/chart'
 import {RefreshJson} from 'util/request'
@@ -48,6 +49,7 @@ function memchart(data) {
                 title: key,
                 value: mem[key],
                 text: (mem[key]/1048576).toFixed(1),
+                collapsed: MEM_ORDER[key] === undefined,
             }
         }).sort((a, b) => (MEM_ORDER[a.title] || 10000) - (MEM_ORDER[b.title] || 10000))
     }

@@ -1,7 +1,7 @@
 export NODE_PATH=/usr/local/lib/node_modules
 
 JSDIR=../public/js
-JS= util/base.js \
+JS= util/base.js util/events.js \
 	util/request.js util/html.js util/time.js \
 	util/donut.js util/chart.js util/sparkline.js \
 	util/navbar.js \
