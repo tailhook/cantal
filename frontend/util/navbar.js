@@ -55,12 +55,13 @@ export class Navbar extends Component {
         .process((data, latency) => {
             let error = null;
             if(data instanceof Error) {
-                error = data
+                return {error: data, latency}
+            } else {
+                return {data, error, latency,
+                    cpu_chart: cpu_graph_data(data),
+                    memory_chart: memory_graph_data(data),
+                    }
             }
-            return {data, error, latency,
-                cpu_chart: cpu_graph_data(data),
-                memory_chart: memory_graph_data(data),
-                }
         })
     }
     render_self() {

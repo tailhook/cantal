@@ -64,7 +64,7 @@ export class Status extends Component {
         this.guard('json', new RefreshJson("/details.json"))
         .process((data, latency) => {
             if(data instanceof Error) {
-                return {error, latency}
+                return {error: data, latency}
             } else {
                 return {
                     error: null,
