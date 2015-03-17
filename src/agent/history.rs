@@ -269,7 +269,7 @@ impl History {
     pub fn get_timestamps(&self, num: usize) -> Vec<(u64, u32)> {
          self.fine_timestamps.iter().take(num).cloned().collect()
     }
-    pub fn filter<'x, F:Fn(&Key) -> bool>(&'x self, predicate: F)
+    pub fn latest<'x, F:Fn(&Key) -> bool>(&'x self, predicate: F)
         -> Vec<(Json, Json)>
     {
         let mut res = Vec::new();
@@ -289,6 +289,24 @@ impl History {
             if predicate(key) {
                 // TODO(tailhook) optimize lookups
                 res.push((key.to_json(), self.get_tip_json(key)));
+            }
+        }
+        return res;
+    }
+    pub fn history<'x, F:Fn(&Key) -> bool>(&'x self, num: usize, predicate: F)
+        -> Vec<(Json, Json)>
+    {
+        let mut res = Vec::new();
+        for (key, _) in self.fine.iter() {
+            if predicate(key) {
+                // TODO(tailhook) optimize lookups
+                res.push((key.to_json(), self.get_history_json(key, num)));
+            }
+        }
+        for (key, _) in self.coarse.iter() {
+            if predicate(key) {
+                // TODO(tailhook) optimize lookups
+                res.push((key.to_json(), self.get_history_json(key, num)));
             }
         }
         return res;

@@ -37,7 +37,7 @@ class StateText extends Component {
 function aggregate(data) {
     var start = new Date();
     var states = {}
-    for(var item of data.metrics) {
+    for(var item of data.latest) {
         var [dim, metric] = item;
         if(dim.state && dim.state.indexOf('.') > 0) {
             var stchunks = dim.state.split('.')

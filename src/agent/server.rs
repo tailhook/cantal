@@ -45,7 +45,9 @@ struct StatusData {
 
 #[derive(Encodable)]
 struct Metrics {
-    pub metrics: Vec<(Json, Json)>,
+    pub latest: Vec<(Json, Json)>,
+    pub history: Vec<(Json, Json)>,
+    pub history_timestamps: Vec<(u64, u32)>,
 }
 
 #[derive(Encodable)]
@@ -68,7 +70,7 @@ struct ProcessValues<'a> {
 
 fn process_values<'x>(stats: &'x Stats) -> Vec<ProcessData<'x>> {
     let mut tree = tree_collect(stats.history
-        .filter(|key| key.get("pid").is_some())
+        .latest(|key| key.get("pid").is_some())
         .into_iter().map(|(key, val)| {
             let pid = FromStr::from_str(
                 key["pid"].as_string().unwrap_or("0")).unwrap_or(0);
@@ -130,9 +132,15 @@ fn handle_request(stats: &RwLock<Stats>, req: &http::Request)
                 all: &stats.processes,
             })),
             "/details.json" => Ok(http::reply_json(req, &Metrics {
-                metrics: stats.history.filter(|key| {
+                history_timestamps: h.get_timestamps(SHORT_HISTORY),
+                latest: stats.history.latest(|key| {
                     key.get("metric")
                     .map(|x| x.starts_with("memory."))
+                    .unwrap_or(false)
+                }),
+                history: stats.history.history(SHORT_HISTORY, |key| {
+                    key.get("metric")
+                    .map(|x| x.starts_with("net.") || x.starts_with("disk."))
                     .unwrap_or(false)
                 }),
             })),
@@ -140,7 +148,9 @@ fn handle_request(stats: &RwLock<Stats>, req: &http::Request)
                 processes: process_values(&*stats),
             })),
             "/states.json" => Ok(http::reply_json(req, &Metrics {
-                metrics: stats.history.filter(|key| {
+                history_timestamps: vec!(),
+                history: vec!(),
+                latest: stats.history.latest(|key| {
                     key.get("state").is_some()
                 }),
             })),

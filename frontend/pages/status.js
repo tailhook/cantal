@@ -5,6 +5,7 @@ import {Component, component} from 'util/base'
 import {toggle} from 'util/events'
 import {DonutChart} from 'util/donut'
 import {Chart} from 'util/chart'
+import {Plot} from 'util/plot'
 import {RefreshJson} from 'util/request'
 
 const MEM_COLORS = {
@@ -29,7 +30,7 @@ const MEM_ORDER = {
 
 function memchart(data) {
     var mem = {}
-    for(var item of data.metrics) {
+    for(var item of data.latest) {
         if(item[0].metric.substr(0, 7) == 'memory.') {
             mem[item[0].metric.substr(7)] = item[1]
         }
@@ -55,6 +56,46 @@ function memchart(data) {
     }
 }
 
+function network(data) {
+    const raw_bytes_rx = []
+    const raw_bytes_tx = []
+    for(var _ of data.history_timestamps) {
+        raw_bytes_rx.push(0)
+        raw_bytes_tx.push(0)
+    }
+    for(var item of data.history) {
+        let dest
+        let iface = item[0].interface
+        // Ignore tun interfaces as they double the traffic if it's VPN
+        if(!iface || iface == 'lo' || iface.substr(3) == 'tun') continue;
+        if(item[0].metric == 'net.interface.tx.bytes') {
+            dest = raw_bytes_tx
+        } else if(item[0].metric == 'net.interface.rx.bytes') {
+            dest = raw_bytes_rx
+        } else {
+            continue
+        }
+        const ar = item[1].fine
+        if(ar) {
+            for(var i in ar) {
+                dest[i] += ar[i]
+            }
+        }
+    }
+    const bytes_rx = []
+    const bytes_tx = []
+    raw_bytes_rx.reduce((n, o) => { bytes_rx.push(n - o); return o })
+    raw_bytes_tx.reduce((n, o) => { bytes_tx.push(n - o); return o })
+    return {
+        bytes_rx,
+        bytes_tx,
+        }
+}
+
+function disk(data) {
+    return {}
+}
+
 export class Status extends Component {
     constructor() {
         super()
@@ -68,12 +109,16 @@ export class Status extends Component {
             } else {
                 return {
                     error: null,
+                    timestamps: data.history_timestamps,
                     mem_chart: memchart(data),
+                    network: network(data),
+                    disk: disk(data),
                 }
             }
         })
     }
     render() {
+        const ts = this.timestamps && this.timestamps.slice(1)
         return hc("div", "container", [
             h("h1", "System Status"),
             this.error ? h("div", "Error: " + this.error) : "",
@@ -81,6 +126,20 @@ export class Status extends Component {
                 {total: this.mem_chart.total,
                  items: this.mem_chart.items.filter(x => x.color)}),
                 this.mem_chart),
+            h("h2", "Network"),
+            hc("div", "row", [
+                hc("div", "col-xs-4", [
+                    component(Plot, ts, this.network && this.network.bytes_rx),
+                    component(Plot, ts, this.network && this.network.bytes_tx),
+                    ])
+            ]),
+            h("h2", "Disk"),
+            hc("div", "row", [
+                hc("div", "col-xs-4", [
+                    component(Plot, ts, this.disk && this.disk.written),
+                    component(Plot, ts, this.disk && this.disk.read),
+                    ])
+            ]),
         ])
     }
 }
