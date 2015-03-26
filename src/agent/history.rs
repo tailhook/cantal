@@ -1,5 +1,6 @@
 use std::f64::NAN;
 use std::cmp::min;
+use std::mem::replace;
 use std::collections::VecDeque;
 use std::collections::HashMap;
 use std::collections::hash_map::Entry::{Occupied, Vacant};
@@ -41,7 +42,7 @@ pub struct History {
 
     // Items that keep only last value
     tip_timestamp: (u64, u32),
-    tip: HashMap<Key, TipValue>,
+    tip: HashMap<Key, Value>,
 }
 
 
@@ -176,19 +177,36 @@ impl Value {
             }
         }
     }
-    fn truncate(&mut self, trim_age: u64) {
+    fn truncate(&mut self, trim_age: u64) -> bool {
         match self {
-            &mut Value::Counter(_, ref age, ref mut buf) => {
-                buf.truncate((age - trim_age) as usize);
+            &mut Value::Counter(_, age, ref mut buf) => {
+                if age <= trim_age {
+                    return false;
+                } else {
+                    buf.truncate((age - trim_age) as usize);
+                }
             }
-            &mut Value::Integer(_, ref age, ref mut buf) => {
-                buf.truncate((age - trim_age) as usize);
+            &mut Value::Integer(_, age, ref mut buf) => {
+                if age <= trim_age {
+                    return false;
+                } else {
+                    buf.truncate((age - trim_age) as usize);
+                }
             }
-            &mut Value::Float(_, ref age, ref mut queue) => {
-                queue.truncate((age - trim_age) as usize);
+            &mut Value::Float(_, age, ref mut queue) => {
+                if age <= trim_age {
+                    return false;
+                } else {
+                    queue.truncate((age - trim_age) as usize);
+                }
             }
-            &mut Value::State(_, _) => {},
+            &mut Value::State(_, age) => {
+                if age <= trim_age {
+                    return false;
+                }
+            },
         }
+        return true;
     }
 }
 
@@ -211,7 +229,13 @@ impl History {
                 Interval::Fine => &mut self.fine,
                 Interval::Coarse => &mut self.coarse,
                 Interval::Tip => {
-                    self.tip.insert(key, value);
+                    match value {
+                        TipValue::State(ts, val) => {
+                            self.tip.insert(key,
+                                Value::State((ts, val), self.age));
+                        }
+                        _ => unreachable!(),
+                    }
                     continue;
                 }
             };
@@ -245,13 +269,11 @@ impl History {
         .or_else(||
             self.tip.get(key)
             .map(|x| match *x {
-                TipValue::Counter(c) => Json::U64(c),
-                TipValue::Integer(c) => Json::I64(c),
-                TipValue::Float(c) => Json::F64(c),
-                TipValue::State(ts, ref text) => Json::Array(vec!(
+                Value::State((ts, ref text), age) => Json::Array(vec!(
                     Json::U64(ts),
                     Json::String(text.clone()),
                     )),
+                _ => unreachable!(),
             }))
         .unwrap_or(Json::Null)
     }
@@ -316,17 +338,35 @@ impl History {
             .skip_while(|&(idx, &(ts, dur))| ts >= timestamp).next();
         if let Some((idx, _)) = fine_ts {
             let target_age = self.age - idx as u64;
-            for (_, ref mut value) in self.fine.iter_mut() {
-                value.truncate(target_age);
-            }
+            self.fine = replace(&mut self.fine, HashMap::new()).into_iter()
+                .filter_map(|(key, mut val)| {
+                    if val.truncate(target_age) {
+                        return Some((key, val));
+                    } else {
+                        return None;
+                    }
+                }).collect();
+            self.tip = replace(&mut self.tip, HashMap::new()).into_iter()
+                .filter_map(|(key, mut val)| {
+                    if val.truncate(target_age) {
+                        return Some((key, val));
+                    } else {
+                        return None;
+                    }
+                }).collect();
         }
         let coarse_ts = self.coarse_timestamps.iter().enumerate()
             .skip_while(|&(_, &(ts, _))| ts >= timestamp).next();
         if let Some((idx, _)) = coarse_ts {
             let target_age = self.age - idx as u64;
-            for (_, ref mut value) in self.coarse.iter_mut() {
-                value.truncate(target_age);
-            }
+            self.coarse = replace(&mut self.coarse, HashMap::new()).into_iter()
+                .filter_map(|(key, mut val)| {
+                    if val.truncate(target_age) {
+                        return Some((key, val));
+                    } else {
+                        return None;
+                    }
+                }).collect();
         }
     }
 }
