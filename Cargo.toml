@@ -1,0 +1,32 @@
+[package]
+
+name = "cantal"
+description = "The monitoring agent"
+license = "MIT"
+readme = "README.rst"
+keywords = ["monitoring", "statistics"]
+homepage = "http://github.com/tailhook/cantal"
+version = "0.1.0"
+authors = ["paul@colomiets.name"]
+
+[dependencies]
+rustc-serialize = "0.3.12"
+log = "0.3.1"
+libc = "0.1.6"
+
+[dependencies.argparse]
+path = "rust-argparse"
+
+[lib]
+name = "cantal"
+path = "src/query/lib.rs"
+
+[[bin]]
+name = "cantal"
+path = "src/cli/main.rs"
+
+[[bin]]
+name = "cantal-agent"
+path = "src/agent/main.rs"
+
+

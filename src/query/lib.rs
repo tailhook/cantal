@@ -1,12 +1,11 @@
 #![crate_type="lib"]
 #![crate_name="cantal"]
 
-extern crate serialize;
+extern crate rustc_serialize;
 extern crate libc;
 #[macro_use] extern crate log;
 
-use std::str::FromStr;
-use std::fmt::String as FmtString;
+use std::fmt::Display;
 use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
 use std::io::{Cursor, BufReader};
@@ -15,9 +14,10 @@ use std::io::Error as IoError;
 use std::fs::File;
 use std::rc::Rc;
 use std::path::Path;
-use std::error::{Error, FromError};
-use serialize::json;
-use serialize::json::Json;
+use std::error::Error;
+use std::convert::From;
+use rustc_serialize::json;
+use rustc_serialize::json::Json;
 
 use itertools::NextValue;
 use iotools::ReadHostBytes;
@@ -28,7 +28,7 @@ pub mod itertools;
 pub mod iotools;
 
 
-#[derive(Clone, Show, Encodable, Decodable)]
+#[derive(Clone, Debug, RustcEncodable, RustcDecodable)]
 pub enum Value {
     Counter(u64),
     Integer(i64),
@@ -36,14 +36,14 @@ pub enum Value {
     State(u64, String),
 }
 
-#[derive(Show, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub enum LevelType {
     Signed,
     Unsigned,
     Float,
 }
 
-#[derive(Show, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub enum Type {
     Counter(u8),
     Level(u8, LevelType),
@@ -52,7 +52,7 @@ pub enum Type {
     Unknown(u16),
 }
 
-#[derive(Show)]
+#[derive(Debug)]
 pub enum MetadataError {
     Io(IoError),
     // TODO(tailhook) add line numbers
@@ -73,6 +73,16 @@ pub struct Metadata {
     stat: util::Stat,
 }
 
+
+fn find_elem<T:Eq+Sized>(arr: &[T], val: &T) -> Option<usize> {
+    for i in 0..arr.len() {
+        if arr[i] == *val {
+            return Some(i);
+        }
+    }
+    return None;
+}
+
 impl Metadata {
     pub fn read(path: &Path) -> Result<Metadata, MetadataError> {
         // TODO(tailhook) implement LineNumberReader
@@ -83,7 +93,7 @@ impl Metadata {
             let mut line = String::new();
             try!(file.read_line(&mut line));
             if line.len() == 0 { break; }
-            let mut pair = line.trim().as_slice().splitn(1, ':');
+            let mut pair = line.trim()[..].splitn(1, ':');
             let mut type_iter = pair.next().unwrap().split(' ');
             let typ = try!(type_iter.next()
                 .ok_or(MetadataError::ParseError("bad type name")));
@@ -135,7 +145,7 @@ impl Metadata {
             };
             let textname = try!(pair.next()
                 .ok_or(MetadataError::ParseError("No description for value")));
-            let json = try!(json::from_str(textname));
+            let json = try!(Json::from_str(textname));
             items.push(Rc::new(Descriptor {
                 textname: textname.trim().to_string(),
                 json: json,
@@ -172,12 +182,11 @@ impl Metadata {
                 Type::State(len) if len > 8 => {
                     let time_ms = try!(stream.read_u64());
                     let val = try!(stream.read_bytes((len - 8) as usize));
-                    let text = if let Some(end) =
-                        val.as_slice().position_elem(&0)
+                    let text = if let Some(end) = find_elem(&val[..], &0)
                     {
-                        String::from_utf8_lossy(&val.as_slice()[0..end])
+                        String::from_utf8_lossy(&val[0..end])
                     } else {
-                        String::from_utf8_lossy(val.as_slice())
+                        String::from_utf8_lossy(&val[..])
                     };
                     Value::State(time_ms, text.to_string())
                 }
@@ -197,7 +206,7 @@ impl Metadata {
     }
     pub fn still_fresh(&self, path: &Path) -> bool {
         let stat = util::path_stat(path);
-        return Ok(&self.stat) == stat.as_ref();
+        return Some(&self.stat) == stat.as_ref().ok();
     }
 }
 
@@ -205,7 +214,7 @@ impl Error for MetadataError {
     fn description(&self) -> &str {
         match *self {
             MetadataError::Io(ref err) => err.description(),
-            MetadataError::ParseError(desc)
+            MetadataError::ParseError(_)
             => "Error parsing metadata file",
             MetadataError::BadLength(_)
             => "Error parsing metadata file: wrong field length",
@@ -216,13 +225,13 @@ impl Error for MetadataError {
     fn cause<'x>(&'x self) -> Option<&'x Error> {
         match *self {
             MetadataError::Io(ref err) => Some(err as &Error),
-            MetadataError::Json(ref err) => None,  // json::ParserError sucks
+            MetadataError::Json(_) => None,  // json::ParserError sucks
             MetadataError::ParseError(_) | MetadataError::BadLength(_) => None,
         }
     }
 }
 
-impl FmtString for MetadataError {
+impl Display for MetadataError {
     fn fmt(&self, fmt: &mut Formatter) -> FmtResult {
         match *self {
             MetadataError::Io(ref err) => {
@@ -242,14 +251,14 @@ impl FmtString for MetadataError {
     }
 }
 
-impl FromError<IoError> for MetadataError {
-    fn from_error(err: IoError) -> MetadataError {
+impl From<IoError> for MetadataError {
+    fn from(err: IoError) -> MetadataError {
         MetadataError::Io(err)
     }
 }
 
-impl FromError<json::ParserError> for MetadataError {
-    fn from_error(err: json::ParserError) -> MetadataError {
+impl From<json::ParserError> for MetadataError {
+    fn from(err: json::ParserError) -> MetadataError {
         MetadataError::Json(err)
     }
 }

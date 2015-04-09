@@ -165,7 +165,7 @@ pub fn run_server<'x>(stats: &RwLock<Stats>, host: String, port: u16)
 {
     let handler: &for<'b> Fn(&'b aio::http::Request<'b>)
         -> Result<aio::http::Response, aio::http::Error>
-        = &|&:req| {
+        = &|req| {
         handle_request(stats, req)
     };
     let mut main = try!(aio::MainLoop::new()

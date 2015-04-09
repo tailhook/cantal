@@ -1,8 +1,8 @@
-use std::ffi::{CString, IntoBytes};
+use std::ffi::CString;
 use std::path::Path;
 use std::io::Error as IoError;
 use std::mem::zeroed;
-use std::os::unix::AsRawFd;
+use std::os::unix::io::AsRawFd;
 use libc::{stat, dev_t, off_t, time_t, c_long, ino_t};
 use libc::funcs::posix88::stat_::stat as stat_path;
 use libc::{fstat};

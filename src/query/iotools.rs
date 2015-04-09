@@ -1,5 +1,4 @@
 use std::io::{Read, Error};
-use std::mem::transmute;
 use std::io::ErrorKind::Other;
 
 pub trait ReadHostBytes {
@@ -18,7 +17,7 @@ impl<I> ReadHostBytes for I where I: Read
         while read < 8 {
             let chunk = try!(self.read(&mut buf[read..]));
             if chunk == 0 {
-                return Err(Error::new(Other, "Not enough bytes", None));
+                return Err(Error::new(Other, "Not enough bytes"));
             }
             read += chunk;
         }
@@ -30,7 +29,7 @@ impl<I> ReadHostBytes for I where I: Read
         while read < 8 {
             let chunk = try!(self.read(&mut buf[read..]));
             if chunk == 0 {
-                return Err(Error::new(Other, "Not enough bytes", None));
+                return Err(Error::new(Other, "Not enough bytes"));
             }
             read += chunk;
         }
@@ -42,7 +41,7 @@ impl<I> ReadHostBytes for I where I: Read
         while read < 8 {
             let chunk = try!(self.read(&mut buf[read..]));
             if chunk == 0 {
-                return Err(Error::new(Other, "Not enough bytes", None));
+                return Err(Error::new(Other, "Not enough bytes"));
             }
             read += chunk;
         }
@@ -55,7 +54,7 @@ impl<I> ReadHostBytes for I where I: Read
         while read < 8 {
             let chunk = try!(self.read(&mut buf[read..]));
             if chunk == 0 {
-                return Err(Error::new(Other, "Not enough bytes", None));
+                return Err(Error::new(Other, "Not enough bytes"));
             }
             read += chunk;
         }
