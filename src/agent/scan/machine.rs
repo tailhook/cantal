@@ -1,7 +1,7 @@
 use std::default::Default;
 use std::str::FromStr;
-use std::num::{FromStrRadix, FromPrimitive};
 use std::fs::File;
+use std::path::Path;
 use std::io::{BufReader, Read, BufRead};
 use std::collections::HashMap;
 use std::collections::hash_map::Entry::{Vacant,Occupied};
@@ -225,7 +225,6 @@ pub fn read(t: &mut Tip) -> Option<u64> {
         Ok(())
     }).ok();
     File::open(&Path::new("/proc/net/tcp")).and_then(|f| {
-        #[derive(FromPrimitive)]
         enum S {
             UNKNOWN,
             ESTABLISHED,
@@ -259,21 +258,21 @@ pub fn read(t: &mut Tip) -> Option<u64> {
             pieces.next(); // Skip slot number
             let local = pieces.next()
                 .and_then(|x| if x.len() == 13 { Some(x) } else { None })
-                .and_then(|x| FromStrRadix::from_str_radix(&x[9..13], 16).ok())
+                .and_then(|x| u16::from_str_radix(&x[9..13], 16).ok())
                 .unwrap_or(0u16);
             let remote = pieces.next()
                 .and_then(|x| if x.len() == 13 { Some(x) } else { None })
-                .and_then(|x| FromStrRadix::from_str_radix(&x[9..13], 16).ok())
+                .and_then(|x| u16::from_str_radix(&x[9..13], 16).ok())
                 .unwrap_or(0u16);
             let status = pieces.next()
-                .and_then(|x| FromStrRadix::from_str_radix(x, 16).ok())
+                .and_then(|x| u16::from_str_radix(x, 16).ok())
                 .unwrap_or(0);
             let mut queues = pieces.next().unwrap_or("0:0").split(':');
             let tx = queues.next()
-                .and_then(|x| FromStrRadix::from_str_radix(x, 16).ok())
+                .and_then(|x| u16::from_str_radix(x, 16).ok())
                 .unwrap_or(0);
             let rx = queues.next()
-                .and_then(|x| FromStrRadix::from_str_radix(x, 16).ok())
+                .and_then(|x| u16::from_str_radix(x, 16).ok())
                 .unwrap_or(0);
             {
                 // TODO(tailhook) read ephemeral port range
@@ -305,7 +304,7 @@ pub fn read(t: &mut Tip) -> Option<u64> {
             }
             tx_queue += tx;
             rx_queue += rx;
-            match FromPrimitive::from_i32(status) {
+            match i32::from_i32(status) {
                 Some(S::ESTABLISHED) => established += 1,
                 Some(S::CLOSE_WAIT) => close_wait += 1,
                 Some(S::TIME_WAIT) => time_wait += 1,

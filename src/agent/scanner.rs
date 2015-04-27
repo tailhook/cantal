@@ -1,10 +1,10 @@
 use std::sync::{RwLock};
 use std::fs::File;
 use std::io::Write;
-use std::old_io::timer::sleep;
 use std::time::duration::Duration;
 
-use msgpack::Encoder as Mencoder;
+use libc::usleep;
+use cbor::Encoder as Mencoder;
 
 use super::stats::Stats;
 use super::scan::Tip;
@@ -63,6 +63,6 @@ pub fn scan_loop(stats: &RwLock<Stats>, cell: Option<&Cell<Buffer>>) {
             }
         }
 
-        sleep(Duration::milliseconds(2000 - time_ms() as i64 % 2000));
+        usleep((2000 - time_ms() as i64 % 2000)*1000);
     }
 }

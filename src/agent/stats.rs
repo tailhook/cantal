@@ -8,7 +8,7 @@ use super::scan::time_ms;
 use super::scan;
 use super::history::History;
 
-#[derive(Encodable)]
+#[derive(RustcEncodable)]
 pub struct Stats {
 
     pub startup_time: u64,
@@ -39,7 +39,8 @@ impl Stats {
     }
 }
 
-#[derive(Hash, PartialEq, Eq, PartialOrd, Ord, Debug, Encodable, Decodable)]
+#[derive(Hash, PartialEq, Eq, PartialOrd, Ord, Debug,
+         RustcEncodable, RustcDecodable)]
 pub struct Key(BTreeMap<String, String>);
 
 impl Key {

@@ -1,11 +1,10 @@
 //  This implementation is an implementation of subset of HTTP.
 //  It *may be unsafe* to expose this implementation to the untrusted internet
 
-use std::vec::CowVec;
 use std::str::from_utf8;
 use std::fmt::Display;
 use std::borrow::{Cow, IntoCow};
-use std::os::unix::Fd;
+use std::os::unix::io::RawFd;
 use serialize::json::as_pretty_json;
 use serialize::Encodable;
 
@@ -17,14 +16,14 @@ const MAX_HEADERS_SIZE: usize = 16384;
 
 
 //  We don't do generic HTTP, so we only need these specific methods
-#[derive(Show, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Method {
     Get,
     Unknown,
 }
 
 
-#[derive(Show, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Version {
     Http10,
     Http11,
@@ -35,7 +34,7 @@ pub enum TransferEncoding {
     Chunked,
 }
 
-#[derive(Show)]
+#[derive(Debug)]
 pub enum Error {
     BadRequest(&'static str),
     NotFound,
@@ -43,7 +42,7 @@ pub enum Error {
     ServerError(&'static str),
 }
 
-#[derive(Show, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub enum Status {
     Ok, // 200
     BadRequest, // 400
@@ -54,21 +53,21 @@ pub enum Status {
 
 enum ResponseBody<'a> {
     Empty,
-    Chunk(CowVec<'a, u8>),
+    Chunk(Cow<'a, [u8]>),
     Text(&'a Display),
 }
 
 
-#[derive(Show)]
+#[derive(Debug)]
 pub struct RequestLine<'a>(Method, &'a str, Version);
 
 pub struct Stream<'a> {
-    pub fd: Fd,
+    pub fd: RawFd,
     handler: HttpHandler<'a>,
     buf: Vec<u8>,
 }
 
-#[derive(Show)]
+#[derive(Debug)]
 pub struct Request<'a> {
     request_line: RequestLine<'a>,
     //headers: Vec<(&'a str, &'a str)>,
@@ -77,7 +76,7 @@ pub struct Request<'a> {
     close: bool,
 }
 
-#[derive(Show)]
+#[derive(Debug)]
 pub struct Response {
     buf: Vec<u8>,
 }
@@ -129,7 +128,7 @@ impl<'a> RequestParser<'a> {
 }
 
 impl<'a> Stream<'a> {
-    pub fn new<'x>(fd: Fd, handler: HttpHandler<'x>) -> Stream<'x> {
+    pub fn new<'x>(fd: RawFd, handler: HttpHandler<'x>) -> Stream<'x> {
         return Stream {
             fd: fd,
             handler: handler,
@@ -146,7 +145,7 @@ impl<'a> Stream<'a> {
                         return HandlerResult::ContinueRead;
                     }
                 }
-                for i in range(check_start, end - 3) {
+                for i in check_start..(end - 3) {
                     if self.buf.slice(i, i+4) == b"\r\n\r\n" {
                         match self.parse_request(self.buf.slice(0, i+2)) {
                             Ok(req) => {

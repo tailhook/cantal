@@ -1,5 +1,4 @@
 use std::ptr;
-use std::fmt::String;
 use std::collections::HashMap;
 use libc;
 
@@ -24,7 +23,7 @@ pub fn time_ms() -> u64 {
     return (tv.tv_sec as u64)*1000 +  (tv.tv_usec as u64) / 1000;
 }
 
-#[derive(Encodable)]
+#[derive(RustcEncodable)]
 pub struct Tip {
     pub map: HashMap<Key, Value>,
 }

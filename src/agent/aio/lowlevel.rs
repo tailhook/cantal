@@ -1,9 +1,9 @@
 use std::ptr;
 use std::io;
-use std::os::errno;
+use std::io::Error;
 use std::mem::size_of;
 use std::net::TcpListener;
-use std::os::unix::{AsRawFd, Fd};
+use std::os::unix::io::{AsRawFd, RawFd};
 
 use libc;
 use libc::{c_int};
@@ -41,11 +41,11 @@ mod linux {
     }
 }
 
-pub struct EPoll(Fd);
+pub struct EPoll(RawFd);
 
 pub enum EPollEvent {
-    Input(Fd),
-    Output(Fd),
+    Input(RawFd),
+    Output(RawFd),
     Timeout,
 }
 
@@ -73,12 +73,12 @@ impl EPoll {
     }
 
     #[inline]
-    fn fd(&self) -> Fd {
+    fn fd(&self) -> RawFd {
         let &EPoll(fd) = self;
         return fd;
     }
 
-    pub fn add_fd_in(&self, fd: Fd) {
+    pub fn add_fd_in(&self, fd: RawFd) {
         let ev = linux::epoll_event {
             events: linux::EPOLLIN,
             data: fd as u64,
@@ -92,7 +92,7 @@ impl EPoll {
                    fd, io::Error::last_os_error());
         }
     }
-    pub fn change_to_out(&self, fd: Fd) {
+    pub fn change_to_out(&self, fd: RawFd) {
         let ev = linux::epoll_event {
             events: linux::EPOLLOUT,
             data: fd as u64,
@@ -106,7 +106,7 @@ impl EPoll {
                    fd, io::Error::last_os_error());
         }
     }
-    pub fn del_fd(&self, fd: Fd) {
+    pub fn del_fd(&self, fd: RawFd) {
         let rc = unsafe { linux::epoll_ctl(self.fd(),
             linux::EPOLL_CTL_DEL, fd, ptr::null()) };
         if rc < 0 {
@@ -124,14 +124,14 @@ impl EPoll {
             if rc == 1 {
                 // Note we never poll both for in and out
                 if (ev.events & linux::EPOLLIN) != 0 {
-                    return EPollEvent::Input(ev.data as Fd);
+                    return EPollEvent::Input(ev.data as RawFd);
                 } else if (ev.events & linux::EPOLLOUT) != 0 {
-                    return EPollEvent::Output(ev.data as Fd);
+                    return EPollEvent::Output(ev.data as RawFd);
                 } else if (ev.events & linux::EPOLLHUP) != 0 {
                     unimplemented!();
                 }
             } else if rc < 0 {
-                if errno() == libc::EINTR {
+                if Error::raw_io_error() == Some(libc::EINTR) {
                     continue;
                 }
                 panic!("Unexpected error in loop {}",
@@ -149,7 +149,7 @@ impl Drop for EPoll {
     }
 }
 
-pub fn bind_tcp_socket(host: &str, port: u16) -> Result<Fd, io::Error> {
+pub fn bind_tcp_socket(host: &str, port: u16) -> Result<RawFd, io::Error> {
     let stream = try!(TcpListener::bind(&(host, port)));
     let sfd = stream.as_raw_fd();
     if unsafe { libc::listen(sfd, 1) } < 0 {
@@ -163,7 +163,7 @@ pub fn bind_tcp_socket(host: &str, port: u16) -> Result<Fd, io::Error> {
     return Ok(fd);
 }
 
-pub fn accept(fd: Fd) -> Result<Fd, io::Error> {
+pub fn accept(fd: RawFd) -> Result<RawFd, io::Error> {
     let mut sockaddr: libc::sockaddr = libc::sockaddr {
         sa_family: 0,
         sa_data: [0u8; 14],
@@ -176,7 +176,7 @@ pub fn accept(fd: Fd) -> Result<Fd, io::Error> {
     return Ok(child);
 }
 
-pub fn read_to_vec(fd: Fd, vec: &mut Vec<u8>) -> ReadResult {
+pub fn read_to_vec(fd: RawFd, vec: &mut Vec<u8>) -> ReadResult {
     let oldlen = vec.len();
     let newend = oldlen + BUFFER_SIZE;
     vec.reserve(BUFFER_SIZE);
@@ -186,7 +186,7 @@ pub fn read_to_vec(fd: Fd, vec: &mut Vec<u8>) -> ReadResult {
         BUFFER_SIZE as u64) };
     if bytes < 0 {
         unsafe { vec.set_len(oldlen) };
-        if errno() == libc::EAGAIN {
+        if Error::raw_io_error() == Some(libc::EAGAIN) {
             return R::NoData;
         } else {
             return R::Fatal(io::Error::last_os_error());
@@ -199,12 +199,12 @@ pub fn read_to_vec(fd: Fd, vec: &mut Vec<u8>) -> ReadResult {
     }
 }
 
-pub fn write(fd: Fd, chunk: &[u8]) -> WriteResult {
+pub fn write(fd: RawFd, chunk: &[u8]) -> WriteResult {
     let bytes = unsafe { libc::write(fd,
         chunk.as_ptr() as *mut libc::c_void,
         chunk.len() as u64) };
     if bytes < 0 {
-        if errno() == libc::EAGAIN {
+        if Error::raw_io_error() == Some(libc::EAGAIN) {
             return W::Again;
         } else {
             return W::Fatal(io::Error::last_os_error());
@@ -216,10 +216,10 @@ pub fn write(fd: Fd, chunk: &[u8]) -> WriteResult {
     }
 }
 
-pub fn close(fd: Fd) {
+pub fn close(fd: RawFd) {
     let rc = unsafe { libc::close(fd) };
     if rc < 0 {
-        if errno() == libc::EINTR {
+        if Error::raw_io_error() == Some(libc::EINTR) {
             return;
         }
         panic!("Close returned {}", io::Error::last_os_error());

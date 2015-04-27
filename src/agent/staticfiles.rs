@@ -1,7 +1,8 @@
 use std::fs::File;
-use std::io::ErrorKind::{FileNotFound};
+use std::path::Path;
+use std::io::ErrorKind::{NotFound};
 use std::io::Read;
-use std::os::self_exe_path;
+use std::env::current_exe;
 
 use super::aio::http;
 
@@ -15,9 +16,9 @@ pub fn serve(req: &http::Request) -> Result<http::Response, http::Error>
     if uripath.components().any(|x| x == b"..") {
         return Err(http::Error::BadRequest("The dot-dot in uri path"));
     }
-    let filename = self_exe_path().unwrap().join("public").join(uripath);
+    let filename = current_exe().unwrap().join("../public").join(uripath);
     let data = try!(File::open(&filename)
-        .map_err(|e| if e.kind() == FileNotFound {
+        .map_err(|e| if e.kind() == NotFound {
                 http::Error::NotFound
             } else {
                 error!("Error opening file for uri {:?}: {}", req.uri(), e);

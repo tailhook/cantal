@@ -8,9 +8,8 @@
 use std::rc::Rc;
 use std::io::Error;
 use std::time::Duration;
-use std::fmt::{Show, Formatter};
 use std::fmt::Error as FmtError;
-use std::os::unix::Fd;
+use std::os::unix::io::RawFd;
 use std::collections::BinaryHeap;
 use std::collections::HashMap;
 
@@ -45,8 +44,8 @@ pub enum HandlerResult {
 
 pub struct MainLoop<'a> {
     epoll: lowlevel::EPoll,
-    read_handlers: HashMap<Fd, ReadHandler<'a>>,
-    write_handlers: HashMap<Fd, WriteHandler>,
+    read_handlers: HashMap<RawFd, ReadHandler<'a>>,
+    write_handlers: HashMap<RawFd, WriteHandler>,
 }
 
 impl<'a> MainLoop<'a> {
@@ -79,9 +78,9 @@ impl<'a> MainLoop<'a> {
             match self.epoll.next_event(None) {
                 lowlevel::EPollEvent::Input(fd) => {
                     enum R<'a> {
-                        AddHttp(Fd, HttpHandler<'a>),
-                        SwitchToSend(Fd, Vec<u8>),
-                        Remove(Fd),
+                        AddHttp(RawFd, HttpHandler<'a>),
+                        SwitchToSend(RawFd, Vec<u8>),
+                        Remove(RawFd),
                         Proceed,
                     }
                     let res = {
@@ -133,7 +132,7 @@ impl<'a> MainLoop<'a> {
                 }
                 lowlevel::EPollEvent::Output(fd) => {
                     enum R {
-                        Remove(Fd),
+                        Remove(RawFd),
                         Proceed,
                     }
                     let res = {

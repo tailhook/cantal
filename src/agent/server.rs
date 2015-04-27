@@ -17,7 +17,7 @@ use super::history::{Value};
 const SHORT_HISTORY: usize = 30;
 
 
-#[derive(Encodable)]
+#[derive(RustcEncodable)]
 struct StatusData {
     pub startup_time: u64,
     pub scan_duration: u32,
@@ -43,27 +43,27 @@ struct StatusData {
 
 }
 
-#[derive(Encodable)]
+#[derive(RustcEncodable)]
 struct Metrics {
     pub latest: Vec<(Json, Json)>,
     pub history: Vec<(Json, Json)>,
     pub history_timestamps: Vec<(u64, u32)>,
 }
 
-#[derive(Encodable)]
+#[derive(RustcEncodable)]
 struct ProcessesData<'a> {
     boot_time: Option<u64>,
     all: &'a Vec<scan::processes::MinimalProcess>,
 }
 
-#[derive(Encodable)]
+#[derive(RustcEncodable)]
 struct ProcessData<'a> {
     pub pid: Pid,
     pub process: &'a scan::processes::MinimalProcess,
     pub values: Vec<(Json, Json)>,
 }
 
-#[derive(Encodable)]
+#[derive(RustcEncodable)]
 struct ProcessValues<'a> {
     pub processes: Vec<ProcessData<'a>>,
 }

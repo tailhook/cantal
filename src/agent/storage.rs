@@ -1,6 +1,7 @@
 use std::sync::{RwLock};
 use std::fs::{File, rename, soft_link};
 use std::io::Write;
+use std::path::Path;
 use super::util::Cell;
 use super::stats::Stats;
 use super::scan::time_ms;

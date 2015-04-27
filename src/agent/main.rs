@@ -3,18 +3,20 @@
 extern crate libc;
 #[macro_use] extern crate log;
 extern crate serialize;
-extern crate msgpack;
+extern crate cbor;
 
 extern crate argparse;
 extern crate cantal;
+extern crate rustc_serialize;
 
 use std::env;
 use std::thread;
-use std::old_io::fs::File;
+use std::fs::File;
+use std::path::PathBuf;
 use std::sync::RwLock;
 
 use serialize::Decodable;
-use msgpack::{Decoder};
+use cbor::{Decoder};
 use argparse::{ArgumentParser, Store, StoreOption};
 
 
@@ -34,7 +36,7 @@ mod storage;
 fn main() {
     let mut host = "127.0.0.1".to_string();
     let mut port = 22682u16;
-    let mut storage_dir = None::<Path>;
+    let mut storage_dir = None::<PathBuf>;
     {
         let mut ap = ArgumentParser::new();
         ap.refer(&mut port)

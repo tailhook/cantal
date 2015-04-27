@@ -12,7 +12,7 @@ use super::deltabuf::{DeltaBuf, Delta};
 use cantal::Value as TipValue;
 
 
-#[derive(Debug, Encodable, Decodable)]
+#[derive(Debug, RustcEncodable, RustcDecodable)]
 pub enum Value {
     Counter(u64, u64, DeltaBuf),
     Integer(i64, u64, DeltaBuf),
@@ -20,7 +20,7 @@ pub enum Value {
     State((u64, String), u64),  // No useful history
 }
 
-#[derive(Copy, Debug)]
+#[derive(Clone, Copy, Debug)]
 pub enum Interval {
     Fine,       // very fine-grained (2-second)
     Coarse,     // coarse-grained (minute)
@@ -28,7 +28,7 @@ pub enum Interval {
 }
 
 
-#[derive(Debug, Encodable, Decodable)]
+#[derive(Debug, RustcEncodable, RustcDecodable)]
 pub struct History {
     age: u64,
 

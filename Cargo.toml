@@ -11,6 +11,7 @@ authors = ["paul@colomiets.name"]
 
 [dependencies]
 rustc-serialize = "0.3.12"
+cbor = "0.3.6"
 log = "0.3.1"
 libc = "0.1.6"
 

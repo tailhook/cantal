@@ -1,5 +1,5 @@
-use std::num::{Int, FromPrimitive};
 use std::cmp::min;
+use std::num::Zero;
 use std::fmt::Display;
 use std::collections::VecDeque;
 
@@ -17,7 +17,7 @@ const CONTINUATION_SHIFT: usize = 7;
 const FIRST_BYTE_MASK: u8 = 0b00011111;
 const CONTINUATION_MASK: u8 = 0b01111111;
 
-#[derive(Decodable, Encodable, Debug, Clone)]
+#[derive(RustcDecodable, RustcEncodable, Debug, Clone)]
 pub struct DeltaBuf(VecDeque<u8>);
 
 #[derive(PartialEq, Eq, Debug, Clone, Copy)]
@@ -31,12 +31,12 @@ impl DeltaBuf {
     pub fn new() -> DeltaBuf {
         return DeltaBuf(VecDeque::new());
     }
-    pub fn push<T: Int+FromPrimitive+Display>(&mut self,
+    pub fn push<T: From<u8>+Display>(&mut self,
         old_value: T, new_value: T,
         mut age_diff: u64)
     {
-        let first_byte_mask = FromPrimitive::from_u8(0b00011111).unwrap();
-        let continuation_mask = FromPrimitive::from_u8(0b01111111).unwrap();
+        let first_byte_mask = From::from(0b00011111).unwrap();
+        let continuation_mask = From::from(0b01111111).unwrap();
         let DeltaBuf(ref mut deque) = *self;
         let byte_mask = 0xFF;
         if age_diff == 0 {
@@ -54,7 +54,7 @@ impl DeltaBuf {
         } else {
             (new_value - old_value, 0)
         };
-        if delta == Int::zero() {
+        if delta == Zero::zero() {
             if deque.len() > 0 && deque[0] & SPECIAL_BITS == ZERO_BITS {
                 let old_val = deque[0] & SPECIAL_MASK;
                 if old_val < SPECIAL_MASK {
@@ -67,7 +67,7 @@ impl DeltaBuf {
         }
         deque.push_front(sign | (delta & first_byte_mask).to_u8().unwrap());
         delta = delta >> FIRST_BYTE_SHIFT;
-        while delta > FromPrimitive::from_u8(0).unwrap() {
+        while delta > From::from(0).unwrap() {
             deque.push_front((delta & continuation_mask).to_u8().unwrap() as u8 |
                 CONTINUATION_BIT);
             delta = delta >> CONTINUATION_SHIFT;

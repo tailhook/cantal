@@ -10,7 +10,11 @@ MSGPACKLIB = rust-msgpack/libmsgpack.rlib
 
 all: bin js
 
-bin: libcantal.rlib cantal cantal_agent
+
+bin:
+	cargo build
+
+old-bin: libcantal.rlib cantal cantal_agent
 
 test: cantal_test
 	./cantal_test
