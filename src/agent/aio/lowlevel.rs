@@ -131,7 +131,8 @@ impl EPoll {
                     unimplemented!();
                 }
             } else if rc < 0 {
-                if Error::raw_io_error() == Some(libc::EINTR) {
+                if Error::last_os_error().raw_os_error() == Some(libc::EINTR)
+                {
                     continue;
                 }
                 panic!("Unexpected error in loop {}",
@@ -182,11 +183,11 @@ pub fn read_to_vec(fd: RawFd, vec: &mut Vec<u8>) -> ReadResult {
     vec.reserve(BUFFER_SIZE);
     unsafe { vec.set_len(newend) };
     let bytes = unsafe { libc::read(fd,
-        vec.slice_mut(oldlen, newend).as_mut_ptr() as *mut libc::c_void,
+        (&mut vec[oldlen..newend]).as_mut_ptr() as *mut libc::c_void,
         BUFFER_SIZE as u64) };
     if bytes < 0 {
         unsafe { vec.set_len(oldlen) };
-        if Error::raw_io_error() == Some(libc::EAGAIN) {
+        if Error::last_os_error().raw_os_error() == Some(libc::EAGAIN) {
             return R::NoData;
         } else {
             return R::Fatal(io::Error::last_os_error());
@@ -204,7 +205,7 @@ pub fn write(fd: RawFd, chunk: &[u8]) -> WriteResult {
         chunk.as_ptr() as *mut libc::c_void,
         chunk.len() as u64) };
     if bytes < 0 {
-        if Error::raw_io_error() == Some(libc::EAGAIN) {
+        if Error::last_os_error().raw_os_error() == Some(libc::EAGAIN) {
             return W::Again;
         } else {
             return W::Fatal(io::Error::last_os_error());
@@ -219,7 +220,7 @@ pub fn write(fd: RawFd, chunk: &[u8]) -> WriteResult {
 pub fn close(fd: RawFd) {
     let rc = unsafe { libc::close(fd) };
     if rc < 0 {
-        if Error::raw_io_error() == Some(libc::EINTR) {
+        if Error::last_os_error().raw_os_error() == Some(libc::EINTR) {
             return;
         }
         panic!("Close returned {}", io::Error::last_os_error());

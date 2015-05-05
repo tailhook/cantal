@@ -5,8 +5,8 @@ use std::str::from_utf8;
 use std::fmt::Display;
 use std::borrow::{Cow, IntoCow};
 use std::os::unix::io::RawFd;
-use serialize::json::as_pretty_json;
-use serialize::Encodable;
+use rustc_serialize::json::as_pretty_json;
+use rustc_serialize::Encodable;
 
 use super::{HttpHandler, HandlerResult};
 use super::lowlevel::{read_to_vec, ReadResult};
@@ -146,8 +146,8 @@ impl<'a> Stream<'a> {
                     }
                 }
                 for i in check_start..(end - 3) {
-                    if self.buf.slice(i, i+4) == b"\r\n\r\n" {
-                        match self.parse_request(self.buf.slice(0, i+2)) {
+                    if &self.buf[i..i+4] == b"\r\n\r\n" {
+                        match self.parse_request(&self.buf[0..i+2]) {
                             Ok(req) => {
                                 match (*self.handler)(&req) {
                                     Ok(resp) => {
@@ -335,7 +335,7 @@ impl<'a> ResponseBuilder<'a> {
                         self.status.status_code(),
                         self.status.status_text(),
                         body.len()
-                    ).into_bytes() + (*body).as_slice(),
+                    ).into_bytes() + &*body,
             ResponseBody::Text(body) => format!("{} {} {}\r\n\
                         Connection: close\r\n\
                         \r\n{}",  // note, no Content-Length, use Conn: close

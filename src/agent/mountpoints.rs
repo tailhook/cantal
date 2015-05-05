@@ -39,8 +39,8 @@ impl MountPrefix {
         return MountPrefix {
             mount_id: mp.mount_id,
             device_id: mp.device_id,
-            prefix: PathBuf::new(mp.prefix),
-            mounted_at: PathBuf::new(mp.mounted_at),
+            prefix: PathBuf::from(mp.prefix),
+            mounted_at: PathBuf::from(mp.mounted_at),
         }
     }
 }

@@ -1,21 +1,22 @@
 use std::cmp::min;
 use std::num::Zero;
+use std::ops::{Sub, BitAnd, BitOr, Shr};
 use std::fmt::Display;
 use std::collections::VecDeque;
 
-const SIGN_BIT: u8 = 0b00100000;
-const SPECIAL_BIT: u8 = 0b01000000;
-const SPECIAL_BITS: u8 = 0b01100000;
-const SPECIAL_MASK: u8 = 0b00011111;
+const SIGN_BIT: i64 = 0b00100000;
+const SPECIAL_BIT: i64 = 0b01000000;
+const SPECIAL_BITS: i64 = 0b01100000;
+const SPECIAL_MASK: i64 = 0b00011111;
 //                       vv
-const SKIP_BITS: u8 = 0b01100000;
-const ZERO_BITS: u8 = 0b01000000;
+const SKIP_BITS: i64 = 0b01100000;
+const ZERO_BITS: i64 = 0b01000000;
 //                       ^^
-const FIRST_BYTE_SHIFT: usize = 5;
-const CONTINUATION_BIT: u8 = 0b10000000;
-const CONTINUATION_SHIFT: usize = 7;
-const FIRST_BYTE_MASK: u8 = 0b00011111;
-const CONTINUATION_MASK: u8 = 0b01111111;
+const FIRST_BYTE_SHIFT: u32 = 5;
+const CONTINUATION_BIT: i64 = 0b10000000;
+const CONTINUATION_SHIFT: u32 = 7;
+const FIRST_BYTE_MASK: i64 = 0b00011111;
+const CONTINUATION_MASK: i64 = 0b01111111;
 
 #[derive(RustcDecodable, RustcEncodable, Debug, Clone)]
 pub struct DeltaBuf(VecDeque<u8>);
@@ -31,12 +32,8 @@ impl DeltaBuf {
     pub fn new() -> DeltaBuf {
         return DeltaBuf(VecDeque::new());
     }
-    pub fn push<T: From<u8>+Display>(&mut self,
-        old_value: T, new_value: T,
-        mut age_diff: u64)
+    pub fn push(&mut self, old_value: i64, new_value: i64, mut age_diff: u64)
     {
-        let first_byte_mask = From::from(0b00011111).unwrap();
-        let continuation_mask = From::from(0b01111111).unwrap();
         let DeltaBuf(ref mut deque) = *self;
         let byte_mask = 0xFF;
         if age_diff == 0 {
@@ -45,9 +42,9 @@ impl DeltaBuf {
         }
         age_diff -= 1;
         while age_diff > 0 {
-            let cd = min(age_diff, SPECIAL_MASK as u64);
-            deque.push_front(SKIP_BITS | cd as u8);
-            age_diff -= cd;
+            let cd = min(age_diff as i64, SPECIAL_MASK);
+            deque.push_front((SKIP_BITS | cd) as u8);
+            age_diff -= cd as u64;
         }
         let (mut delta, sign) = if old_value > new_value {
             (old_value - new_value, SIGN_BIT)
@@ -55,21 +52,21 @@ impl DeltaBuf {
             (new_value - old_value, 0)
         };
         if delta == Zero::zero() {
-            if deque.len() > 0 && deque[0] & SPECIAL_BITS == ZERO_BITS {
-                let old_val = deque[0] & SPECIAL_MASK;
-                if old_val < SPECIAL_MASK {
-                    deque[0] = (old_val+1) | ZERO_BITS;
+            if deque.len() > 0 && deque[0] as i64 & SPECIAL_BITS == ZERO_BITS {
+                let old_val = deque[0] & SPECIAL_MASK as u8;
+                if old_val < SPECIAL_MASK as u8 {
+                    deque[0] = (old_val+1) | ZERO_BITS as u8;
                     return;
                 }
             }
-            deque.push_front(ZERO_BITS | 1);
+            deque.push_front(ZERO_BITS as u8 | 1);
             return;
         }
-        deque.push_front(sign | (delta & first_byte_mask).to_u8().unwrap());
+        deque.push_front((sign | (delta & FIRST_BYTE_MASK)) as u8);
         delta = delta >> FIRST_BYTE_SHIFT;
-        while delta > From::from(0).unwrap() {
-            deque.push_front((delta & continuation_mask).to_u8().unwrap() as u8 |
-                CONTINUATION_BIT);
+        while delta > From::from(0) {
+            deque.push_front(((delta & CONTINUATION_MASK) |
+                CONTINUATION_BIT) as u8);
             delta = delta >> CONTINUATION_SHIFT;
         }
     }
@@ -77,7 +74,8 @@ impl DeltaBuf {
         let DeltaBuf(ref deque) = *self;
         let mut res = vec!();
         let mut delta: u64 = 0;
-        'outer: for byte in deque.iter() {
+        'outer: for &bits in deque.iter() {
+            let byte = bits as i64;
             if res.len() >= limit { break; }
             if byte & CONTINUATION_BIT != 0 {
                 delta <<= CONTINUATION_SHIFT;
@@ -121,10 +119,10 @@ impl DeltaBuf {
                 let DeltaBuf(ref mut deque) = *self;
                 if truncate_num > 0 {
                     let b = deque[limit_bytes-1];
-                    debug_assert!(b & CONTINUATION_BIT == 0);
-                    debug_assert!(b & SPECIAL_MASK > truncate_num);
-                    deque[limit_bytes-1] = (b & SPECIAL_BITS) |
-                        ((b & SPECIAL_MASK) - truncate_num);
+                    debug_assert!(b & CONTINUATION_BIT as u8 == 0);
+                    debug_assert!(b & SPECIAL_MASK as u8 > truncate_num as u8);
+                    deque[limit_bytes-1] = (b & SPECIAL_BITS as u8) |
+                        ((b & SPECIAL_MASK as u8) - truncate_num as u8);
                 }
                 deque.truncate(limit_bytes);
                 limit
@@ -135,12 +133,12 @@ impl DeltaBuf {
     fn _truncate_bytes(&self, limit: usize) -> Result<(usize, u8), usize> {
         let DeltaBuf(ref deque) = *self;
         let mut counter = 0usize;
-        for (idx, byte) in deque.iter().enumerate() {
-            if byte & CONTINUATION_BIT != 0 {
+        for (idx, &byte) in deque.iter().enumerate() {
+            if byte & CONTINUATION_BIT as u8 != 0 {
                 continue;
             }
-            if byte & SPECIAL_BIT != 0 {
-                let cnt = byte & SPECIAL_MASK;
+            if byte & SPECIAL_BIT as u8 != 0 {
+                let cnt = byte & SPECIAL_MASK as u8;
                 let newcnt = counter + cnt as usize;
                 if newcnt == limit {
                     return Ok((idx+1, 0));

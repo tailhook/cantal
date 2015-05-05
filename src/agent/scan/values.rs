@@ -5,7 +5,7 @@ use std::ffi::OsStr;
 use std::os::unix::prelude::OsStrExt;
 use std::path::{Path, PathBuf, Component};
 use std::collections::{HashMap};
-use serialize::json::Json;
+use rustc_serialize::json::Json;
 
 use cantal::{Metadata, Value, Descriptor};
 
@@ -32,7 +32,7 @@ fn get_env_var(pid: u32) -> Option<PathBuf> {
                 return Ok(None);
             };
             if line.starts_with(b"CANTAL_PATH=") {
-                return Ok(Some(PathBuf::new(<OsStr as OsStrExt>::from_bytes(
+                return Ok(Some(PathBuf::from(<OsStr as OsStrExt>::from_bytes(
                     &line["CANTAL_PATH=".len()..line.len()-1]))));
             }
         }
@@ -75,15 +75,15 @@ fn match_mountpoint(cache: &ReadCache, pid: Pid, path: &Path)
         if path.starts_with(mp.mounted_at) {
             if let Some((ref mut pref, ref mut pt, ref mut dev)) = best_match {
                 // Modify only if new path is longer
-                if Path::new(mp.mounted_at).starts_with(pref) {
-                    *pref = PathBuf::new(mp.prefix);
-                    *pt = PathBuf::new(mp.mounted_at);
+                if Path::new(mp.mounted_at).starts_with(&pref) {
+                    *pref = PathBuf::from(mp.prefix);
+                    *pt = PathBuf::from(mp.mounted_at);
                     *dev = mp.device_id;
                 }
             } else {
                 best_match = Some((
-                    PathBuf::new(mp.prefix),
-                    PathBuf::new(mp.mounted_at),
+                    PathBuf::from(mp.prefix),
+                    PathBuf::from(mp.mounted_at),
                     mp.device_id));
             }
         }

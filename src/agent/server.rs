@@ -2,7 +2,7 @@ use std::str::FromStr;
 use std::sync::RwLock;
 use std::time::Duration;
 use std::collections::{HashMap};
-use serialize::json::Json;
+use rustc_serialize::json::Json;
 
 use super::aio;
 use super::scan;
@@ -170,7 +170,7 @@ pub fn run_server<'x>(stats: &RwLock<Stats>, host: String, port: u16)
     };
     let mut main = try!(aio::MainLoop::new()
         .map_err(|e| format!("Can't create main loop: {}", e)));
-    try!(main.add_http_server(host.as_slice(), port, handler)
+    try!(main.add_http_server(&host, port, handler)
         .map_err(|e| format!("Can't bind {}:{}: {}", host, port, e)));
     main.run();
 }

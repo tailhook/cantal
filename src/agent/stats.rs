@@ -2,7 +2,7 @@ use std::hash::{Hash, Hasher};
 use std::default::Default;
 use std::collections::BTreeMap;
 
-use serialize::json::{Json, ToJson};
+use rustc_serialize::json::{Json, ToJson};
 
 use super::scan::time_ms;
 use super::scan;

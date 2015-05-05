@@ -4,7 +4,7 @@ use std::mem::replace;
 use std::collections::VecDeque;
 use std::collections::HashMap;
 use std::collections::hash_map::Entry::{Occupied, Vacant};
-use serialize::json::Json;
+use rustc_serialize::json::Json;
 
 use super::stats::Key;
 use super::scan::Tip;
@@ -79,7 +79,7 @@ impl Value {
         match self {
             &mut Value::Counter(ref mut oval, ref mut oage, ref mut buf) => {
                 if let TipValue::Counter(nval) = tip {
-                    buf.push(*oval, nval, age - *oage);
+                    buf.push(*oval as i64, nval as i64, age - *oage);
                     *oval = nval;
                     *oage = age;
                     return None;

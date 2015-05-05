@@ -1,10 +1,6 @@
-#![feature(env, rustc_private)]
-
 extern crate libc;
 #[macro_use] extern crate log;
-extern crate serialize;
 extern crate cbor;
-
 extern crate argparse;
 extern crate cantal;
 extern crate rustc_serialize;
@@ -15,9 +11,9 @@ use std::fs::File;
 use std::path::PathBuf;
 use std::sync::RwLock;
 
-use serialize::Decodable;
+use rustc_serialize::Decodable;
 use cbor::{Decoder};
-use argparse::{ArgumentParser, Store, StoreOption};
+use argparse::{ArgumentParser, Store, ParseOption};
 
 
 mod aio;
@@ -46,7 +42,7 @@ fn main() {
             .add_option(&["-h", "--host"], Store,
                 "Host for http interface (default 127.0.0.1)");
         ap.refer(&mut storage_dir)
-            .add_option(&["-d", "--storage-dir"], StoreOption,
+            .add_option(&["-d", "--storage-dir"], ParseOption,
                 "A directory to serialize data to");
         match ap.parse_args() {
             Ok(()) => {}
@@ -61,8 +57,13 @@ fn main() {
 
     let _storage = storage_dir.as_ref().map(|path| {
         let result = File::open(&path.join("current.msgpack"))
-            .and_then(|f| Decodable::decode(&mut Decoder::new(f)))
-            .map_err(|e| error!("Error reading old data: {}. Ignoring...", e));
+            .map_err(|e| error!("Error reading old data: {}. Ignoring...", e))
+            .and_then(|f| Decoder::from_reader(f).decode().next()
+                .ok_or_else(|| error!(
+                    "Error parsing old data: No data. Ignoring..."))
+                .and_then(|r| r.map_err(|e| error!(
+                    "Error parsing old data {:?}. Ignoring...", e)
+                )));
         if let Ok(history) = result {
             stats.write().unwrap().history = history;
         }

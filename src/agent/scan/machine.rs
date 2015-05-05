@@ -94,7 +94,7 @@ pub fn read(t: &mut Tip) -> Option<u64> {
                 }
                 None => 1,
             };
-            FromStr::from_str(val).map(|x| t.add(key, Integer(x*mult)));
+            <i64 as FromStr>::from_str(val).map(|x| t.add(key, Integer(x*mult)));
         }
         Ok(())
     }).ok();
@@ -287,7 +287,7 @@ pub fn read(t: &mut Tip) -> Option<u64> {
                     None
                 };
                 if let Some((ref mut coll, port)) = pair {
-                    let estab = if status == S::ESTABLISHED as i32 {1} else {0};
+                    let estab = if status == S::ESTABLISHED as u16 {1} else {0};
                     match coll.entry(port) {
                         Vacant(e) => {
                             e.insert((estab, tx, rx));
@@ -304,11 +304,11 @@ pub fn read(t: &mut Tip) -> Option<u64> {
             }
             tx_queue += tx;
             rx_queue += rx;
-            match i32::from_i32(status) {
-                Some(S::ESTABLISHED) => established += 1,
-                Some(S::CLOSE_WAIT) => close_wait += 1,
-                Some(S::TIME_WAIT) => time_wait += 1,
-                Some(S::LISTEN) => listening += 1,
+            match status {
+                x if x == S::ESTABLISHED as u16 => established += 1,
+                x if x == S::CLOSE_WAIT as u16 => close_wait += 1,
+                x if x == S::TIME_WAIT as u16 => time_wait += 1,
+                x if x == S::LISTEN as u16 => listening += 1,
                 _ => {}
             }
         }
@@ -316,8 +316,8 @@ pub fn read(t: &mut Tip) -> Option<u64> {
         t.add(Key::metric("net.tcp.close_wait"), Integer(close_wait));
         t.add(Key::metric("net.tcp.time_wait"), Integer(time_wait));
         t.add(Key::metric("net.tcp.listening"), Integer(listening));
-        t.add(Key::metric("net.tcp.tx_queue"), Integer(tx_queue));
-        t.add(Key::metric("net.tcp.rx_queue"), Integer(rx_queue));
+        t.add(Key::metric("net.tcp.tx_queue"), Integer(tx_queue as i64));
+        t.add(Key::metric("net.tcp.rx_queue"), Integer(rx_queue as i64));
         for (port, (estab, ptx, prx)) in cli.into_iter() {
             t.add(Key::pairs(&[
                 ("metric", "net.tcp.active.established"),
@@ -326,11 +326,11 @@ pub fn read(t: &mut Tip) -> Option<u64> {
             t.add(Key::pairs(&[
                 ("metric", "net.tcp.active.tx_queue"),
                 ("port", &format!("{}", port)),
-                ]), Integer(ptx));
+                ]), Integer(ptx as i64));
             t.add(Key::pairs(&[
                 ("metric", "net.tcp.active.rx_queue"),
                 ("port", &format!("{}", port)),
-                ]), Integer(prx));
+                ]), Integer(prx as i64));
         }
         for (port, (estab, ptx, prx)) in serv.into_iter() {
             t.add(Key::pairs(&[
@@ -340,11 +340,11 @@ pub fn read(t: &mut Tip) -> Option<u64> {
             t.add(Key::pairs(&[
                 ("metric", "net.tcp.passive.tx_queue"),
                 ("port", &format!("{}", port)),
-                ]), Integer(ptx));
+                ]), Integer(ptx as i64));
             t.add(Key::pairs(&[
                 ("metric", "net.tcp.passive.rx_queue"),
                 ("port", &format!("{}", port)),
-                ]), Integer(prx));
+                ]), Integer(prx as i64));
         }
         Ok(())
     }).ok();

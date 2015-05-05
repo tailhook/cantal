@@ -1,5 +1,6 @@
 use std::fs::File;
-use std::path::Path;
+use std::path::PathBuf;
+use std::path::Component::ParentDir;
 use std::io::ErrorKind::{NotFound};
 use std::io::Read;
 use std::env::current_exe;
@@ -9,14 +10,14 @@ use super::aio::http;
 
 pub fn serve(req: &http::Request) -> Result<http::Response, http::Error>
 {
-    let mut uripath = Path::new(format!(".{}", req.uri()));
+    let mut uripath = PathBuf::from(&format!(".{}", req.uri()));
     if req.uri().ends_with("/") {
         uripath = uripath.join("index.html");
     }
-    if uripath.components().any(|x| x == b"..") {
+    if uripath.components().any(|x| x == ParentDir) {
         return Err(http::Error::BadRequest("The dot-dot in uri path"));
     }
-    let filename = current_exe().unwrap().join("../public").join(uripath);
+    let filename = current_exe().unwrap().join("../public").join(&uripath);
     let data = try!(File::open(&filename)
         .map_err(|e| if e.kind() == NotFound {
                 http::Error::NotFound

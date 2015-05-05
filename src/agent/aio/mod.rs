@@ -7,7 +7,6 @@
 
 use std::rc::Rc;
 use std::io::Error;
-use std::time::Duration;
 use std::fmt::Error as FmtError;
 use std::os::unix::io::RawFd;
 use std::collections::BinaryHeap;
@@ -68,8 +67,7 @@ impl<'a> MainLoop<'a> {
         Ok(())
     }
 
-    pub fn add_interval(&mut self, duration: Duration,
-                        handler: IntervalHandler)
+    pub fn add_interval(&mut self, duration: u64, handler: IntervalHandler)
     {
     }
 

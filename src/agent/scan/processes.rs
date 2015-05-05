@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf, Component};
 use std::fs::{File, read_dir};
 use std::collections::{HashMap};
 use std::collections::hash_map::Entry::{Occupied, Vacant};
-use serialize::json::Json;
+use rustc_serialize::json::Json;
 use libc;
 
 use cantal::{Metadata, MetadataError, Descriptor, Value};

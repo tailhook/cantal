@@ -54,15 +54,17 @@ pub fn scan_loop(stats: &RwLock<Stats>, cell: Option<&Cell<Buffer>>) {
                     last_hourly = hourly;
                 }
                 if let Some(cell) = cell {
+                    let mut enc = Mencoder::from_memory();
+                    enc.encode(&[&stats.history]);
                     cell.put(Buffer {
                         timestamp: start,
                         snapshot: snapshot,
-                        data: Mencoder::to_msgpack(&stats.history).unwrap(),
+                        data: enc.into_bytes(),
                     });
                 }
             }
         }
 
-        usleep((2000 - time_ms() as i64 % 2000)*1000);
+        unsafe { usleep(((2000 - time_ms() as i64 % 2000)*1000) as u32) };
     }
 }
