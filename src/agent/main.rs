@@ -9,7 +9,7 @@ use std::env;
 use std::thread;
 use std::fs::File;
 use std::path::PathBuf;
-use std::sync::RwLock;
+use std::sync::{RwLock,Arc};
 
 use rustc_serialize::Decodable;
 use cbor::{Decoder};
@@ -44,16 +44,12 @@ fn main() {
         ap.refer(&mut storage_dir)
             .add_option(&["-d", "--storage-dir"], ParseOption,
                 "A directory to serialize data to");
-        match ap.parse_args() {
-            Ok(()) => {}
-            Err(x) => {
-                env::set_exit_status(x);
-                return;
-            }
-        }
+        ap.parse_args_or_exit();
     }
-    let stats = &RwLock::new(stats::Stats::new());
-    let cell = &util::Cell::new();
+    // TODO(tailhook) just borrow, when scoped work again
+    let stats = Arc::new(RwLock::new(stats::Stats::new()));
+    let cell = Arc::new(util::Cell::new());
+    let cell_copy2 = cell.clone();
 
     let _storage = storage_dir.as_ref().map(|path| {
         let result = File::open(&path.join("current.msgpack"))
@@ -68,21 +64,23 @@ fn main() {
             stats.write().unwrap().history = history;
         }
         let path = path.clone();
-        thread::scoped(move || {
-            storage::storage_loop(cell, &path, stats)
+        thread::spawn(|| {
+            let cell_copy1 = cell.clone();
+            let stats_copy1 = stats.clone();
+            storage::storage_loop(&*cell_copy1, &path, &*stats_copy1)
         })
     });
 
-    let _scan = thread::scoped(move || {
-        scanner::scan_loop(stats, storage_dir.map(|_| cell))
+    let _scan = thread::spawn(|| {
+        let stats_copy2 = stats.clone();
+        scanner::scan_loop(&*stats_copy2, storage_dir.map(|_| &*cell_copy2))
     });
 
-    match server::run_server(stats, host, port) {
+    match server::run_server(&*stats, host, port) {
         Ok(()) => {}
         Err(x) => {
             error!("Error running server: {}", x);
-            env::set_exit_status(1);
-            return;
+            std::process::exit(1);
         }
     }
 }

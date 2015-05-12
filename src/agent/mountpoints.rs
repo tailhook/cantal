@@ -1,6 +1,6 @@
 use std::str::FromStr;
 use std::path::{Path, PathBuf};
-use cantal::itertools::{NextStr, NextValue};
+use cantal::itertools::{NextStr, NextValue, words};
 
 
 #[derive(Debug)]
@@ -24,8 +24,8 @@ fn parse_pair<A:FromStr, B:FromStr>(val: &str) -> Result<(A, B), ()> {
     return Ok((try!(iter.next_value()), try!(iter.next_value())));
 }
 
-pub fn parse_mount_point(line: &str) -> Result<MountPoint, ()> {
-    let mut words = line.words();
+pub fn parse_mount_point<'a>(line: &'a str) -> Result<MountPoint<'a>, ()> {
+    let mut words = words(line);
     Ok(MountPoint {
         mount_id: try!(words.next_value()),
         device_id: try!(words.nth_str(1).and_then(parse_pair)),

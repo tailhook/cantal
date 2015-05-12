@@ -1,7 +1,6 @@
 use std::sync::{RwLock};
 use std::fs::File;
 use std::io::Write;
-use std::time::duration::Duration;
 
 use libc::usleep;
 use cbor::Encoder as Mencoder;

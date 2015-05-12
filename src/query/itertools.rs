@@ -1,4 +1,5 @@
-use std::str::FromStr;
+use std::str::{FromStr, Split};
+use std::iter::Filter;
 use std::borrow::Borrow;
 
 
@@ -37,4 +38,20 @@ impl<'a, I> NextStr<'a> for I
     fn nth_str(&mut self, i: usize) -> Result<&'a str, ()> {
         return self.nth(i).ok_or(());
     }
+}
+
+pub struct Words<'a> {
+    src: &'a str,
+    offset: usize,
+}
+
+impl<'a> Iterator for Words<'a> {
+    type Item = &'a str;
+    fn next(&mut self) -> Option<&'a str> {
+        unimplemented!();
+    }
+}
+
+pub fn words<'a, 'b: 'a, B: Borrow<str> + ?Sized + 'a>(src: &'b B) -> Words<'a> {
+    return Words { src: src.borrow(), offset: 0 };
 }

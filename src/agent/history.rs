@@ -197,7 +197,11 @@ impl Value {
                 if age <= trim_age {
                     return false;
                 } else {
-                    queue.truncate((age - trim_age) as usize);
+                    // TODO(tailhook) fixme: use truncate
+                    while queue.len() > (age - trim_age) as usize {
+                        queue.pop_back();
+                    }
+                    //queue.truncate((age - trim_age) as usize);
                 }
             }
             &mut Value::State(_, age) => {

@@ -1,5 +1,4 @@
 use std::cmp::min;
-use std::num::Zero;
 use std::ops::{Sub, BitAnd, BitOr, Shr};
 use std::fmt::Display;
 use std::collections::VecDeque;
@@ -51,7 +50,7 @@ impl DeltaBuf {
         } else {
             (new_value - old_value, 0)
         };
-        if delta == Zero::zero() {
+        if delta == 0 {
             if deque.len() > 0 && deque[0] as i64 & SPECIAL_BITS == ZERO_BITS {
                 let old_val = deque[0] & SPECIAL_MASK as u8;
                 if old_val < SPECIAL_MASK as u8 {
@@ -124,7 +123,11 @@ impl DeltaBuf {
                     deque[limit_bytes-1] = (b & SPECIAL_BITS as u8) |
                         ((b & SPECIAL_MASK as u8) - truncate_num as u8);
                 }
-                deque.truncate(limit_bytes);
+                // TODO(tailhook) use truncate
+                while deque.len() > limit_bytes {
+                    deque.pop_back();
+                }
+                // deque.truncate(limit_bytes);
                 limit
             }
             Err(num_current) => num_current,

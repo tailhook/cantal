@@ -1,6 +1,5 @@
 use std::str::FromStr;
 use std::sync::RwLock;
-use std::time::Duration;
 use std::collections::{HashMap};
 use rustc_serialize::json::Json;
 

@@ -3,10 +3,12 @@
 
 use std::str::from_utf8;
 use std::fmt::Display;
-use std::borrow::{Cow, IntoCow};
+use std::borrow::{Borrow};
 use std::os::unix::io::RawFd;
 use rustc_serialize::json::as_pretty_json;
 use rustc_serialize::Encodable;
+
+use cantal::find_elem;
 
 use super::{HttpHandler, HandlerResult};
 use super::lowlevel::{read_to_vec, ReadResult};
@@ -53,7 +55,8 @@ pub enum Status {
 
 enum ResponseBody<'a> {
     Empty,
-    Chunk(Cow<'a, [u8]>),
+    OwnedChunk(Vec<u8>),
+    BorrowedChunk(&'a [u8]),
     Text(&'a Display),
 }
 
@@ -157,7 +160,9 @@ impl<'a> Stream<'a> {
                                     Err(e) => {
                                         let mut builder = ResponseBuilder::new(
                                             &req, e.status());
-                                        builder.set_body(e.body().as_bytes());
+                                        let bytes: &[u8];
+                                        bytes = &e.body().as_bytes();
+                                        builder.set_body_from(bytes);
                                         return HandlerResult::SendAndClose(
                                             builder.take().buf);
                                     }
@@ -186,7 +191,7 @@ impl<'a> Stream<'a> {
     pub fn _request_line<'x>(&self, chunk: &'x str)
         -> Result<RequestLine<'x>, Error>
     {
-        let mut pieces = chunk.trim().words();
+        let mut pieces = chunk.trim().split(' ').filter(|x| x.len() > 0);
         let meth = match pieces.next().unwrap() {
             "GET" => Method::Get,
             _ => return Err(Error::MethodNotAllowed),
@@ -204,7 +209,7 @@ impl<'a> Stream<'a> {
     pub fn parse_request<'x>(&self, headers: &'x [u8])
         -> Result<Request<'x>, Error>
     {
-        let line_end = headers.position_elem(&b'\r').unwrap();
+        let line_end = find_elem(headers, &b'\r').unwrap();
         let req_line = try!(from_utf8(&headers[..line_end])
                  .map_err(|_| Error::BadRequest("Can't decode headers")));
         let mut req_parser = RequestParser::start(
@@ -310,9 +315,13 @@ impl<'a> ResponseBuilder<'a> {
             body: ResponseBody::Empty,
         };
     }
-    pub fn set_body<T:IntoCow<'a, [u8]>>(&mut self, x: T)
+    pub fn set_body_from<T: Borrow<[u8]>+?Sized>(&mut self, x: &'a T)
     {
-        self.body = ResponseBody::Chunk(x.into_cow());
+        self.body = ResponseBody::BorrowedChunk(Borrow::borrow(x));
+    }
+    pub fn set_body(&mut self, x: Vec<u8>)
+    {
+        self.body = ResponseBody::OwnedChunk(x);
     }
     pub fn set_body_text(&mut self, x: &'a Display)
     {
@@ -327,7 +336,16 @@ impl<'a> ResponseBuilder<'a> {
                         self.version.text(),
                         self.status.status_code(),
                         self.status.status_text()).into_bytes(),
-            ResponseBody::Chunk(body) => format!("{} {} {}\r\n\
+            ResponseBody::OwnedChunk(body) => format!("{} {} {}\r\n\
+                        Content-Length: {}\r\n\
+                        Connection: close\r\n\
+                        \r\n",
+                        self.version.text(),
+                        self.status.status_code(),
+                        self.status.status_text(),
+                        body.len()
+                    ).into_bytes() + &*body,
+            ResponseBody::BorrowedChunk(body) => format!("{} {} {}\r\n\
                         Content-Length: {}\r\n\
                         Connection: close\r\n\
                         \r\n",

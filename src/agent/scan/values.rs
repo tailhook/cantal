@@ -42,19 +42,15 @@ fn get_env_var(pid: u32) -> Option<PathBuf> {
     .and_then(|opt| opt)
 }
 
-fn _relative(path: &Path) -> PathBuf {
-    let mut cmp = path.components();
-    assert!(cmp.next() == Some(Component::RootDir));
-    return cmp.as_path().to_path_buf();
-}
 fn relative_from(path: &Path, prefix: &Path) -> PathBuf {
-    if prefix == Path::new("/") {
-        // Unfortunately rust-1.0.0-alpha.2 doen't make paths relative to root
-        // directory. I believe it's a but that will be fixed, but we
-        // need to cope with it for now
-        return _relative(path);
-    } else {
-        return path.relative_from(prefix).unwrap().to_path_buf();
+    let mut pref_iter = prefix.components();
+    let mut path_iter = path.components();
+    loop {
+        if let Some(cmp) = pref_iter.next() {
+            assert_eq!(Some(cmp), path_iter.next());
+        } else {
+            return path_iter.as_path().to_path_buf();
+        }
     }
 }
 

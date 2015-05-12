@@ -74,7 +74,7 @@ pub struct Metadata {
 }
 
 
-fn find_elem<T:Eq+Sized>(arr: &[T], val: &T) -> Option<usize> {
+pub fn find_elem<T:Eq+Sized>(arr: &[T], val: &T) -> Option<usize> {
     for i in 0..arr.len() {
         if arr[i] == *val {
             return Some(i);
