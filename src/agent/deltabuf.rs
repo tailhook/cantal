@@ -1,6 +1,4 @@
 use std::cmp::min;
-use std::ops::{Sub, BitAnd, BitOr, Shr};
-use std::fmt::Display;
 use std::collections::VecDeque;
 
 const SIGN_BIT: i64 = 0b00100000;
@@ -34,7 +32,6 @@ impl DeltaBuf {
     pub fn push(&mut self, old_value: i64, new_value: i64, mut age_diff: u64)
     {
         let DeltaBuf(ref mut deque) = *self;
-        let byte_mask = 0xFF;
         if age_diff == 0 {
             warn!("Duplicate write at same age"); // Shouldn't we panic?
             return;

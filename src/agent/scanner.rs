@@ -1,5 +1,4 @@
 use std::sync::{RwLock};
-use std::fs::File;
 use std::io::Write;
 
 use libc::usleep;
@@ -54,12 +53,16 @@ pub fn scan_loop(stats: &RwLock<Stats>, cell: Option<&Cell<Buffer>>) {
                 }
                 if let Some(cell) = cell {
                     let mut enc = Mencoder::from_memory();
-                    enc.encode(&[&stats.history]);
-                    cell.put(Buffer {
-                        timestamp: start,
-                        snapshot: snapshot,
-                        data: enc.into_bytes(),
-                    });
+                    enc.encode(&[&stats.history])
+                        .map_err(|_| error!("Can't serialize history"))
+                        .map(|_| {
+                            cell.put(Buffer {
+                                timestamp: start,
+                                snapshot: snapshot,
+                                data: enc.into_bytes(),
+                            });
+                        })
+                        .ok();
                 }
             }
         }

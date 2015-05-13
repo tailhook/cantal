@@ -13,9 +13,9 @@ use self::WriteResult as W;
 
 const BUFFER_SIZE: usize = 4096;
 
+#[allow(dead_code)]
 mod linux {
-    use libc::{c_int, c_void};
-    use libc::{close};
+    use libc::{c_int};
 
     pub const EPOLL_CLOEXEC: c_int = 0x80000;
     pub const EPOLL_CTL_ADD: c_int = 1;
@@ -43,6 +43,7 @@ mod linux {
 
 pub struct EPoll(RawFd);
 
+#[allow(dead_code)]
 pub enum EPollEvent {
     Input(RawFd),
     Output(RawFd),

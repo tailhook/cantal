@@ -1,5 +1,5 @@
 use std::str::FromStr;
-use std::path::{Path, PathBuf};
+use std::path::{PathBuf};
 use cantal::itertools::{NextStr, NextValue, words};
 
 

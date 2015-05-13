@@ -1,6 +1,5 @@
 use std::str::FromStr;
 use std::sync::RwLock;
-use std::collections::{HashMap};
 use rustc_serialize::json::Json;
 
 use super::aio;
@@ -10,7 +9,6 @@ use super::aio::http;
 use super::util::tree_collect;
 use super::stats::{Stats, Key};
 use super::scan::processes::Pid;
-use super::history::{Value};
 
 
 const SHORT_HISTORY: usize = 30;

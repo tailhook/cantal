@@ -5,7 +5,6 @@ extern crate argparse;
 extern crate cantal;
 extern crate rustc_serialize;
 
-use std::env;
 use std::thread;
 use std::fs::File;
 use std::path::PathBuf;
@@ -48,7 +47,10 @@ fn main() {
     }
     // TODO(tailhook) just borrow, when scoped work again
     let stats = Arc::new(RwLock::new(stats::Stats::new()));
+    let stats_copy1 = stats.clone();
+    let stats_copy2 = stats.clone();
     let cell = Arc::new(util::Cell::new());
+    let cell_copy1 = cell.clone();
     let cell_copy2 = cell.clone();
 
     let _storage = storage_dir.as_ref().map(|path| {
@@ -64,15 +66,12 @@ fn main() {
             stats.write().unwrap().history = history;
         }
         let path = path.clone();
-        thread::spawn(|| {
-            let cell_copy1 = cell.clone();
-            let stats_copy1 = stats.clone();
+        thread::spawn(move || {
             storage::storage_loop(&*cell_copy1, &path, &*stats_copy1)
         })
     });
 
-    let _scan = thread::spawn(|| {
-        let stats_copy2 = stats.clone();
+    let _scan = thread::spawn(move || {
         scanner::scan_loop(&*stats_copy2, storage_dir.map(|_| &*cell_copy2))
     });
 

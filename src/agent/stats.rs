@@ -1,4 +1,4 @@
-use std::hash::{Hash, Hasher};
+use std::hash::{Hasher};
 use std::default::Default;
 use std::collections::BTreeMap;
 

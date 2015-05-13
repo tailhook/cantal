@@ -31,10 +31,12 @@ pub enum Version {
     Http11,
 }
 
+/*
 pub enum TransferEncoding {
     Identity,
     Chunked,
 }
+*/
 
 #[derive(Debug)]
 pub enum Error {
@@ -92,7 +94,7 @@ pub struct ResponseBuilder<'a> {
 
 pub struct RequestParser<'a> {
     req: Request<'a>,
-    has_content_length: bool,
+//    has_content_length: bool,
 }
 
 impl<'a> RequestLine<'a> {
@@ -118,10 +120,10 @@ impl<'a> RequestParser<'a> {
                 request_line: req_line,
                 content_length: 0,
             },
-            has_content_length: false,
+            // has_content_length: false,
         };
     }
-    fn add_header(&mut self, name: &str, value: &str) -> Result<(), Error>
+    fn add_header(&mut self, _name: &str, _value: &str) -> Result<(), Error>
     {
         Ok(())
     }
@@ -323,6 +325,7 @@ impl<'a> ResponseBuilder<'a> {
     {
         self.body = ResponseBody::OwnedChunk(x);
     }
+    #[allow(dead_code)]
     pub fn set_body_text(&mut self, x: &'a Display)
     {
         self.body = ResponseBody::Text(x);

@@ -172,7 +172,7 @@ impl Value {
                 }
                 return Json::Array(res);
             }
-            &Value::State((ts, ref text), age) => {
+            &Value::State(_, _) => {
                 return Json::Null;  // No history for State
             }
         }
@@ -273,7 +273,7 @@ impl History {
         .or_else(||
             self.tip.get(key)
             .map(|x| match *x {
-                Value::State((ts, ref text), age) => Json::Array(vec!(
+                Value::State((ts, ref text), _age) => Json::Array(vec!(
                     Json::U64(ts),
                     Json::String(text.clone()),
                     )),
@@ -339,7 +339,7 @@ impl History {
     }
     pub fn truncate_by_time(&mut self, timestamp: u64) {
         let fine_ts = self.fine_timestamps.iter().enumerate()
-            .skip_while(|&(idx, &(ts, dur))| ts >= timestamp).next();
+            .skip_while(|&(_idx, &(ts, _dur))| ts >= timestamp).next();
         if let Some((idx, _)) = fine_ts {
             let target_age = self.age - idx as u64;
             self.fine = replace(&mut self.fine, HashMap::new()).into_iter()

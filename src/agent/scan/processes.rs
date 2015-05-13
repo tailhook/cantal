@@ -1,22 +1,12 @@
-use std::rc::Rc;
 use std::str::FromStr;
-use std::ffi::OsStr;
-use std::os::unix::prelude::OsStrExt;
-use std::io::{BufReader, BufRead, Read};
+use std::io::{Read};
 use std::str::from_utf8;
-use std::hash::{Hash};
-use std::path::{Path, PathBuf, Component};
 use std::fs::{File, read_dir};
-use std::collections::{HashMap};
-use std::collections::hash_map::Entry::{Occupied, Vacant};
-use rustc_serialize::json::Json;
 use libc;
 
-use cantal::{Metadata, MetadataError, Descriptor, Value};
 use cantal::find_elem;
 use cantal::itertools::{NextValue, NextStr, words};
 use cantal::iotools::{ReadHostBytes};
-use super::super::mountpoints::{MountPrefix, parse_mount_point};
 
 pub type Pid = u32;
 
@@ -51,7 +41,7 @@ fn read_process(cache: &mut ReadCache, pid: Pid)
 {
     let cmdline = try!(File::open(&format!("/proc/{}/cmdline", pid))
         .and_then(|mut f| f.read_chunk(4096))
-        .map_err(|e| debug!("Can't read cmdline file")));
+        .map_err(|_| debug!("Can't read cmdline file")));
     // Command-line may be non-full, but we don't care
     let cmdline = String::from_utf8_lossy(&cmdline);
 

@@ -1,11 +1,10 @@
 use std::rc::Rc;
-use std::io::{BufReader, BufRead, Read};
+use std::io::{BufReader, BufRead};
 use std::fs::{File};
 use std::ffi::OsStr;
 use std::os::unix::prelude::OsStrExt;
-use std::path::{Path, PathBuf, Component};
+use std::path::{Path, PathBuf};
 use std::collections::{HashMap};
-use rustc_serialize::json::Json;
 
 use cantal::{Metadata, Value, Descriptor};
 

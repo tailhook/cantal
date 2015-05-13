@@ -1,4 +1,3 @@
-use std::default::Default;
 use std::str::FromStr;
 use std::fs::File;
 use std::path::Path;
@@ -6,10 +5,9 @@ use std::io::{BufReader, Read, BufRead};
 use std::collections::HashMap;
 use std::collections::hash_map::Entry::{Vacant,Occupied};
 
-use cantal::itertools::{NextValue, words};
-use cantal::Value::{Float, Counter, Integer};
+use cantal::itertools::{words};
+use cantal::Value::{Counter, Integer};
 
-use super::{time_ms};
 use super::Tip;
 use super::super::stats::Key;
 
@@ -38,11 +36,11 @@ pub fn read(t: &mut Tip) -> Option<u64> {
             t.add_next_float(Key::metric("load_avg_1min"), &mut pieces);
             t.add_next_float(Key::metric("load_avg_5min"), &mut pieces);
             t.add_next_float(Key::metric("load_avg_15min"), &mut pieces);
-            let mut proc_pieces = pieces.next()
+            pieces.next()
                 .map(|x| x.splitn(1, '/'))
-                .map(|mut p| {
-                    t.add_next_cnt(Key::metric("proc_runnable"), &mut pieces);
-                    t.add_next_cnt(Key::metric("proc_total"), &mut pieces);
+                .map(|mut x| {
+                    t.add_next_cnt(Key::metric("proc_runnable"), &mut x);
+                    t.add_next_cnt(Key::metric("proc_total"), &mut x);
                 });
             t.add_next_float(Key::metric("last_pid"), &mut pieces);
         }).ok();
@@ -94,7 +92,9 @@ pub fn read(t: &mut Tip) -> Option<u64> {
                 }
                 None => 1,
             };
-            <i64 as FromStr>::from_str(val).map(|x| t.add(key, Integer(x*mult)));
+            <i64 as FromStr>::from_str(val)
+                .map(|x| t.add(key, Integer(x*mult)))
+                .ok();
         }
         Ok(())
     }).ok();
@@ -225,6 +225,7 @@ pub fn read(t: &mut Tip) -> Option<u64> {
         Ok(())
     }).ok();
     File::open(&Path::new("/proc/net/tcp")).and_then(|f| {
+        #[allow(dead_code, non_camel_case_types)]
         enum S {
             UNKNOWN,
             ESTABLISHED,

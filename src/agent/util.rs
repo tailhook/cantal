@@ -8,7 +8,7 @@ pub struct Cell<T>{
 }
 
 
-pub fn tree_collect<K: Hash + Eq, V, I: Iterator<Item=(K, V)>>(mut iter: I)
+pub fn tree_collect<K: Hash + Eq, V, I: Iterator<Item=(K, V)>>(iter: I)
     -> HashMap<K, Vec<V>>
 {
     let mut result = HashMap::new();

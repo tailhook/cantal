@@ -5,11 +5,8 @@
 //  This is the reason we don't make it too generic, just get things done for
 //  our case. I.e. we only support HTTP and epoll
 
-use std::rc::Rc;
 use std::io::Error;
-use std::fmt::Error as FmtError;
 use std::os::unix::io::RawFd;
-use std::collections::BinaryHeap;
 use std::collections::HashMap;
 
 use self::lowlevel::WriteResult;
@@ -67,8 +64,10 @@ impl<'a> MainLoop<'a> {
         Ok(())
     }
 
-    pub fn add_interval(&mut self, duration: u64, handler: IntervalHandler)
+    #[allow(dead_code)]
+    pub fn add_interval(&mut self, _duration: u64, _handler: IntervalHandler)
     {
+        unimplemented!();
     }
 
     pub fn run(&'a mut self) -> ! {
