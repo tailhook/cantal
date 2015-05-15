@@ -17,7 +17,10 @@ pub fn serve(req: &http::Request) -> Result<http::Response, http::Error>
     if uripath.components().any(|x| x == ParentDir) {
         return Err(http::Error::BadRequest("The dot-dot in uri path"));
     }
-    let filename = current_exe().unwrap().join("../public").join(&uripath);
+    let mut filename = current_exe().unwrap();
+    filename.pop();
+    filename.push("public");
+    filename = filename.join(&uripath);
     let data = try!(File::open(&filename)
         .map_err(|e| if e.kind() == NotFound {
                 http::Error::NotFound

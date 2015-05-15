@@ -13,6 +13,8 @@ all: bin js
 
 bin:
 	cargo build
+	cp ./target/debug/cantal-agent .
+	cp ./target/debug/cantal .
 
 old-bin: libcantal.rlib cantal cantal_agent
 

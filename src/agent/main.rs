@@ -4,6 +4,7 @@ extern crate cbor;
 extern crate argparse;
 extern crate cantal;
 extern crate rustc_serialize;
+extern crate env_logger;
 
 use std::thread;
 use std::fs::File;
@@ -29,6 +30,8 @@ mod storage;
 
 
 fn main() {
+    env_logger::init().unwrap();
+
     let mut host = "127.0.0.1".to_string();
     let mut port = 22682u16;
     let mut storage_dir = None::<PathBuf>;
