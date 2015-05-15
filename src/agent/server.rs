@@ -157,7 +157,7 @@ fn handle_request(stats: &RwLock<Stats>, req: &http::Request)
 }
 
 
-pub fn run_server<'x>(stats: &RwLock<Stats>, host: String, port: u16)
+pub fn run_server(stats: &RwLock<Stats>, host: String, port: u16)
     -> Result<(), String>
 {
     let handler: &for<'b> Fn(&'b aio::http::Request<'b>)

@@ -20,7 +20,7 @@ pub struct MountPoint<'a> {
 }
 
 fn parse_pair<A:FromStr, B:FromStr>(val: &str) -> Result<(A, B), ()> {
-    let mut iter = val.splitn(1, ':');
+    let mut iter = val.splitn(2, ':');
     return Ok((try!(iter.next_value()), try!(iter.next_value())));
 }
 

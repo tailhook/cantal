@@ -1,5 +1,4 @@
-use std::str::{FromStr, Split};
-use std::iter::Filter;
+use std::str::{FromStr, CharIndices};
 use std::borrow::Borrow;
 
 
@@ -14,7 +13,8 @@ impl<I, T: Borrow<str>> NextValue for I
 
     fn next_value<A:FromStr>(&mut self) -> Result<A, ()> {
         self.next().ok_or(())
-        .and_then(|x| FromStr::from_str(x.borrow()).map_err(|_| ()))
+        .and_then(|x| FromStr::from_str(x.borrow())
+        .map_err(|_| ()))
     }
 
     fn nth_value<A:FromStr>(&mut self, i: usize) -> Result<A, ()> {
@@ -42,16 +42,45 @@ impl<'a, I> NextStr<'a> for I
 
 pub struct Words<'a> {
     src: &'a str,
-    offset: usize,
+    iter: CharIndices<'a>,
+}
+
+impl<'a> Words<'a> {
+    fn skip_ws(&mut self) -> Option<(usize, char)> {
+        loop {
+            if let Some((idx, ch)) = self.iter.next() {
+                if !ch.is_whitespace() {
+                    return Some((idx, ch));
+                }
+            } else {
+                return None
+            }
+        }
+    }
 }
 
 impl<'a> Iterator for Words<'a> {
     type Item = &'a str;
     fn next(&mut self) -> Option<&'a str> {
-        unimplemented!();
+        if let Some((start_idx, _)) = self.skip_ws() {
+            loop {
+                if let Some((idx, ch)) = self.iter.next() {
+                    if ch.is_whitespace() {
+                        return Some(&self.src[start_idx..idx]);
+                    }
+                } else {
+                    return Some(&self.src[start_idx..]);
+                }
+            }
+        } else {
+            return None;
+        }
     }
 }
 
 pub fn words<'a, 'b: 'a, B: Borrow<str> + ?Sized + 'a>(src: &'b B) -> Words<'a> {
-    return Words { src: src.borrow(), offset: 0 };
+    return Words {
+        src: src.borrow(),
+        iter: src.borrow().char_indices(),
+        };
 }

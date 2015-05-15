@@ -132,6 +132,12 @@ impl<'a> RequestParser<'a> {
     }
 }
 
+fn _concat(mut dest: Vec<u8>, tail: &[u8]) -> Vec<u8> {
+    // TODO(tailhook) is this "to_vec()" copy needed?
+    dest.extend(tail.to_vec());
+    return dest;
+}
+
 impl<'a> Stream<'a> {
     pub fn new<'x>(fd: RawFd, handler: HttpHandler<'x>) -> Stream<'x> {
         return Stream {
@@ -339,7 +345,7 @@ impl<'a> ResponseBuilder<'a> {
                         self.version.text(),
                         self.status.status_code(),
                         self.status.status_text()).into_bytes(),
-            ResponseBody::OwnedChunk(body) => format!("{} {} {}\r\n\
+            ResponseBody::OwnedChunk(body) => _concat(format!("{} {} {}\r\n\
                         Content-Length: {}\r\n\
                         Connection: close\r\n\
                         \r\n",
@@ -347,8 +353,8 @@ impl<'a> ResponseBuilder<'a> {
                         self.status.status_code(),
                         self.status.status_text(),
                         body.len()
-                    ).into_bytes() + &*body,
-            ResponseBody::BorrowedChunk(body) => format!("{} {} {}\r\n\
+                    ).into_bytes(), &*body),
+            ResponseBody::BorrowedChunk(body) => _concat(format!("{} {} {}\r\n\
                         Content-Length: {}\r\n\
                         Connection: close\r\n\
                         \r\n",
@@ -356,7 +362,7 @@ impl<'a> ResponseBuilder<'a> {
                         self.status.status_code(),
                         self.status.status_text(),
                         body.len()
-                    ).into_bytes() + &*body,
+                    ).into_bytes(), &*body),
             ResponseBody::Text(body) => format!("{} {} {}\r\n\
                         Connection: close\r\n\
                         \r\n{}",  // note, no Content-Length, use Conn: close

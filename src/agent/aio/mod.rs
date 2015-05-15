@@ -54,7 +54,7 @@ impl<'a> MainLoop<'a> {
     }
 
     pub fn add_http_server(&mut self, host: &str, port: u16,
-        handler: HttpHandler<'a>)
+        handler:HttpHandler<'a>)
         -> Result<(), Error>
     {
         let fd = try!(lowlevel::bind_tcp_socket(host, port));
