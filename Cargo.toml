@@ -12,9 +12,13 @@ authors = ["paul@colomiets.name"]
 [dependencies]
 rustc-serialize = "0.3.12"
 cbor = "0.3.6"
-log = "0.3.1"
-env_logger = "0.3.0"
 libc = "0.1.6"
+
+[dependencies.log]
+git = "git://github.com/rust-lang/log"
+
+[dependencies.env_logger]
+git = "git://github.com/rust-lang/log"
 
 [dependencies.argparse]
 path = "rust-argparse"
