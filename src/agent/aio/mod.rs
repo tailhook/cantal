@@ -53,8 +53,8 @@ impl<'a> MainLoop<'a> {
         });
     }
 
-    pub fn add_http_server(&mut self, host: &str, port: u16,
-        handler:HttpHandler<'a>)
+    pub fn add_http_server<'x: 'a>(&mut self, host: &str, port: u16,
+        handler:HttpHandler<'x>)
         -> Result<(), Error>
     {
         let fd = try!(lowlevel::bind_tcp_socket(host, port));
@@ -70,7 +70,7 @@ impl<'a> MainLoop<'a> {
         unimplemented!();
     }
 
-    pub fn run(&'a mut self) -> ! {
+    pub fn run(&mut self) -> ! {
         loop {
             match self.epoll.next_event(None) {
                 lowlevel::EPollEvent::Input(fd) => {

@@ -67,7 +67,7 @@ containers:
 
     - !BuildDeps [ca-certificates]
     - !TarInstall
-      url: "http://static.rust-lang.org/dist/rust-1.0.0-beta.4-x86_64-unknown-linux-gnu.tar.gz"
+      url: "http://static.rust-lang.org/dist/rust-1.0.0-x86_64-unknown-linux-gnu.tar.gz"
       script: "./install.sh --prefix=/usr --components=rustc,cargo"
 
     environ:
