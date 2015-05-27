@@ -1,6 +1,7 @@
 //  This implementation is an implementation of subset of HTTP.
 //  It *may be unsafe* to expose this implementation to the untrusted internet
 
+use std::io::Write;
 use std::str::from_utf8;
 use std::fmt::Display;
 use std::borrow::{Borrow};
@@ -89,6 +90,7 @@ pub struct Response {
 pub struct ResponseBuilder<'a> {
     version: Version,
     status: Status,
+    headers: Vec<&'static str>,
     body: ResponseBody<'a>,
 }
 
@@ -320,8 +322,12 @@ impl<'a> ResponseBuilder<'a> {
         return ResponseBuilder {
             version: req.request_line.version(),
             status: status,
+            headers: Vec::new(),
             body: ResponseBody::Empty,
         };
+    }
+    pub fn add_header(&mut self, x: &'static str) {
+        self.headers.push(x);
     }
     pub fn set_body_from<T: Borrow<[u8]>+?Sized>(&mut self, x: &'a T)
     {
@@ -337,39 +343,38 @@ impl<'a> ResponseBuilder<'a> {
         self.body = ResponseBody::Text(x);
     }
     pub fn take(self) -> Response {
-        let buf = match self.body {
-            ResponseBody::Empty => format!("{} {} {}\r\n\
-                        Content-Length: 0\r\n\
-                        Connection: close\r\n\
-                        \r\n",
-                        self.version.text(),
-                        self.status.status_code(),
-                        self.status.status_text()).into_bytes(),
-            ResponseBody::OwnedChunk(body) => _concat(format!("{} {} {}\r\n\
-                        Content-Length: {}\r\n\
-                        Connection: close\r\n\
-                        \r\n",
-                        self.version.text(),
-                        self.status.status_code(),
-                        self.status.status_text(),
-                        body.len()
-                    ).into_bytes(), &*body),
-            ResponseBody::BorrowedChunk(body) => _concat(format!("{} {} {}\r\n\
-                        Content-Length: {}\r\n\
-                        Connection: close\r\n\
-                        \r\n",
-                        self.version.text(),
-                        self.status.status_code(),
-                        self.status.status_text(),
-                        body.len()
-                    ).into_bytes(), &*body),
-            ResponseBody::Text(body) => format!("{} {} {}\r\n\
-                        Connection: close\r\n\
-                        \r\n{}",  // note, no Content-Length, use Conn: close
-                        self.version.text(),
-                        self.status.status_code(),
-                        self.status.status_text(),
-                        body).into_bytes(),
+        let mut buf = format!("{} {} {}\r\n\
+                Connection: close\r\n",
+                self.version.text(),
+                self.status.status_code(),
+                self.status.status_text()
+            ).into_bytes();
+        for line in self.headers {
+            buf.write(line.as_bytes()).unwrap();
+            buf.write(b"\r\n").unwrap();
+        }
+
+        match self.body {
+            ResponseBody::Empty => {
+                buf.write(b"Content-Length: 0\r\n").unwrap();
+            }
+            ResponseBody::OwnedChunk(body) => {
+                buf.write(format!("Content-Length: {}\r\n", body.len())
+                    .as_bytes()).unwrap();
+                buf.write(b"\r\n").unwrap();
+                buf.write(&*body).unwrap();
+            }
+            ResponseBody::BorrowedChunk(body) => {
+                buf.write(format!("Content-Length: {}\r\n", body.len())
+                    .as_bytes()).unwrap();
+                buf.write(b"\r\n").unwrap();
+                buf.write(&*body).unwrap();
+            }
+            ResponseBody::Text(body) => {
+                // note, no Content-Length, use Conn: close
+                buf.write(b"\r\n").unwrap();
+                buf.write(format!("{}", body).as_bytes()).unwrap();
+            }
         };
         return Response {
             buf: buf,
@@ -381,6 +386,7 @@ pub fn reply_json<T:Encodable>(req: &Request, val: &T) -> Response {
     ResponseBuilder {
         version: req.request_line.version(),
         status: Status::Ok,
+        headers: vec!("Content-Type: application/json; charset=utf-8"),
         body: ResponseBody::Text(&as_pretty_json(val)),
     }.take()
 }

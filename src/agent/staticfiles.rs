@@ -39,6 +39,13 @@ pub fn serve(req: &http::Request) -> Result<http::Response, http::Error>
         }));
     // TODO(tailhook) find out mime type
     let mut builder = http::ResponseBuilder::new(req, http::Status::Ok);
+    if req.uri().ends_with(".js") {
+        builder.add_header(
+            "Content-Type: application/javascript; charset=utf-8");
+    } else if req.uri().ends_with(".css") {
+        builder.add_header(
+            "Content-Type: text/css; charset=utf-8");
+    }
     builder.set_body(data);
     Ok(builder.take())
 }
