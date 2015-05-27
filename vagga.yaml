@@ -5,6 +5,12 @@ commands:
     container: ubuntu
     run: [make]
 
+  watch: !Command
+    description: Build and watch javascripts
+    container: ubuntu
+    work-dir: frontend
+    run: [watch-make]
+
   build: !Command
     description: Build cantal binaries with cargo
     container: ubuntu
@@ -63,7 +69,14 @@ containers:
     - !UbuntuUniverse ~
     - !Install [make, checkinstall, wget]
 
-    - !NpmInstall [babel]
+    - !NpmInstall [jade, babel, uglify-js]
+
+    # Node watch-make
+    - !NpmInstall [child_process_with_argv0, temp, carrier, underscore, async]
+    - !Sh 'npm install -g --no-bin-links which'
+    - !Git
+      url: git://github.com/andrewffff/watch-make.git
+      path: /usr/lib/watch-make
 
     - !BuildDeps [ca-certificates]
     - !TarInstall
@@ -72,6 +85,8 @@ containers:
 
     environ:
       HOME: /work/run
+      PATH: /bin:/usr/bin:/usr/local/bin:/usr/lib/watch-make
+      NODE_PATH: /usr/local/lib/node_modules
 
   docs:
     setup:

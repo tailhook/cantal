@@ -71,5 +71,5 @@ install:
 	cp -r public $(DESTDIR)$(PREFIX)/lib/cantal/
 
 
-.PHONY: all install test bin js webpack
+.PHONY: all install test bin js
 .DELETE_ON_ERROR:

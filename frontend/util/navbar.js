@@ -1,10 +1,6 @@
-import {tag_class as hc, tag as h, link, icon,
-        title_span as title} from 'util/html'
-import {format_uptime, till_now_ms, from_ms} from 'util/time'
 import {component, Component} from 'util/base'
 import {RefreshJson} from 'util/request'
-import {Sparkline} from 'util/sparkline'
-import {DonutChart} from 'util/donut'
+import navbar from 'templates/navbar'
 
 
 function nav(classname, href, ...args) {
@@ -64,70 +60,7 @@ export class Navbar extends Component {
             }
         })
     }
-    render_self() {
-        var stats = this.data;
-        return hc('span', '', [
-            title("Uptime of the cantal agent itself", ['up ',
-                format_uptime(till_now_ms(from_ms(stats.startup_time))) ]),
-            ' / ',
-            title("Latency of requests to the cantal",
-                  [ this.latency.toFixed(0), 'ms']),
-            ' / ',
-            title("Time it takes for cantal to read all stats once",
-                  [ stats.scan_duration.toString(), 'ms']),
-        ]);
-    }
-    render_machine() {
-        var data = this.data;
-        return hc('span', '', [
-            title("Minute Load Average", [ data.load_avg_1min.toFixed(2) ]),
-            ' / ',
-            title("5 Minutes Load Average",
-                [ data.load_avg_5min.toFixed(2) ]),
-            ' / ',
-            title("15 Minutes Load Average",
-                [ data.load_avg_15min.toFixed(2) ]),
-            ' / ',
-            title("Uptime of the box running cantal", [
-                'up ', format_uptime(till_now_ms(from_ms(data.boot_time*1000)))
-            ]),
-            ' ',
-            component(Sparkline, this.cpu_chart),
-            ' ',
-            component(DonutChart, this.memory_chart, {width: 32, height: 32}),
-        ]);
-    }
     render() {
-        var hash = window.location.hash;
-        return hc("div", "navbar navbar-default", [
-            hc('div', 'container-fluid', [
-                hc('div', 'navbar-header', [
-                    link('navbar-brand', "#/", "Cantal"),
-                ]),
-                hc('div', 'collapse navbar-collapse', [
-                    hc('ul', 'nav navbar-nav', [
-                        hc('li', hash == "#/processes" ? 'active' : '',
-                            [ link("", "#/processes", "Processes") ]),
-                        hc('li', hash == "#/values" ? 'active' : '',
-                            [ link("", "#/values", "Values") ]),
-                        hc('li', hash == "#/totals" ? 'active' : '',
-                            [ link("", "#/totals", "Totals") ]),
-                    ]),
-                    hc('form',
-                        'navbar-form navbar-right' +
-                            (this.error ? ' bg-danger': ''), [
-                        '( ',
-                            icon('hdd'), ' ',
-                            this.data && this.render_machine() || "",
-                        ' ) ( ',
-                            icon('scale'), ' ',
-                            this.data && this.render_self() || "",
-                        ' ) ',
-                        this.error && this.error.message || "",
-                        nav('btn btn-default', '#/status', 'Status'),
-                    ]),
-                ]),
-            ]),
-        ]);
+        return navbar.render.call(this);
     }
 }
