@@ -1,0 +1,26 @@
+- import {component} from 'util/base'
+- import {toggle} from 'util/events'
+- import {DonutChart} from 'util/donut'
+- import {Chart} from 'util/chart'
+- import {Plot} from 'util/plot'
+
+div.container
+  h1 System Status
+  if this.error
+    div
+      span Error:
+      span= this.error
+
+  h2 Memory
+  +component(Chart,
+    component(DonutChart, this.mem_chart_donut()), this.mem_chart)
+
+  h2 Network
+  div.row
+    div.col-xs-4
+      +component(Plot, this.timestamps && this.timestamps.slice(1),
+        this.network.bytes_rx)
+      +component(Plot, this.timestamps && this.timestamps.slice(1),
+        this.network.bytes_tx)
+
+  h2 Disk
