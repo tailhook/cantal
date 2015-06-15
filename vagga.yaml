@@ -69,7 +69,7 @@ containers:
     - !UbuntuUniverse ~
     - !Install [make, checkinstall, wget]
 
-    - !NpmInstall [jade, babel, uglify-js]
+    - !NpmInstall [jade, babel, uglify-js, webpack, babel-loader]
 
     # Node watch-make
     - !NpmInstall [child_process_with_argv0, temp, carrier, underscore, async]

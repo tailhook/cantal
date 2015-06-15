@@ -9,6 +9,9 @@ APP_JS= \
 	util/navbar.js \
 	pages/processes.js pages/status.js pages/values.js pages/totals.js
 
+webpack:
+	webpack
+
 all: js templates
 
 js: $(JSDIR)/lib.js $(JSDIR)/util.js $(JSDIR)/app.js
@@ -28,9 +31,9 @@ $(JSDIR)/lib.js: lib/*.js
 tools/jadecompile: tools/jadecompile.js
 	babel $^ --stage 0 > $@
 
-templates: tools/jadecompile templates/*.jade
+templates: ../marafet templates/*.mft
 	node tools/jadecompile templates/*.jade
 
-.PHONY: all js templates
+.PHONY: all js templates webpack
 
 .DELETE_ON_ERROR:

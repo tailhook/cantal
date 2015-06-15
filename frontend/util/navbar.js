@@ -1,6 +1,6 @@
 import {component, Component} from 'util/base'
 import {RefreshJson} from 'util/request'
-import navbar from 'templates/navbar'
+import navbar from 'templates/navbar.mft'
 
 
 function nav(classname, href, ...args) {
