@@ -61,6 +61,7 @@ export class Navbar extends Component {
         })
     }
     render() {
-        return navbar.render.call(this);
+        return navbar.render(this.data, this.latency, this.error,
+            window.location.hash.substr(2)); // TODO(tailhook) better hash
     }
 }

@@ -13,7 +13,6 @@ export class App {
         this.navbar = new Context(new Navbar())
     }
     static start() {
-        console.log("BODY", document.body)
         var app = new App();
         app.navbar.mount(document.body)
         window.onhashchange = function() {
