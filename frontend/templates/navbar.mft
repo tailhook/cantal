@@ -3,31 +3,35 @@ import {component} from 'util/base'
 import {Sparkline} from 'util/sparkline'
 import {DonutChart} from 'util/donut'
 
+css:
+  .pointer
+    cursor: pointer
+
 html icon(name):
   span.glyphicon[class="glyphicon-{name}"]
 
 html render_self(stats, latency):
-  span[title="Uptime of the cantal agent itself"]
-    "up "
+  span.pointer[title="Uptime of the cantal agent itself"]
+    " up "
     =format_uptime(till_now_ms(from_ms(stats.startup_time)))
   " "
-  span[title="Latency of requests to the cantal"]
+  span.pointer[title="Latency of requests to the cantal"]
     "{latency:d}ms"
   " "
-  span[title="Time it takes for cantal to read all stats once"]
+  span.pointer[title="Time it takes for cantal to read all stats once"]
     "{stats.scan_duration:d}ms"
 
 html render_machine(data):
-  span[title="Minute Load Average"]
+  span.pointer[title="Minute Load Average"]
     "{data.load_avg_1min:.2f}"
   " / "
-  span[title="5 Minutes Load Average"]
+  span.pointer[title="5 Minutes Load Average"]
     "{data.load_avg_5min:.2f}"
   " / "
-  span[title="15 Minutes Load Average"]
+  span.pointer[title="15 Minutes Load Average"]
     "{data.load_avg_15min:.2f}"
   " / "
-  span[title="Uptime of the box running cantal"]
+  span.pointer[title="Uptime of the box running cantal"]
     "up "
     =format_uptime(till_now_ms(from_ms(data.boot_time*1000)))
   " "
