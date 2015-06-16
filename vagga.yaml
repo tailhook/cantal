@@ -9,7 +9,7 @@ commands:
     description: Build and watch javascripts
     container: ubuntu
     work-dir: frontend
-    run: [watch-make]
+    run: [webpack, --watch]
 
   build: !Command
     description: Build cantal binaries with cargo

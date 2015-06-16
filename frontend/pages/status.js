@@ -1,5 +1,3 @@
-import {tag_class as hc, tag as h, link, icon, button_xs as button,
-        title_span as title, tag_key as hk, tag_map} from 'util/html'
 import {format_uptime, till_now_ms, from_ms} from 'util/time'
 import {Component, component} from 'util/base'
 import {toggle} from 'util/events'
@@ -7,6 +5,7 @@ import {DonutChart} from 'util/donut'
 import {Chart} from 'util/chart'
 import {Plot} from 'util/plot'
 import {RefreshJson} from 'util/request'
+import template from 'templates/status.mft'
 
 const MEM_COLORS = {
     MemFree: '#e5f5f9',
@@ -119,27 +118,6 @@ export class Status extends Component {
     }
     render() {
         const ts = this.timestamps && this.timestamps.slice(1)
-        return hc("div", "container", [
-            h("h1", "System Status"),
-            this.error ? h("div", "Error: " + this.error) : "",
-            component(Chart, component(DonutChart,
-                {total: this.mem_chart.total,
-                 items: this.mem_chart.items.filter(x => x.color)}),
-                this.mem_chart),
-            h("h2", "Network"),
-            hc("div", "row", [
-                hc("div", "col-xs-4", [
-                    component(Plot, ts, this.network && this.network.bytes_rx),
-                    component(Plot, ts, this.network && this.network.bytes_tx),
-                    ])
-            ]),
-            h("h2", "Disk"),
-            hc("div", "row", [
-                hc("div", "col-xs-4", [
-                    component(Plot, ts, this.disk && this.disk.written),
-                    component(Plot, ts, this.disk && this.disk.read),
-                    ])
-            ]),
-        ])
+        return template.render(this.error, ts, this.mem_chart, this.network)
     }
 }

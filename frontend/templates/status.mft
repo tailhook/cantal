@@ -1,31 +1,61 @@
 import {component} from 'util/base'
-import {toggle} from 'util/events'
+import {Toggle} from 'util/stores'
 import {DonutChart} from 'util/donut'
-import {Chart} from 'util/chart'
 import {Plot} from 'util/plot'
 
-html render(error):
-  div.container
-    h1
-      "System Status"
+css:
+  .sample
+      display: inline-block
+      width: 1em
+      height: 1em
+
+html render(error, timestamps, mem_chart, network):
+  .container
+    h1 "System Status"
     if error:
       div
         "Error:"
         =error
 
-    h2
-      "Memory"
-    #+component(Chart,
-    #  component(DonutChart, this.mem_chart_donut()), this.mem_chart)
+    h2 "Memory"
+    .row
+      .col-xs-4
+        h3 "Chart"
+        # =component(DonutChart, mem_chart.donut)
+      .col-xs-4
+        table.table.table-condensed.table-hover
+          store toggle = new Toggle()
+          thead
+            tr
+              th
+              th "Title"
+              th.text-right 'MiB'
+          tbody
+            for item of mem_chart.items:
+              if toggle.visible or not item.collapsed:
+                tr
+                  td
+                    if item.color:
+                      span.sample[style='background-color: {item.color}']
+                  td "{item.title}"
+                  td.text-right
+                    =item.text
+          tfoot
+            tr
+              td
+              td.text-center
+                button.btn.btn-default.btn-xs
+                  link click = toggle.toggle
+                  if toggle.visible:
+                    span.glyphicon.glyphicon-chevron-up
+                  else:
+                    span.glyphicon.glyphicon-chevron-down
+              td
 
-    h2
-      "Network"
-    div.row
-      div.col-xs-4
-        #+component(Plot, this.timestamps && this.timestamps.slice(1),
-        #  this.network.bytes_rx)
-        #+component(Plot, this.timestamps && this.timestamps.slice(1),
-        #  this.network.bytes_tx)
+    h2 "Network"
+    .row
+      .col-xs-4
+        #=component(Plot, timestamps, network.bytes_rx)
+        #=component(Plot, timestamps, network.bytes_tx)
 
-    h2
-      "Disk"
+    h2 "Disk"
