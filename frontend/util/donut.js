@@ -49,15 +49,15 @@ function sector(cx, cy, r1, r2, sa, ea) {
             z`;
 }
 
-export function make_paths(items, total) {
-    var paths = []
+export function with_paths(items, total, size) {
+    var result = []
     var angle = 0
-    var cx = this.width >> 1
-    var cy = this.width >> 1
+    var cx = size >> 1
+    var cy = size >> 1
     var r = Math.min(cx, cy)
     for(var i = 0, il = items.length; i < il; ++i) {
         var it = items[i]
-        if(it.value == 0) {
+        if(it.value == 0 || !it.color) {
             continue;
         }
         var sangle = angle
@@ -69,7 +69,7 @@ export function make_paths(items, total) {
             angle -= 360 * it.value / total;
         }
         var path = sector(cx, cy, r > 50 ? r*0.50 : r*0.2, r, sangle, angle)
-        paths.push(path)
+        result.push({path: path, ...it})
     }
-    return paths
+    return result
 }

@@ -22,7 +22,8 @@ html render(error, timestamps, mem_chart, network):
     .row
       .col-xs-4
         h3 "Chart"
-        # =component(DonutChart, mem_chart.donut)
+        if mem_chart.items:
+          =donut.render(mem_chart.items, 256, 256, mem_chart.total)
       .col-xs-4
         table.table.table-condensed.table-hover
           store toggle = new Toggle()

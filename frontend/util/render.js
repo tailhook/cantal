@@ -14,3 +14,5 @@ export function update() {
         cito.vdom.update(ob.node, ob.renderer);
     }
 }
+
+export default exports

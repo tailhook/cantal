@@ -10,14 +10,16 @@ module.exports = function(content) {
         + " --amd-name '" + amd_name + "'"
         + " --block-name 'b-" + path.basename(this.resourcePath, '.mft') + "'"
         , function(error, stdout, stderr) {
-        if(error) {
-            console.error(error)
-        }
-        if(stderr.length) {
-            console.error(stderr)
-        }
-        callback(null, stdout)
-    })
+            if(stderr.length) {
+                console.error(stderr)
+            }
+            if(error) {
+                console.error(error)
+                callback(error)
+            } else {
+                callback(null, stdout)
+            }
+        })
     ch.stdin.write(content)
     ch.stdin.end()
 }

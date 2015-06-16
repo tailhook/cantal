@@ -1,4 +1,5 @@
 import donut from 'util/donut'
+import {Tooltip} from 'util/stores'
 
 html render(items, width, height, total):
   svg[style={
@@ -6,6 +7,9 @@ html render(items, width, height, total):
       'width': width + "px",
       'height': height + "px"
       }]
-    let items = donut.with_paths(items)
-    for item of items:
-      path[fill=item.color, title=item.title, d=item.path]
+    let paths = donut.with_paths(items, total, width)
+    g
+      for item of paths:
+        path[fill=item.color, title=item.title, d=item.path]
+          store tooltip = new Tooltip()
+          link {mouseenter, mouseleave} = tooltip

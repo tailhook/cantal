@@ -24,6 +24,15 @@ export class RefreshJson {
             this._timer = 0;
         }
     }
+    replace_with(other) {
+        if(other.url != this.url || other.interval != this.interval) {
+            this.stop()
+            other.start()
+            return other
+        } else {
+            return this
+        }
+    }
     refresh_now() {
         if(this._req) {
             this._req.abort();

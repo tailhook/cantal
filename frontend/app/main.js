@@ -1,4 +1,4 @@
-import {tag as h} from 'util/html'
+import {component} from 'util/base'
 import {Navbar} from 'util/navbar'
 import {Context} from 'util/base'
 
@@ -6,35 +6,36 @@ import {Processes} from 'pages/processes'
 import {Status} from 'pages/status'
 import {Values} from 'pages/values'
 import {Totals} from 'pages/totals'
+import {update, append} from 'util/render'
 
 
 export class App {
     constructor() {
-        this.navbar = new Context(new Navbar())
+    }
+    render() {
+        return {tag: 'div', children: [
+            component(Navbar),
+            this.page ? component(this.page) : "",
+            ]}
     }
     static start() {
         var app = new App();
-        app.navbar.mount(document.body)
         window.onhashchange = function() {
             if(app.page) {
-                app.page.remove()
                 app.page = null
             }
             if(window.location.hash == '#/processes') {
-                app.page = new Context(new Processes())
-                app.page.mount(document.body)
+                app.page = Processes;
             } else if(window.location.hash == '#/status') {
-                app.page = new Context(new Status())
-                app.page.mount(document.body)
+                app.page = Status;
             } else if(window.location.hash == '#/values') {
-                app.page = new Context(new Values())
-                app.page.mount(document.body)
+                app.page = Values;
             } else if(window.location.hash == '#/totals') {
-                app.page = new Context(new Totals())
-                app.page.mount(document.body)
+                app.page = Totals;
             }
-            app.navbar.refresh()
+            update()
         }
+        append(document.body, app.render.bind(app))
         window.onhashchange()
     }
 }
