@@ -23,5 +23,12 @@ export class Stream {
     handle(fun) {
         this._handlers.push(fun);
     }
+    map(fun) {
+        var result = new Stream(this.name + '/' + fun.name)
+        result.handle(function(ev) {
+            return this.handle_event(fun(ev))
+        }.bind(this))
+        return result
+    }
 }
 
