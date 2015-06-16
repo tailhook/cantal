@@ -49,47 +49,27 @@ function sector(cx, cy, r1, r2, sa, ea) {
             z`;
 }
 
-export class DonutChart {
-    init(data, options={}) {
-        this.width = options.width || 256
-        this.height = options.height || 256
-        this.items = data.items || []
-        this.total_value = data.total || 1
-    }
-    render() {
-        var items = this.items
-        var total = this.total_value
-        var paths = []
-        var angle = 0
-        var cx = this.width >> 1
-        var cy = this.width >> 1
-        var r = Math.min(cx, cy)
-        for(var i = 0, il = items.length; i < il; ++i) {
-            var it = items[i]
-            if(it.value == 0) {
-                continue;
-            }
-            var sangle = angle
-            if(total == 0) {
-                angle = sangle + 360
-            } else if (it.value == total) {
-                angle -= 360 * it.value / total - 0.01;
-            } else {
-                angle -= 360 * it.value / total;
-            }
-            var path = sector(cx, cy, r > 50 ? r*0.50 : r*0.2, r, sangle, angle)
-            paths.push({tag: 'path', attrs: {
-                fill: it.color,
-                title: it.title,
-                d: path,
-                }})
+export function make_paths(items, total) {
+    var paths = []
+    var angle = 0
+    var cx = this.width >> 1
+    var cy = this.width >> 1
+    var r = Math.min(cx, cy)
+    for(var i = 0, il = items.length; i < il; ++i) {
+        var it = items[i]
+        if(it.value == 0) {
+            continue;
         }
-
-        return { tag: "svg", attrs: { style: {
-                'vertical-align': 'middle',
-                width: `${this.width}px`,
-                height: `${this.height}px`,
-            }}, children: paths,
-        };
+        var sangle = angle
+        if(total == 0) {
+            angle = sangle + 360
+        } else if (it.value == total) {
+            angle -= 360 * it.value / total - 0.01;
+        } else {
+            angle -= 360 * it.value / total;
+        }
+        var path = sector(cx, cy, r > 50 ? r*0.50 : r*0.2, r, sangle, angle)
+        paths.push(path)
     }
+    return paths
 }

@@ -2,6 +2,7 @@ import {component} from 'util/base'
 import {Toggle} from 'util/stores'
 import {DonutChart} from 'util/donut'
 import {Plot} from 'util/plot'
+import donut from 'templates/donut.mft'
 
 css:
   .sample

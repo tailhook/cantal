@@ -1,0 +1,11 @@
+import donut from 'util/donut'
+
+html render(items, width, height, total):
+  svg[style={
+      'vertical-align': 'middle',
+      'width': width + "px",
+      'height': height + "px"
+      }]
+    let items = donut.with_paths(items)
+    for item of items:
+      path[fill=item.color, title=item.title, d=item.path]

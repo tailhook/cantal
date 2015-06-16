@@ -4,7 +4,6 @@ import {tag_class as hc, tag as h, link, icon, button_xs as button,
         } from 'util/html'
 import {format_uptime, till_now_ms, from_ms} from 'util/time'
 import {Component, component} from 'util/base'
-import {Chart} from 'util/chart'
 import {DonutChart} from 'util/donut'
 import {RefreshJson} from 'util/request'
 
