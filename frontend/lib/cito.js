@@ -10,6 +10,8 @@ var cito = window.cito || {};
 (function (cito, window, undefined) {
     'use strict';
 
+    // TODO implement parse utility which leverages createContextualFragment
+
     var document = window.document,
         navigator = window.navigator,
         noop = function () {},
@@ -17,7 +19,7 @@ var cito = window.cito || {};
 
     var userAgent = navigator.userAgent,
         isWebKit = userAgent.indexOf('WebKit') !== -1,
-        isFirefox = userAgent.indexOf('Chrome') !== -1,
+        isFirefox = userAgent.indexOf('Firefox') !== -1,
         isTrident = userAgent.indexOf('Trident') !== -1;
 
     var helperDiv = document.createElement('div'),
@@ -38,10 +40,6 @@ var cito = window.cito || {};
         return typeof value === 'function';
     }
 
-    function isPromise(value) {
-        return value.then !== undefined;
-    }
-
     function norm(node, oldNode) {
         var type = typeof node;
         if (type === 'string') {
@@ -53,22 +51,28 @@ var cito = window.cito || {};
         return node;
     }
 
-    function normIndex(children, i, oldChild) {
-        var origChild = children[i], child;
-        if (origChild && isPromise(origChild)) {
-            child = {};
-            var immediate = true;
-            origChild.then(function (newChild) {
-                if (immediate) {
-                    child = norm(newChild, oldChild);
-                } else if (children[i] === child) {
-                    vdom.update(child, newChild);
-                }
-            });
-            immediate = false;
-        } else {
-            child = norm(origChild, oldChild);
+    function normOnly(node, origChild, oldChild) {
+        var child = norm(origChild, oldChild);
+        if (origChild !== child && node) {
+            node.children = child;
         }
+        return child;
+    }
+
+    function normOnlyOld(children, childrenType, domElement) {
+        var child = normOnly(null, getOnlyChild(children, childrenType));
+        if (!child.dom) {
+            child.dom = domElement.firstChild;
+            if (child.tag === '<') {
+                child.domLength = domElement.childNodes.length;
+            }
+        }
+        return child;
+    }
+
+    function normIndex(children, i, oldChild) {
+        var origChild = children[i],
+            child = norm(origChild, oldChild);
         if (origChild !== child) {
             children[i] = child;
         }
@@ -76,55 +80,18 @@ var cito = window.cito || {};
     }
 
     function normChildren(node, children, oldChildren) {
-        var origChildren = children;
-        if (children) {
-            // TODO move promise support into utility function
-            if (isPromise(children)) {
-                children = [];
-                var immediate = true;
-                origChildren.then(function (newChildren) {
-                    if (immediate) {
-                        children = normChildren(node, newChildren, oldChildren);
-                    }
-                    // TODO if the parent has been updated too, then this is misleading
-                    else if (node.children === children) {
-                        vdom.updateChildren(node, newChildren);
-                    }
-                });
-                immediate = false;
-            } else if (isFunction(children)) {
-                children = children(oldChildren);
-                if (children === undefined) {
-                    children = oldChildren;
-                }
+        if (isFunction(children)) {
+            children = children(oldChildren);
+            if (children === undefined) {
+                children = oldChildren;
             }
-        }
-
-        // TODO convert to array only after only child optimization
-        var childrenIsArray = isArray(children),
-            hasOnlyChild, onlyChild;
-        if (!childrenIsArray) {
-            hasOnlyChild = true;
-            onlyChild = children;
-        } else if (children.length === 1) {
-            hasOnlyChild = true;
-            onlyChild = children[0];
-        } else {
-            hasOnlyChild = false;
-        }
-        if (hasOnlyChild) {
-            // Ignore falsy and empty text/html nodes because no node would be created for them
-            if (!onlyChild || (!onlyChild.children && (onlyChild.tag === '#' || onlyChild.tag === '<'))) {
-                children = [];
-            } else if (!childrenIsArray) {
-                children = [onlyChild];
-            }
-        }
-
-        if (origChildren !== children) {
             node.children = children;
         }
         return children;
+    }
+
+    function getOnlyChild(children, childrenType) {
+        return (childrenType === 1) ? children[0] : children;
     }
 
     function moveChild(domElement, child, nextChild) {
@@ -144,6 +111,11 @@ var cito = window.cito || {};
         }
     }
 
+    // TODO find solution without empty text placeholders
+    function emptyTextNode() {
+        return document.createTextNode('');
+    }
+
     var iah_el = document.createElement('p'), iah_normalizes, iah_ignoresEmptyText;
     if (iah_el.insertAdjacentHTML) {
         iah_el.appendChild(document.createTextNode('a'));
@@ -151,7 +123,7 @@ var cito = window.cito || {};
         iah_normalizes = (iah_el.childNodes.length === 1);
 
         iah_el = document.createElement('p');
-        iah_el.appendChild(document.createTextNode(''));
+        iah_el.appendChild(emptyTextNode());
         iah_el.insertAdjacentHTML('beforeend', '<b>');
         iah_ignoresEmptyText = (iah_el.firstChild.nodeType !== 3);
     }
@@ -184,16 +156,15 @@ var cito = window.cito || {};
                 }
             }
         } else {
-            var child;
             helperDiv.innerHTML = htmlContent;
             if (position === 'beforebegin') {
                 var parentNode = node.parentNode;
-                while (child = helperDiv.firstChild) { // jshint ignore:line
-                    parentNode.insertBefore(child, node);
+                while (helperDiv.firstChild) {
+                    parentNode.insertBefore(helperDiv.firstChild, node);
                 }
             } else if (position === 'beforeend') {
-                while (child = helperDiv.firstChild) { // jshint ignore:line
-                    node.appendChild(child);
+                while (helperDiv.firstChild) {
+                    node.appendChild(helperDiv.firstChild);
                 }
             }
         }
@@ -219,26 +190,31 @@ var cito = window.cito || {};
         }
     }
 
-    function createNode(node, domParent, parentNs, hasDomSiblings, nextChild, replace) {
-        // TODO evaluate when else to use
+    function createNode(node, domParent, parentNs, nextChild, replace, isOnlyDomChild) {
         if (isTrident) {
             return insertNodeHTML(node, domParent, nextChild, replace);
         }
 
         var domNode, tag = node.tag, children = node.children;
-        if (!tag) {
-            createFragment(node, children, domParent, parentNs, hasDomSiblings, nextChild, replace);
-        } else {
-            // Element
-            switch (tag) {
-                case '#':
+        switch (tag) {
+            case undefined:
+                return createFragment(node, children, domParent, parentNs, nextChild, replace);
+            case '#':
+                if (isOnlyDomChild) {
+                    setTextContent(domParent, children);
+                    return;
+                } else {
                     domNode = document.createTextNode(children);
-                    break;
-                case '!':
-                    domNode = document.createComment(children);
-                    break;
-                case '<':
-                    if (children) {
+                }
+                break;
+            case '!':
+                domNode = document.createComment(children);
+                break;
+            case '<':
+                if (children) {
+                    if (isOnlyDomChild) {
+                        domParent.innerHTML = children;
+                    } else {
                         var domChildren = domParent.childNodes,
                             prevLength = domChildren.length;
                         if (nextChild) {
@@ -253,47 +229,81 @@ var cito = window.cito || {};
                         node.dom = domNode;
                         node.domLength = domChildren.length - prevLength;
                         if (replace && nextChild) {
+                            // TODO use outerHTML instead
                             removeChild(domParent, nextChild);
                         }
-                        return;
-                    } else {
-                        // TODO find solution without dom placeholder
-                        domNode = document.createTextNode('');
-                    }
-                    break;
-                default:
-                    var ns;
-                    switch (tag) {
-                        case 'svg': ns = 'http://www.w3.org/2000/svg'; break;
-                        case 'math': ns = 'http://www.w3.org/1998/Math/MathML'; break;
-                        default: ns = parentNs; break;
-                    }
-                    if (ns) {
-                        node.ns = ns;
-                        domNode = document.createElementNS(ns, tag);
-                    } else {
-                        domNode = document.createElement(tag);
-                    }
-                    node.dom = domNode;
-                    children = normChildren(node, children);
-                    if (isTrident && domParent) {
-                        insertChild(domParent, domNode, nextChild, replace);
-                    }
-                    createChildren(domNode, node, ns, children, 0, children.length, children.length > 1);
-                    updateElement(domNode, null, null, node, tag, node.attrs, node.events);
-                    if (!isTrident && domParent) {
-                        insertChild(domParent, domNode, nextChild, replace);
                     }
                     return;
-            }
-            node.dom = domNode;
-            if (domParent) {
-                insertChild(domParent, domNode, nextChild, replace);
-            }
+                } else {
+                    domNode = emptyTextNode();
+                }
+                break;
+            default:
+                var ns;
+                switch (tag) {
+                    case 'svg': ns = 'http://www.w3.org/2000/svg'; break;
+                    case 'math': ns = 'http://www.w3.org/1998/Math/MathML'; break;
+                    default: ns = parentNs; break;
+                }
+
+                var attrs = node.attrs,
+                    is = attrs && attrs.is;
+                if (ns) {
+                    node.ns = ns;
+                    domNode = is ? document.createElementNS(ns, tag, is) : document.createElementNS(ns, tag);
+                } else {
+                    domNode = is ? document.createElement(tag, is) : document.createElement(tag);
+                }
+                node.dom = domNode;
+                if (isTrident && domParent) {
+                    insertChild(domParent, domNode, nextChild, replace);
+                }
+
+                if (typeof children === 'string') {
+                    setTextContent(domNode, children, false);
+                } else {
+                    createAllChildren(domNode, node, ns, children, false);
+                }
+
+                if (attrs) {
+                    updateAttributes(domNode, tag, attrs);
+                }
+                var events = node.events;
+                if (events) {
+                    updateEvents(domNode, node, events);
+                }
+                if (!isTrident && domParent) {
+                    insertChild(domParent, domNode, nextChild, replace);
+                }
+
+                var createdHandlers = events && events.$created;
+                if (createdHandlers) {
+                    triggerLight(createdHandlers, '$created', domNode, node);
+                }
+                return;
+        }
+        node.dom = domNode;
+        if (domParent) {
+            insertChild(domParent, domNode, nextChild, replace);
         }
     }
 
-    // TODO do not use in loop
+    function triggerLight(handlers, type, domNode, node, extraProp, extraPropValue) {
+        var event = {type: type, target: domNode, virtualNode: node};
+        if (extraProp) {
+            event[extraProp] = extraPropValue;
+        }
+        if (isArray(handlers)) {
+            for (var i = 0; i < handlers.length; i++) {
+                if (handlers[i].call(domNode, event) === false) {
+                    return;
+                }
+            }
+        } else {
+            handlers.call(domNode, event);
+        }
+    }
+
     function insertNodeHTML(node, domParent, nextChild, replace) {
         var html = createNodeHTML(node), domNode;
         if (domParent) {
@@ -306,7 +316,7 @@ var cito = window.cito || {};
                     prevNode = nextChild.dom.previousSibling;
                     insertAdjacentHTML(nextChild.dom, 'beforebegin', html);
                     if (replace) {
-                        // TODO use outerHTML if possible
+                        // TODO use outerHTML instead
                         removeChild(domParent, nextChild);
                     }
                 } else {
@@ -316,25 +326,15 @@ var cito = window.cito || {};
                 domNode = prevNode ? prevNode.nextSibling : domParent.firstChild;
             }
         } else {
-            // TODO better parsing
             helperDiv.innerHTML = html;
             domNode = helperDiv.removeChild(helperDiv.firstChild);
         }
-        if (node.tag) {
-            postCreateNodeHTML(domNode, node, 0);
-        } else {
-            var domTestNode = domParent.firstChild, domIndex = 0;
-            while (domTestNode !== domNode) {
-                domTestNode = domTestNode.nextSibling;
-                domIndex++;
-            }
-            postCreateFragmentHTML(domParent, node, domIndex);
-        }
+        initVirtualDOM(domNode, node);
     }
 
     var endOfText = '\u0003';
 
-    // TODO fix namespace issue in FF
+    // FIXME namespace issue in FF
     // TODO omit all unnecessary endOfText
     function createNodeHTML(node, context) {
         var tag = node.tag, children = node.children;
@@ -385,23 +385,28 @@ var cito = window.cito || {};
                 } else {
                     html = '';
                 }
-
-                children = normChildren(node, children);
-                var childrenLength = children.length;
                 if (tag) {
                     html += '>';
                 }
-                if (childrenLength === 1 && isString(children[0])) {
-                    html += escapeContent(children[0]);
-                    if (!tag) {
-                        html += endOfText;
-                    }
-                } else if (childrenLength === 0 && !tag) {
-                    html += endOfText;
-                } else {
-                    for (var i = 0; i < childrenLength; i++) {
+
+                children = normChildren(node, children);
+                var childrenType = getChildrenType(children);
+                if (childrenType > 1) {
+                    for (var i = 0, childrenLength = children.length; i < childrenLength; i++) {
                         html += createNodeHTML(normIndex(children, i), context);
                     }
+                } else if (childrenType !== 0) {
+                    var child = getOnlyChild(children, childrenType);
+                    if (isString(child)) {
+                        html += escapeContent(child);
+                        if (!tag || !child) {
+                            html += endOfText;
+                        }
+                    } else {
+                        html += createNodeHTML(normOnly(node, child), context);
+                    }
+                } else if (!tag) {
+                    html += endOfText;
                 }
                 if (tag) {
                     // TODO close only required tags explicitly
@@ -411,91 +416,118 @@ var cito = window.cito || {};
         }
     }
 
-    // TODO avoid using childNodes if possible
-    // TODO merge both post together
-    function postCreateNodeHTML(domNode, node, domIndex) {
-        node.dom = domNode;
-        var text, endIndex;
-        switch (node.tag) {
-            case '#':
-                text = domNode.nodeValue;
-                endIndex = text.indexOf(endOfText);
-                if (endIndex !== -1) {
-                    if (endIndex + 1 < text.length) {
-                        domNode.splitText(endIndex + 1);
+    // TODO only use indexOf + splitText when necessary
+    function initVirtualDOM(domNode, node) {
+        var tag = node.tag;
+        if (tag) {
+            node.dom = domNode;
+            var text, endIndex;
+            switch (tag) {
+                case '#':
+                    text = domNode.nodeValue;
+                    endIndex = text.indexOf(endOfText);
+                    if (endIndex !== -1) {
+                        if (endIndex + 1 < text.length) {
+                            domNode.splitText(endIndex + 1);
+                        }
+                        domNode.nodeValue = text.substr(0, endIndex);
                     }
-                    domNode.nodeValue = text.substr(0, endIndex);
-                }
-                break;
-            case '!': break;
-            case '<':
-                var domLength = 0;
-                for (; domNode; domNode = domNode.nextSibling) {
-                    domLength++;
-                    if (domNode.nodeType === 3) {
-                        text = domNode.nodeValue;
-                        if (domLength > 1 && text === endOfText) {
-                            domNode.parentNode.removeChild(domNode);
-                            domLength--;
-                        } else {
-                            endIndex = text.indexOf(endOfText);
-                            if (endIndex !== -1) {
-                                if (endIndex + 1 < text.length) {
-                                    domNode.splitText(endIndex + 1);
-                                }
-                                domNode.nodeValue = text.substr(0, endIndex);
+                    break;
+                case '!': break;
+                case '<':
+                    var domLength = 0, nextDomNode;
+                    for (; domNode; domNode = domNode.nextSibling) {
+                        domLength++;
+                        if (domNode.nodeType === 3) {
+                            text = domNode.nodeValue;
+                            if (domLength > 1 && text === endOfText) {
+                                nextDomNode = domNode.nextSibling;
+                                domNode.parentNode.removeChild(domNode);
+                                domLength--;
                                 break;
+                            } else {
+                                endIndex = text.indexOf(endOfText);
+                                if (endIndex !== -1) {
+                                    if (endIndex + 1 < text.length) {
+                                        domNode.splitText(endIndex + 1);
+                                    }
+                                    domNode.nodeValue = text.substr(0, endIndex);
+                                    nextDomNode = domNode.nextSibling;
+                                    break;
+                                }
                             }
                         }
                     }
-                }
-                node.domLength = domLength;
-                return domIndex + domLength;
-            default:
-                var children = node.children,
-                    childrenLength = children.length;
-                if (childrenLength !== 1 || !isString(children[0])) {
-                    var domChildren = domNode.childNodes;
-                    for (var i = 0, childDomIndex = 0; i < childrenLength; i++) {
-                        var child = children[i];
-                        childDomIndex = child.tag ? postCreateNodeHTML(domChildren[childDomIndex], child, childDomIndex)
-                            : postCreateFragmentHTML(domNode, child, childDomIndex);
+                    node.domLength = domLength;
+                    return nextDomNode;
+                default:
+                    var children = node.children,
+                        childrenType = getChildrenType(children);
+                    if (childrenType > 1) {
+                        children = node.children;
+                        var childDomNode = domNode.firstChild;
+                        for (var i = 0, childrenLength = children.length; i < childrenLength; i++) {
+                            childDomNode = initVirtualDOM(childDomNode, children[i]);
+                        }
+                    } else if (childrenType !== 0) {
+                        var child = getOnlyChild(children, childrenType);
+                        if (!isString(child)) {
+                            initVirtualDOM(domNode.firstChild, child);
+                        } else if (!child) {
+                            domNode.firstChild.nodeValue = '';
+                        }
                     }
-                }
-                var events = node.events;
-                if (events) {
-                    createEventHandlers(domNode, node, events);
-                }
-                break;
+
+                    var events = node.events;
+                    if (events) {
+                        updateEvents(domNode, node, events);
+
+                        var createdHandlers = events.$created;
+                        if (createdHandlers) {
+                            triggerLight(createdHandlers, '$created', domNode, node);
+                        }
+                    }
+                    break;
+            }
+            return domNode.nextSibling;
+        } else {
+            return initVirtualDOMFragment(domNode, node);
         }
-        return domIndex + 1;
     }
 
-    function postCreateFragmentHTML(domParent, node, domIndex) {
+    function initVirtualDOMFragment(domNode, node) {
         var children = node.children,
-            domChildren = domParent.childNodes;
-        if (children.length === 0) {
-            var domNode = domChildren[domIndex];
+            childrenType = getChildrenType(children),
+            nextDomNode;
+        if (childrenType === 0) {
             if (domNode.length > 1) {
                 domNode.splitText(1);
             }
             domNode.nodeValue = '';
             node.dom = domNode;
-            domIndex++;
+            nextDomNode = domNode.nextSibling;
         } else {
-            if (children.length === 1) {
-                normIndex(children, 0);
+            if (childrenType > 1) {
+                nextDomNode = domNode;
+                for (var i = 0; i < children.length; i++) {
+                    nextDomNode = initVirtualDOM(nextDomNode, children[i]);
+                }
+                domNode = children[0].dom;
+            } else {
+                var child = normOnly(node, getOnlyChild(children, childrenType));
+                nextDomNode = initVirtualDOM(domNode, child);
+                domNode = child.dom;
             }
-            var startDomIndex = domIndex;
-            for (var i = 0; i < children.length; i++) {
-                var child = children[i];
-                domIndex = child.tag ? postCreateNodeHTML(domChildren[domIndex], child, domIndex)
-                    : postCreateFragmentHTML(domParent, child, domIndex);
+            node.dom = domNode;
+
+            var domLength = 0;
+            while (domNode !== nextDomNode) {
+                domLength++;
+                domNode = domNode.nextSibling;
             }
-            node.dom = children[0].dom;
-            node.domLength = domIndex - startDomIndex;
+            node.domLength = domLength;
         }
-        return domIndex;
+        return nextDomNode;
     }
 
     function escapeContent(value) {
@@ -504,16 +536,15 @@ var cito = window.cito || {};
             helperDiv.innerText = value;
             value = helperDiv.innerHTML;
         } else if (isFirefox) {
-            value = value.split('<').join('&lt;').split('>').join('&gt;').split('&').join('&amp;');
+            value = value.split('&').join('&amp;').split('<').join('&lt;').split('>').join('&gt;');
         } else {
-            value = value.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/&/g, '&amp;');
+            value = value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
         }
         return value;
     }
 
     function escapeComment(value) {
         value = '' + value;
-        // TODO print warning if value contains --
         return value.replace(/-{2,}/g, '-');
     }
 
@@ -522,61 +553,73 @@ var cito = window.cito || {};
         value = '' + value;
         if (type !== 'number') {
             if (isFirefox) {
-                value = value.split('"').join('&quot;').split('&').join('&amp;');
+                value = value.split('&').join('&amp;').split('"').join('&quot;');
             } else {
-                value = value.replace(/"/g, '&quot;').replace(/&/g, '&amp;');
+                value = value.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
             }
         }
+        // TODO validate attribute name
         return name + '="' + value + '"';
     }
 
-    function createFragment(node, children, domParent, parentNs, hasDomSiblings, nextChild, replace) {
+    function createFragment(node, children, domParent, parentNs, nextChild, replace) {
         children = normChildren(node, children);
-        var domNode, domLength,
-            childrenLength = children.length;
+        var childrenType = getChildrenType(children);
+
+        var domNode, domLength, child;
         if (parentNs) {
             node.ns = parentNs;
         }
-        if (childrenLength === 0) {
-            // TODO find solution without dom placeholder
-            domNode = document.createTextNode('');
+        if (childrenType === 0) {
+            domNode = emptyTextNode();
             insertChild(domParent, domNode, nextChild, replace);
-        } else {
-            hasDomSiblings = hasDomSiblings || childrenLength > 1;
+        } else if (childrenType > 1) {
             domLength = 0;
-            for (var i = 0; i < childrenLength; i++) {
-                var child = normIndex(children, i);
-                createNode(child, domParent, parentNs, hasDomSiblings, nextChild, false);
+            for (var i = 0, childrenLength = children.length; i < childrenLength; i++) {
+                child = normIndex(children, i);
+                createNode(child, domParent, parentNs, nextChild, false);
                 domLength += child.domLength || 1;
             }
             domNode = children[0].dom;
             if (replace) {
                 removeChild(domParent, nextChild);
             }
+        } else {
+            child = normOnly(node, getOnlyChild(children, childrenType));
+            createNode(child, domParent, parentNs, nextChild, replace);
+            domNode = child.dom;
+            domLength = child.domLength;
         }
         node.dom = domNode;
         node.domLength = domLength;
     }
 
-    function updateElement(domElement, oldAttrs, oldEvents, element, tag, attrs, events) {
-        // Attributes
-        var attrName;
+    function updateAttributes(domElement, tag, attrs, oldAttrs, recordChanges) {
+        var changes, attrName;
         if (attrs) {
             for (attrName in attrs) {
-                var attrValue = attrs[attrName];
+                var changed = false,
+                    attrValue = attrs[attrName];
                 if (attrName === 'style') {
                     var oldAttrValue = oldAttrs && oldAttrs[attrName];
                     if (oldAttrValue !== attrValue) {
-                        updateStyle(domElement, oldAttrValue, attrs, attrValue);
+                        changed = updateStyle(domElement, oldAttrValue, attrs, attrValue);
                     }
-                } else if (attrName === 'class') {
-                    domElement.className = attrValue;
                 } else if (isInputProperty(tag, attrName)) {
                     if (domElement[attrName] !== attrValue) {
                         domElement[attrName] = attrValue;
+                        changed = true;
                     }
                 } else if (!oldAttrs || oldAttrs[attrName] !== attrValue) {
-                    updateAttribute(domElement, attrName, attrValue);
+                    //if (attrName === 'class') {
+                    //    domElement.className = attrValue;
+                    //} else {
+                        updateAttribute(domElement, attrName, attrValue);
+                    //}
+                    changed = true;
+                }
+                if (changed && recordChanges) {
+                    (changes || (changes = [])).push(attrName);
                 }
             }
         }
@@ -588,21 +631,13 @@ var cito = window.cito || {};
                     } else if (!isInputProperty(tag, attrName)) {
                         domElement.removeAttribute(attrName);
                     }
+                    if (recordChanges) {
+                        (changes || (changes = [])).push(attrName);
+                    }
                 }
             }
         }
-
-        // Events
-        if (events) {
-            createEventHandlers(domElement, element, events, oldEvents);
-        }
-        if (oldEvents) {
-            for (var eventType in oldEvents) {
-                if (!events || !events[eventType]) {
-                    removeEventHandler(domElement, eventType);
-                }
-            }
-        }
+        return changes;
     }
 
     function updateAttribute(domElement, name, value) {
@@ -630,7 +665,8 @@ var cito = window.cito || {};
     }
 
     function updateStyle(domElement, oldStyle, attrs, style) {
-        var propName;
+        var changed = false,
+            propName;
         if (!isString(style) && (!supportsCssSetProperty || !oldStyle || isString(oldStyle))) {
             var styleStr = '';
             if (style) {
@@ -646,6 +682,7 @@ var cito = window.cito || {};
         var domStyle = domElement.style;
         if (isString(style)) {
             domStyle.cssText = style;
+            changed = true;
         } else {
             if (style) {
                 for (propName in style) {
@@ -664,6 +701,7 @@ var cito = window.cito || {};
                             }
                             domStyle.setProperty(propName, propValue, '');
                         }
+                        changed = true;
                     }
                 }
             }
@@ -671,17 +709,29 @@ var cito = window.cito || {};
                 for (propName in oldStyle) {
                     if (!style || style[propName] === undefined) {
                         domStyle.removeProperty(propName);
+                        changed = true;
                     }
                 }
             }
         }
+        return changed;
     }
 
-    function createEventHandlers(domElement, element, events, oldEvents) {
-        domElement.virtualNode = element;
-        for (var eventType in events) {
-            if (!oldEvents || !oldEvents[eventType]) {
-                addEventHandler(domElement, eventType);
+    function updateEvents(domElement, element, events, oldEvents) {
+        var eventType;
+        if (events) {
+            domElement.virtualNode = element;
+            for (eventType in events) {
+                if (!oldEvents || !oldEvents[eventType]) {
+                    addEventHandler(domElement, eventType);
+                }
+            }
+        }
+        if (oldEvents) {
+            for (eventType in oldEvents) {
+                if (!events || !events[eventType]) {
+                    removeEventHandler(domElement, eventType);
+                }
             }
         }
     }
@@ -700,65 +750,77 @@ var cito = window.cito || {};
     }
 
     function addEventHandler(domElement, type) {
-        if (supportsEventListener) {
-            domElement.addEventListener(type, eventHandler, false);
-        } else {
-            var onType = 'on' + type;
-            if (onType in domElement) {
-                domElement[onType] = eventHandler;
+        if (type[0] !== '$') {
+            if (supportsEventListener) {
+                domElement.addEventListener(type, eventHandler, false);
             } else {
-                // TODO bind element to event handler + tests
-                domElement.attachEvent(onType, eventHandler);
+                var onType = 'on' + type;
+                if (onType in domElement) {
+                    domElement[onType] = eventHandler;
+                } else {
+                    // TODO bind element to event handler + tests
+                    domElement.attachEvent(onType, eventHandler);
+                }
             }
         }
     }
 
     function removeEventHandler(domElement, type) {
-        if (supportsEventListener) {
-            domElement.removeEventListener(type, eventHandler, false);
-        } else {
-            var onType = 'on' + type;
-            if (onType in domElement) {
-                domElement[onType] = null;
+        if (type[0] !== '$') {
+            if (supportsEventListener) {
+                domElement.removeEventListener(type, eventHandler, false);
             } else {
-                domElement.detachEvent(onType, eventHandler);
+                var onType = 'on' + type;
+                if (onType in domElement) {
+                    domElement[onType] = null;
+                } else {
+                    domElement.detachEvent(onType, eventHandler);
+                }
             }
         }
     }
 
-    function getTextIfTextNode(node) {
-        return isString(node) ? node : (node.tag === '#') ? node.children : null;
-    }
-
-    function createChildren(domElement, element, parentNs, children, i, to, hasDomSiblings, nextChild) {
-        if (i === 0 && to === 1 && !hasDomSiblings) {
-            var onlyChild = children[0],
-                onlyChildText = getTextIfTextNode(onlyChild);
-            if (onlyChildText !== null) {
-                setTextContent(domElement, onlyChildText);
-                return;
-            } else if (onlyChild.tag === '<') {
-                domElement.innerHTML = onlyChild.children;
-                return;
+    function createAllChildren(domNode, node, ns, children, inFragment) {
+        children = normChildren(node, children);
+        var childrenType = getChildrenType(children);
+        if (childrenType > 1) {
+            for (var i = 0, childrenLength = children.length; i < childrenLength; i++) {
+                createNode(normIndex(children, i), domNode, ns);
+            }
+        } else if (childrenType !== 0) {
+            var child = getOnlyChild(children, childrenType);
+            if (!inFragment && isString(child)) {
+                setTextContent(domNode, child);
+            } else {
+                child = normOnly(node, child);
+                createNode(child, domNode, ns, null, false, !inFragment);
             }
         }
-        for (; i < to; i++) {
-            createNode(normIndex(children, i), domElement, parentNs, hasDomSiblings, nextChild);
+    }
+
+    function getChildrenType(children) {
+        if (isArray(children)) {
+            return children.length;
+        } else {
+            return (children || isString(children)) ? -1 : 0;
         }
     }
 
     var range = supportsRange ? document.createRange() : null;
 
-    function removeChildren(domElement, children, i, to) {
-        if (i === 0 && to === 1 && children.length === 1) {
-            var onlyChild = children[0];
-            if (!onlyChild.dom) {
-                for (var domChild; domChild = domElement.firstChild;) { // jshint ignore:line
-                    domElement.removeChild(domChild);
-                }
-                return;
+    function removeAllChildren(domElement, children, childrenType) {
+        if (childrenType > 1) {
+            removeChildren(domElement, children, 0, children.length);
+        } else if (childrenType !== 0) {
+            if (isString(children)) {
+                domElement.removeChild(domElement.firstChild);
+            } else {
+                removeChild(domElement, normOnlyOld(children, childrenType, domElement));
             }
         }
+    }
+
+    function removeChildren(domElement, children, i, to) {
         for (; i < to; i++) {
             removeChild(domElement, children[i]);
         }
@@ -785,70 +847,79 @@ var cito = window.cito || {};
         }
     }
 
-    function setTextContent(domElement, text) {
-        if (supportsTextContent) {
-            domElement.textContent = text;
+    function setTextContent(domElement, text, update) {
+        if (text) {
+            if (supportsTextContent) {
+                domElement.textContent = text;
+            } else {
+                domElement.innerText = text;
+            }
         } else {
-            domElement.innerText = text;
+            if (update) {
+                while (domElement.firstChild) {
+                    domElement.removeChild(domElement.firstChild);
+                }
+            }
+            domElement.appendChild(emptyTextNode());
         }
     }
 
-    function updateOnlyChild(domElement, oldChildren, oldEndIndex, children) {
-        var child = children[0], oldChild = oldChildren[0],
-            childText = getTextIfTextNode(child),
-            update = (oldEndIndex !== 0),
-            sameType = false;
-        if (childText !== null) {
-            if (!update) {
-                var oldChildText = getTextIfTextNode(oldChild);
-                sameType = (oldChildText !== null);
-                update = (childText !== oldChildText);
-            }
-            if (update) {
-                if (!sameType) {
-                    destroyNodes(oldChildren);
-                }
-                setTextContent(domElement, childText);
-            }
-        } else if (child.tag === '<') {
-            if (!update) {
-                sameType = (oldChild.tag === '<');
-                update = !sameType || (child.children !== oldChild.children);
-            }
-            if (update) {
-                if (!sameType) {
-                    destroyNodes(oldChildren);
-                }
-                domElement.innerHTML = child.children;
-            }
-        } else {
-            update = false;
-        }
-        return update || sameType;
-    }
-
-    function updateChildren(domElement, element, ns, oldChildren, children, hasDomSiblings, outerNextChild) {
+    function updateChildren(domElement, element, ns, oldChildren, children, inFragment, outerNextChild) {
         children = normChildren(element, children, oldChildren);
         if (children === oldChildren) {
             return;
         }
 
-        var oldEndIndex = oldChildren.length - 1,
-            endIndex = children.length - 1;
-        hasDomSiblings = hasDomSiblings || endIndex > 0;
-        if (endIndex === 0 && !hasDomSiblings && updateOnlyChild(domElement, oldChildren, oldEndIndex, children)) {
+        var oldChildrenType = getChildrenType(oldChildren);
+        if (oldChildrenType === 0) {
+            createAllChildren(domElement, element, ns, children, false);
             return;
         }
 
-        if (oldEndIndex === 0) {
-            var oldOnlyChild = normIndex(oldChildren, 0);
-            if (!oldOnlyChild.dom) {
-                oldOnlyChild.dom = domElement.firstChild;
-                if (oldOnlyChild.tag === '<') {
-                    oldOnlyChild.domLength = domElement.childNodes.length;
+        var childrenType = getChildrenType(children),
+            oldChild, child;
+        if (childrenType === 0) {
+            removeAllChildren(domElement, oldChildren, oldChildrenType);
+            return;
+        } else if (childrenType < 2) {
+            child = getOnlyChild(children, childrenType);
+            if (!inFragment && isString(child)) {
+                if (childrenType === oldChildrenType) {
+                    oldChild = getOnlyChild(oldChildren, oldChildrenType);
+                    if (child === oldChild) {
+                        return;
+                    } else if (isString(oldChild)) {
+                        domElement.firstChild.nodeValue = child;
+                        return;
+                    }
                 }
+                destroyNodes(oldChildren, oldChildrenType);
+                setTextContent(domElement, child, true);
+                return;
+            } else if (oldChildrenType < 2) {
+                oldChild = normOnlyOld(oldChildren, oldChildrenType, domElement);
+                child = normOnly(element, child, oldChild);
+                updateNode(oldChild, child, domElement, ns, null, 0, outerNextChild, !inFragment);
+                return;
             }
         }
+
+        if (childrenType === -1) {
+            element.children = children = [children];
+        }
+        if (oldChildrenType < 2) {
+            oldChild = normOnlyOld(oldChildren, oldChildrenType, domElement);
+            if (oldChildrenType === 1) {
+                oldChildren[0] = oldChild;
+            } else {
+                oldChildren = [oldChild];
+            }
+        }
+
+        var oldChildrenLength = oldChildren.length,
+            childrenLength = children.length,
+            oldEndIndex = oldChildrenLength - 1,
+            endIndex = children.length - 1;
 
         var oldStartIndex = 0, startIndex = 0,
             successful = true,
@@ -860,8 +931,7 @@ var cito = window.cito || {};
             oldStartChild = oldChildren[oldStartIndex];
             startChild = normIndex(children, startIndex, oldStartChild);
             while (oldStartChild.key === startChild.key) {
-                nextChild = oldChildren[oldStartIndex + 1] || outerNextChild;
-                updateNode(oldStartChild, startChild, domElement, ns, hasDomSiblings, nextChild);
+                updateNode(oldStartChild, startChild, domElement, ns, oldChildren, oldStartIndex + 1, outerNextChild);
                 oldStartIndex++; startIndex++;
                 if (oldStartIndex > oldEndIndex || startIndex > endIndex) {
                     break outer;
@@ -873,8 +943,7 @@ var cito = window.cito || {};
             oldEndChild = oldChildren[oldEndIndex];
             endChild = normIndex(children, endIndex);
             while (oldEndChild.key === endChild.key) {
-                nextChild = children[endIndex + 1] || outerNextChild;
-                updateNode(oldEndChild, endChild, domElement, ns, hasDomSiblings, nextChild);
+                updateNode(oldEndChild, endChild, domElement, ns, children, endIndex + 1, outerNextChild);
                 oldEndIndex--; endIndex--;
                 if (oldStartIndex > oldEndIndex || startIndex > endIndex) {
                     break outer;
@@ -884,8 +953,8 @@ var cito = window.cito || {};
                 successful = true;
             }
             while (oldStartChild.key === endChild.key) {
-                nextChild = children[endIndex + 1] || outerNextChild;
-                updateNode(oldStartChild, endChild, domElement, ns, hasDomSiblings, nextChild);
+                nextChild = (endIndex + 1 < childrenLength) ? children[endIndex + 1] : outerNextChild;
+                updateNode(oldStartChild, endChild, domElement, ns, null, 0, nextChild);
                 moveChild(domElement, endChild, nextChild);
                 oldStartIndex++; endIndex--;
                 if (oldStartIndex > oldEndIndex || startIndex > endIndex) {
@@ -896,8 +965,8 @@ var cito = window.cito || {};
                 successful = true;
             }
             while (oldEndChild.key === startChild.key) {
-                nextChild = oldChildren[oldStartIndex] || outerNextChild;
-                updateNode(oldEndChild, startChild, domElement, ns, nextChild);
+                nextChild = (oldStartIndex < oldChildrenLength) ? oldChildren[oldStartIndex] : outerNextChild;
+                updateNode(oldEndChild, startChild, domElement, ns, null, 0, nextChild);
                 moveChild(domElement, startChild, nextChild);
                 oldEndIndex--; startIndex++;
                 if (oldStartIndex > oldEndIndex || startIndex > endIndex) {
@@ -910,13 +979,15 @@ var cito = window.cito || {};
         }
 
         if (oldStartIndex > oldEndIndex) {
-            nextChild = normIndex(children, endIndex + 1) || outerNextChild;
-            createChildren(domElement, element, ns, children, startIndex, endIndex + 1, hasDomSiblings, nextChild);
+            nextChild = (endIndex + 1 < childrenLength) ? normIndex(children, endIndex + 1) : outerNextChild;
+            // TODO create single html string in IE for better performance
+            for (i = startIndex; i <= endIndex; i++) {
+                createNode(normIndex(children, i), domElement, ns, nextChild);
+            }
         } else if (startIndex > endIndex) {
             removeChildren(domElement, oldChildren, oldStartIndex, oldEndIndex + 1);
         } else {
-            var i, oldChild,
-                oldNextChild = oldChildren[oldEndIndex + 1],
+            var i, oldNextChild = oldChildren[oldEndIndex + 1],
                 oldChildrenMap = {};
             for (i = oldEndIndex; i >= oldStartIndex; i--) {
                 oldChild = oldChildren[i];
@@ -924,20 +995,20 @@ var cito = window.cito || {};
                 oldChildrenMap[oldChild.key] = oldChild;
                 oldNextChild = oldChild;
             }
-            nextChild = normIndex(children, endIndex + 1) || outerNextChild;
+            nextChild = (endIndex + 1 < childrenLength) ? normIndex(children, endIndex + 1) : outerNextChild;
             for (i = endIndex; i >= startIndex; i--) {
-                var child = children[i],
-                    key = child.key;
+                child = children[i];
+                var key = child.key;
                 oldChild = oldChildrenMap[key];
                 if (oldChild) {
                     oldChildrenMap[key] = null;
                     oldNextChild = oldChild.next;
-                    updateNode(oldChild, child, domElement, ns, hasDomSiblings, nextChild);
+                    updateNode(oldChild, child, domElement, ns, null, 0, nextChild);
                     if ((oldNextChild && oldNextChild.key) !== (nextChild && nextChild.key)) {
                         moveChild(domElement, child, nextChild);
                     }
                 } else {
-                    createNode(child, domElement, ns, hasDomSiblings, nextChild);
+                    createNode(child, domElement, ns, nextChild);
                 }
                 nextChild = child;
             }
@@ -1009,21 +1080,21 @@ var cito = window.cito || {};
         }
     }
 
-    function updateNode(oldNode, node, domParent, parentNs, hasDomSiblings, nextChild) {
+    function updateNode(oldNode, node, domParent, parentNs, nextChildChildren, nextChildIndex, outerNextChild, isOnlyDomChild) {
         if (node === oldNode) {
             return;
         }
-
-        var domNode, tag = node.tag,
-            oldChildren = oldNode.children, children = node.children;
+        var tag = node.tag;
         if (oldNode.tag !== tag) {
-            createNode(node, domParent, parentNs, hasDomSiblings, oldNode, true);
-        } else if (!tag) {
-            updateFragment(oldNode, oldChildren, node, children, domParent, parentNs, hasDomSiblings, nextChild);
+            createNode(node, domParent, parentNs, oldNode, true);
         } else {
-            // Element
-            domNode = oldNode.dom;
+            var domNode = oldNode.dom,
+                oldChildren = oldNode.children, children = node.children;
             switch (tag) {
+                case undefined:
+                    var nextChild = (nextChildChildren && nextChildIndex < nextChildChildren.length) ? nextChildChildren[nextChildIndex] : outerNextChild;
+                    updateFragment(oldNode, oldChildren, node, children, domParent, parentNs, nextChild);
+                    break;
                 case '#':
                 case '!':
                     if (oldChildren !== children) {
@@ -1033,57 +1104,78 @@ var cito = window.cito || {};
                     break;
                 case '<':
                     if (oldChildren !== children) {
-                        createNode(node, domParent, ns, hasDomSiblings, oldNode, true);
+                        createNode(node, domParent, null, oldNode, true, isOnlyDomChild);
                     } else {
                         node.dom = oldNode.dom;
                         node.domLength = oldNode.domLength;
                     }
                     break;
                 default:
+                    var attrs = node.attrs, oldAttrs = oldNode.attrs;
+                    if ((attrs && attrs.is) !== (oldAttrs && oldAttrs.is)) {
+                        createNode(node, domParent, parentNs, oldNode, true);
+                        return;
+                    }
+
                     var ns = oldNode.ns;
                     if (ns) node.ns = ns;
                     node.dom = domNode;
-                    updateChildren(domNode, node, ns, oldChildren, children, false);
-                    updateElement(domNode, oldNode.attrs, oldNode.events, node, tag, node.attrs, node.events);
+                    if (children !== oldChildren) {
+                        updateChildren(domNode, node, ns, oldChildren, children, false);
+                    }
+
+                    var events = node.events, oldEvents = oldNode.events;
+                    if (attrs !== oldAttrs) {
+                        var changedHandlers = events && events.$changed;
+                        var changes = updateAttributes(domNode, tag, attrs, oldAttrs, !!changedHandlers);
+                        if (changes) {
+                            triggerLight(changedHandlers, '$changed', domNode, node, 'changes', changes);
+                        }
+                    }
+                    if (events !== oldEvents) {
+                        updateEvents(domNode, node, events, oldEvents);
+                    }
                     break;
             }
         }
     }
 
-    function updateFragment(oldNode, oldChildren, node, children, domParent, parentNs, hasDomSiblings, nextChild) {
+    function updateFragment(oldNode, oldChildren, node, children, domParent, parentNs, nextChild) {
         children = normChildren(node, children, oldChildren);
         if (children === oldChildren) {
             return;
         }
-
-        var domNode, domLength,
-            oldChildrenLength = oldChildren.length,
-            childrenLength = children.length;
+        var childrenType = getChildrenType(children),
+            oldChildrenType = getChildrenType(oldChildren),
+            domNode, domLength;
         if (parentNs) {
             node.ns = parentNs;
         }
-        hasDomSiblings = hasDomSiblings || childrenLength > 1;
-        if (childrenLength === 0) {
-            if (oldChildrenLength === 0) {
+        if (childrenType === 0) {
+            if (oldChildrenType === 0) {
                 domNode = oldNode.dom;
             } else {
-                removeChildren(domParent, oldChildren, 0, oldChildren.length);
-                // TODO find solution without dom placeholder
-                domNode = document.createTextNode('');
+                removeAllChildren(domParent, oldChildren, oldChildrenType);
+                domNode = emptyTextNode();
                 insertChild(domParent, domNode, nextChild);
             }
-        } else if (oldChildrenLength === 0) {
+        } else if (oldChildrenType === 0) {
             domParent.removeChild(oldNode.dom);
-            createFragment(node, children, domParent, parentNs, hasDomSiblings, nextChild);
+            createFragment(node, children, domParent, parentNs, nextChild);
+            return;
         } else {
-            updateChildren(domParent, node, parentNs, oldChildren, children, hasDomSiblings, nextChild);
-            if (childrenLength > 0) {
+            updateChildren(domParent, node, parentNs, oldChildren, children, true, nextChild);
+            children = node.children;
+            if (isArray(children)) {
                 domNode = children[0].dom;
                 domLength = 0;
                 // TODO should be done without extra loop/lazy
-                for (var i = 0; i < childrenLength; i++) {
+                for (var i = 0, childrenLength = children.length; i < childrenLength; i++) {
                     domLength += children[i].domLength || 1;
                 }
+            } else {
+                domNode = children.dom;
+                domLength = children.domLength;
             }
         }
         node.dom = domNode;
@@ -1099,22 +1191,29 @@ var cito = window.cito || {};
                     for (var eventType in events) {
                         removeEventHandler(domNode, eventType);
                     }
+                    var destroyedHandlers = events.$destroyed;
+                    if (destroyedHandlers) {
+                        triggerLight(destroyedHandlers, '$destroyed', domNode, node);
+                    }
                 }
                 if (domNode.virtualNode) {
                     domNode.virtualNode = undefined;
                 }
             }
-            // TODO call callback
             var children = node.children;
-            if (!isString(children)) {
-                destroyNodes(children);
+            if (children) {
+                destroyNodes(children, getChildrenType(children));
             }
         }
     }
 
-    function destroyNodes(nodes) {
-        for (var i = 0, len = nodes.length; i < len; i++) {
-            destroyNode(nodes[i]);
+    function destroyNodes(nodes, nodesType) {
+        if (nodesType > 1) {
+            for (var i = 0, len = nodes.length; i < len; i++) {
+                destroyNode(nodes[i]);
+            }
+        } else if (nodesType !== 0) {
+            destroyNode(getOnlyChild(nodes, nodesType));
         }
     }
 
@@ -1130,34 +1229,78 @@ var cito = window.cito || {};
         }
     }
 
+    function maintainFocus(previousActiveElement) {
+        if (previousActiveElement && previousActiveElement != document.body && previousActiveElement != document.activeElement) {
+            previousActiveElement.focus();
+        }
+    }
+
     var vdom = cito.vdom = {
         create: function (node) {
             node = norm(node);
             createNode(node);
             return node;
         },
-        append: function (domParent, node) { // TODO params order
+        append: function (domParent, node) {
             node = norm(node);
             createNode(node, domParent);
             return node;
         },
         update: function (oldNode, node) {
+            var activeElement = document.activeElement;
             node = norm(node, oldNode);
-            // TODO should detect first whether the node has already been rendered
             updateNode(oldNode, node, oldNode.dom.parentNode);
             copyObjectProps(node, oldNode);
+            maintainFocus(activeElement);
             return oldNode;
         },
         updateChildren: function (element, children) {
+            var activeElement = document.activeElement;
             var oldChildren = element.children;
-            children = normChildren(element, children, oldChildren);
-            updateChildren(element.dom, element, element.ns, oldChildren, children);
-            element.children = children;
+            if (oldChildren !== children) {
+                updateChildren(element.dom, element, element.ns, oldChildren, children, !element.tag);
+            }
+            maintainFocus(activeElement);
         },
         remove: function (node) {
             var domParent = node.dom.parentNode;
             removeChild(domParent, node);
         }
     };
+
+    // TODO create promise utility
+    /*
+    function isPromise(value) {
+        return value.then !== undefined;
+    }
+
+    if (origChild && isPromise(origChild)) {
+        child = {};
+        var immediate = true;
+        origChild.then(function (newChild) {
+            if (immediate) {
+                child = norm(newChild, oldChild);
+            } else if (children[i] === child) {
+                vdom.update(child, newChild);
+            }
+        });
+        immediate = false;
+    }
+
+    if (isPromise(children)) {
+        children = [];
+        var immediate = true;
+        origChildren.then(function (newChildren) {
+            if (immediate) {
+                children = normChildren(node, newChildren, oldChildren);
+            }
+            // TODO if the parent has been updated too, then this is misleading
+            else if (node.children === children) {
+                vdom.updateChildren(node, newChildren);
+            }
+        });
+        immediate = false;
+    }
+    */
 
 })(cito, window);
