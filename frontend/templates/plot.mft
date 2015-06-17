@@ -1,0 +1,52 @@
+import {Plot} from 'util/plot'
+
+css:
+  .border
+    fill: none
+    stroke: silver
+    stroke-width: 1px
+  .line
+    fill: none
+    stroke: blue
+  .value
+    display: inline-block
+    width: 125px
+    background: lightgray
+    padding: 4px 16px
+    margin: 2px
+    border-radius: 4px
+  path.y.tick
+    stroke: black
+    stroke-width: 1px
+  text.y.tick
+    text-anchor: end
+
+html render(timestamps, values):
+  .row
+    let height = 256
+    let plot = new Plot(timestamps, values, 512, 256)
+    .col-xs-6
+      svg[style={
+          'width': '560px',
+          'height': '270px'
+          }]
+          g[transform="translate(32, 8)"]
+            rect.border[width=514, height=height, x="-1", y="-1"]
+            path.line[d=plot.path]
+            g.y.ticks
+              for tick of plot.yaxis.ticks:
+                g.y.tick[
+                    transform="translate(0, {ticky})"
+                  ]
+                  let ticky = height - tick.value * plot.yscale
+                  path.y.tick[d="M -6,0 L 0,0"]
+                  g[transform="translate(-8, 0)"]
+                    text.y.tick "{tick.label}"
+    .col-xs-4
+      .value
+        "Max: "
+        "{plot.max}"
+      .value
+        "Min: "
+        "{plot.min}"
+

@@ -14,6 +14,7 @@ module.exports = function(content) {
                 console.error(stderr)
             }
             if(error) {
+                console.error(stdout)
                 console.error(error)
                 callback(error)
             } else {

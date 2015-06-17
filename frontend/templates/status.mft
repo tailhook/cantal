@@ -1,8 +1,8 @@
 import {component} from 'util/base'
 import {Toggle} from 'util/stores'
 import {DonutChart} from 'util/donut'
-import {Plot} from 'util/plot'
 import donut from 'templates/donut.mft'
+import plot from 'templates/plot.mft'
 
 css:
   .sample
@@ -20,8 +20,7 @@ html render(error, timestamps, mem_chart, network):
 
     h2 "Memory"
     .row
-      .col-xs-4
-        h3 "Chart"
+      .col-xs-4[style={'margin': '48px 24px'}]
         if mem_chart.items:
           =donut.render(mem_chart.items, 256, 256, mem_chart.total)
       .col-xs-4
@@ -55,9 +54,11 @@ html render(error, timestamps, mem_chart, network):
               td
 
     h2 "Network"
-    .row
-      .col-xs-4
-        #=component(Plot, timestamps, network.bytes_rx)
-        #=component(Plot, timestamps, network.bytes_tx)
+    h3 "Receive"
+    if network:
+      =plot.render(timestamps, network.bytes_rx)
+    h3 "Transfer"
+    if network:
+      =plot.render(timestamps, network.bytes_tx)
 
     h2 "Disk"
