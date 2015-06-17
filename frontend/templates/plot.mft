@@ -27,10 +27,10 @@ html render(timestamps, values):
     let plot = new Plot(timestamps, values, 512, 256)
     .col-xs-6
       svg[style={
-          'width': '560px',
+          'width': '564px',
           'height': '270px'
           }]
-          g[transform="translate(32, 8)"]
+          g[transform="translate(50, 8)"]
             rect.border[width=514, height=height, x="-1", y="-1"]
             path.line[d=plot.path]
             g.y.ticks
