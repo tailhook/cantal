@@ -104,7 +104,7 @@ pub fn read(t: &mut Tip) -> Option<u64> {
         try!(f.read_line(&mut line));
         let mut line = String::with_capacity(200);
         try!(f.read_line(&mut line));
-        let mut slices = line.splitn(2, '|');
+        let mut slices = line.splitn(3, '|');
         slices.next();
         let mut fields = vec!();
         for i in words(&slices.next().unwrap_or("")) {
