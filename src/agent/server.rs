@@ -151,6 +151,7 @@ fn handle_request(stats: &RwLock<Stats>, req: &http::Request)
                     key.get("state").is_some()
                 }),
             })),
+            "/request.cbor" => Ok(http::reply_json(req, &Vec::<String>::new())),
             _ => Err(http::Error::NotFound),
         }
     }
