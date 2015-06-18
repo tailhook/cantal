@@ -5,6 +5,7 @@ extern crate argparse;
 extern crate cantal;
 extern crate rustc_serialize;
 extern crate env_logger;
+extern crate regex;
 
 use std::thread;
 use std::fs::File;

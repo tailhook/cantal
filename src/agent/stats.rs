@@ -41,7 +41,7 @@ impl Stats {
 
 #[derive(Hash, PartialEq, Eq, PartialOrd, Ord, Debug,
          RustcEncodable, RustcDecodable)]
-pub struct Key(BTreeMap<String, String>);
+pub struct Key(pub BTreeMap<String, String>);
 
 impl Key {
     pub fn from_json(json: &Json) -> Result<Key, ()> {

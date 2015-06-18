@@ -7,6 +7,7 @@ dependencies = [
  "env_logger 0.3.0 (git+git://github.com/rust-lang/log)",
  "libc 0.1.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.3.1 (git+git://github.com/rust-lang/log)",
+ "regex 0.1.30 (registry+https://github.com/rust-lang/crates.io-index)",
  "rustc-serialize 0.3.14 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 

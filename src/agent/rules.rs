@@ -1,4 +1,6 @@
-use std::collections::HashMap;
+use regex::Regex;
+use std::collections::{HashMap, BTreeMap};
+use rustc_serialize::json::Json;
 
 use super::aio::http;
 use super::stats::{Stats, Key};
@@ -57,7 +59,52 @@ pub struct Query {
     pub rules: HashMap<String, Rule>,
 }
 
-pub fn query(query: &Query, stats: &Stats) -> Result<Vec<String>, Error> {
+fn match_cond(key: &BTreeMap<String, String>, cond: &Condition) -> bool {
+    use self::Condition::*;
+    match cond {
+        &Eq(ref name, ref value) => key.get(name) == Some(value),
+        &NotEq(ref name, ref value) => key.get(name) != Some(value),
+        // TODO(tailhook) implement regex compilation
+        &RegexLike(ref name, ref value)
+        => Regex::new(value).unwrap()  // TODO(tailhook) fix unwrap
+            .is_match(key.get(name).unwrap_or(&String::from(""))),
+        &And(ref a, ref b) => match_cond(key, a) && match_cond(key, b),
+        &Or(ref a, ref b) => match_cond(key, a) || match_cond(key, b),
+        &Not(ref x) => match_cond(key, x),
+    }
+}
+
+fn query_tip(rule: &Rule, stats: &Stats) -> Result<Json, Error> {
+    for (&Key(ref key), ref value) in stats.history.tip.iter() {
+        if match_cond(key, &rule.condition) {
+            println!("MATCHED {:?}", key);
+        }
+    }
+    return Ok(Json::Object(BTreeMap::new()));
+}
+
+fn query_fine(rule: &Rule, stats: &Stats) -> Result<Json, Error> {
+    for (&Key(ref key), ref value) in stats.history.fine.iter() {
+        if match_cond(key, &rule.condition) {
+            println!("MATCHED {:?}", key);
+        }
+    }
+    return Ok(Json::Object(BTreeMap::new()));
+}
+
+pub fn query(query: &Query, stats: &Stats) -> Result<Json, Error> {
     debug!("Query {:?}", query);
-    return Err(Error("Not implemented"));
+    let mut items = BTreeMap::new();
+    for (name, rule) in query.rules.iter() {
+        match rule.source {
+            Source::Tip => {
+                items.insert(name.clone(), try!(query_tip(rule, stats)));
+            }
+            Source::Fine => {
+                items.insert(name.clone(), try!(query_fine(rule, stats)));
+            }
+            Source::Coarse => unimplemented!(),
+        }
+    }
+    return Ok(Json::Object(items));
 }

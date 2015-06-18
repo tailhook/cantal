@@ -33,16 +33,16 @@ pub struct History {
     age: u64,
 
     // Values that are kept as fine-grained as possible (2-second interval)
-    fine_timestamps: VecDeque<(u64, u32)>,
-    fine: HashMap<Key, Value>,
+    pub fine_timestamps: VecDeque<(u64, u32)>,
+    pub fine: HashMap<Key, Value>,
 
     // Values that are kept at more coarse interval (1-minute)
-    coarse_timestamps: VecDeque<(u64, u32)>,
-    coarse: HashMap<Key, Value>,
+    pub coarse_timestamps: VecDeque<(u64, u32)>,
+    pub coarse: HashMap<Key, Value>,
 
     // Items that keep only last value
-    tip_timestamp: (u64, u32),
-    tip: HashMap<Key, Value>,
+    pub tip_timestamp: (u64, u32),
+    pub tip: HashMap<Key, Value>,
 }
 
 
