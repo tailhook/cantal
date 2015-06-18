@@ -2,9 +2,11 @@ use regex::Regex;
 use std::collections::{HashMap, BTreeMap};
 use rustc_serialize::json::Json;
 use rustc_serialize::{Decodable, Decoder};
+use std::collections::hash_map::Entry::{Occupied, Vacant};
 
 use super::aio::http;
 use super::stats::{Stats, Key};
+use super::history::Value;
 
 pub struct Error(&'static str);
 
@@ -113,12 +115,41 @@ fn query_tip(rule: &Rule, stats: &Stats) -> Result<Json, Error> {
 }
 
 fn query_fine(rule: &Rule, stats: &Stats) -> Result<Json, Error> {
-    for (&Key(ref key), ref value) in stats.history.fine.iter() {
+    use self::Aggregation::*;
+    use self::Load::*;
+    use super::history::Value::*;
+    let dummy = String::from("");
+    let mut h = HashMap::<_, Vec<_>>::new();
+    for (ref k, _) in stats.history.fine.iter() {
+        let ref key = k.0;
         if match_cond(key, &rule.condition) {
-            println!("MATCHED {:?}", key);
+            let target_key = rule.key.iter()
+                             .map(|x| key.get(x).unwrap_or(&dummy))
+                             .collect::<Vec<_>>();
+            let value = stats.history.fine.get(&k).unwrap();
+            match h.entry(target_key) {
+                Occupied(mut e) => { e.get_mut().push(value); }
+                Vacant(e) => { e.insert(vec![value]); }
+            };
         }
     }
-    return Ok(Json::Object(BTreeMap::new()));
+    println!("MATCHED {:?}", h);
+    let root = BTreeMap::new();
+    for (key, vec) in h.into_iter() {
+        match rule.aggregation {
+            None => {
+                unimplemented!();
+            }
+            Sum => {
+                match rule.load {
+                    Tip => {}
+                    Raw => {}
+                    Rate => {}
+                }
+            }
+        }
+    }
+    return Ok(Json::Object(root));
 }
 
 pub fn query(query: &Query, stats: &Stats) -> Result<Json, Error> {
