@@ -2,7 +2,8 @@
 //  It *may be unsafe* to expose this implementation to the untrusted internet
 
 use std::io::Write;
-use std::str::from_utf8;
+use std::ascii::AsciiExt;
+use std::str::{from_utf8, FromStr};
 use std::fmt::Display;
 use std::borrow::{Borrow};
 use std::os::unix::io::RawFd;
@@ -16,12 +17,19 @@ use super::lowlevel::{read_to_vec, ReadResult};
 
 
 const MAX_HEADERS_SIZE: usize = 16384;
+const DEFAULT_REQUEST: Request<'static> = Request {
+    request_line: RequestLine(Method::Unknown, "*", Version::Http10),
+    content_length: 0,
+    close: true,
+    body: None,
+};
 
 
 //  We don't do generic HTTP, so we only need these specific methods
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Method {
     Get,
+    Post,
     Unknown,
 }
 
@@ -80,6 +88,7 @@ pub struct Request<'a> {
     //transfer_encoding: TransferEncoding,
     content_length: usize,
     close: bool,
+    pub body: Option<&'a [u8]>,
 }
 
 #[derive(Debug)]
@@ -96,7 +105,7 @@ pub struct ResponseBuilder<'a> {
 
 pub struct RequestParser<'a> {
     req: Request<'a>,
-//    has_content_length: bool,
+    has_content_length: bool,
 }
 
 impl<'a> RequestLine<'a> {
@@ -121,12 +130,22 @@ impl<'a> RequestParser<'a> {
                 close: req_line.version() == Version::Http10,
                 request_line: req_line,
                 content_length: 0,
+                body: None,
             },
-            // has_content_length: false,
+            has_content_length: false,
         };
     }
-    fn add_header(&mut self, _name: &str, _value: &str) -> Result<(), Error>
+    fn add_header(&mut self, name: &str, value: &str) -> Result<(), Error>
     {
+        if name.eq_ignore_ascii_case("Content-Length") {
+            if self.has_content_length {
+                return Err(Error::BadRequest("Duplicate Content-Length"));
+            }
+            self.req.content_length = try!(FromStr::from_str(value.trim())
+                .map_err(|_| Error::BadRequest(
+                                    "Wrong value in Content-Length")));
+            self.has_content_length = true;
+        }
         Ok(())
     }
     fn take(self) -> Request<'a> {
@@ -161,7 +180,12 @@ impl<'a> Stream<'a> {
                 for i in check_start..(end - 3) {
                     if &self.buf[i..i+4] == b"\r\n\r\n" {
                         match self.parse_request(&self.buf[0..i+2]) {
-                            Ok(req) => {
+                            Ok(mut req) => {
+                                if i+4 + req.content_length < end {
+                                    return HandlerResult::ContinueRead;
+                                }
+                                let rend = i+4 + req.content_length;
+                                req.body = Some(&self.buf[i+4..rend]);
                                 match (*self.handler)(&req) {
                                     Ok(resp) => {
                                         return HandlerResult::SendAndClose(
@@ -179,9 +203,13 @@ impl<'a> Stream<'a> {
                                 };
                             }
                             Err(e) => {
-                                // TODO(tailhook) implement HTTP errors
-                                info!("Error parsing request: {:?}", e);
-                                return HandlerResult::Close;
+                                let mut builder = ResponseBuilder::new(
+                                    &DEFAULT_REQUEST, e.status());
+                                let bytes: &[u8];
+                                bytes = &e.body().as_bytes();
+                                builder.set_body_from(bytes);
+                                return HandlerResult::SendAndClose(
+                                    builder.take().buf);
                             }
                         }
                     }
@@ -204,6 +232,7 @@ impl<'a> Stream<'a> {
         let mut pieces = chunk.trim().split(' ').filter(|x| x.len() > 0);
         let meth = match pieces.next().unwrap() {
             "GET" => Method::Get,
+            "POST" => Method::Post,
             _ => return Err(Error::MethodNotAllowed),
         };
         let uri = try!(pieces.next()

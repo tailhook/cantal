@@ -114,6 +114,34 @@ export class Status extends Component {
                 }
             }
         })
+        this.guard('new_query', new RefreshJson("/query.json", {
+            post_body: JSON.stringify({'rules': {
+                'memory': {
+                    'source': {'variant': 'Tip'},
+                    'condition': {'variant': "RegexLike", fields: [
+                        "metric",
+                        "^memory\.",
+                        ]},
+                    'key': ['metric'],
+                    'aggregation': {'variant': 'None'},
+                    'load': {'variant': 'Raw'},
+                    'limit': 1,
+                    },
+                'network': {
+                    'source': {'variant': 'Fine'},
+                    'condition': {'variant': "RegexLike", fields: [
+                        "metric",
+                        "^net.interface.[rt]x.bytes$",
+                        ]},
+                    'key': ['metric'],
+                    'aggregation': {'variant': 'None'},
+                    'load': {'variant': 'Raw'},
+                    'limit': 1,
+                    },
+            }})}))
+        .process((data, latency) => {
+            console.log("GOT DATA", data)
+        })
     }
     render() {
         const ts = this.timestamps && this.timestamps.slice(1)

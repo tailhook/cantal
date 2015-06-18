@@ -1,4 +1,5 @@
 use std::str::FromStr;
+use std::str::from_utf8;
 use std::sync::RwLock;
 use rustc_serialize::json::Json;
 
@@ -151,7 +152,8 @@ fn handle_request(stats: &RwLock<Stats>, req: &http::Request)
                     key.get("state").is_some()
                 }),
             })),
-            "/request.cbor" => Ok(http::reply_json(req, &Vec::<String>::new())),
+            "/query.json" => Ok(http::reply_json(req,
+                &vec!(req.body.map(|x| from_utf8(x).unwrap())))),
             _ => Err(http::Error::NotFound),
         }
     }

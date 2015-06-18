@@ -1,8 +1,9 @@
 
 export class RefreshJson {
-    constructor(url, interval=2000) {
+    constructor(url, options={}) {
         this.url = url;
-        this.interval = interval;
+        this.interval = options.interval || 2000;
+        this.post_body = options.post_body || null;
     }
     set_handler(fun) {
         this.handler = fun
@@ -25,7 +26,8 @@ export class RefreshJson {
         }
     }
     replace_with(other) {
-        if(other.url != this.url || other.interval != this.interval) {
+        if(other.url != this.url || other.interval != this.interval
+            || other.post_body != this.post_body) {
             this.stop()
             other.start()
             return other
@@ -63,7 +65,12 @@ export class RefreshJson {
             }
             this.handler(json, lcy);
         }
-        req.open('GET', this.url, true);
-        req.send()
+        if(this.post_body) {
+            req.open('POST', this.url, true);
+            req.send(this.post_body)
+        } else {
+            req.open('GET', this.url, true);
+            req.send()
+        }
     }
 }
