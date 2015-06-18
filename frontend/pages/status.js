@@ -117,25 +117,25 @@ export class Status extends Component {
         this.guard('new_query', new RefreshJson("/query.json", {
             post_body: JSON.stringify({'rules': {
                 'memory': {
-                    'source': {'variant': 'Tip'},
+                    'source': 'Tip',
                     'condition': {'variant': "RegexLike", fields: [
                         "metric",
                         "^memory\.",
                         ]},
                     'key': ['metric'],
-                    'aggregation': {'variant': 'None'},
-                    'load': {'variant': 'Raw'},
+                    'aggregation': 'None',
+                    'load': 'Raw',
                     'limit': 1,
                     },
                 'network': {
-                    'source': {'variant': 'Fine'},
+                    'source':'Fine',
                     'condition': {'variant': "RegexLike", fields: [
                         "metric",
                         "^net.interface.[rt]x.bytes$",
                         ]},
                     'key': ['metric'],
-                    'aggregation': {'variant': 'None'},
-                    'load': {'variant': 'Raw'},
+                    'aggregation': 'None',
+                    'load': 'Raw',
                     'limit': 1,
                     },
             }})}))

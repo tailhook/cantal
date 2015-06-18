@@ -27,6 +27,7 @@ mod mountpoints;
 mod deltabuf;
 mod history;
 mod storage;
+mod rules;
 
 
 fn main() {

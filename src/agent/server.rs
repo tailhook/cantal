@@ -1,6 +1,7 @@
 use std::str::FromStr;
 use std::str::from_utf8;
 use std::sync::RwLock;
+use rustc_serialize::json;
 use rustc_serialize::json::Json;
 
 use super::aio;
@@ -9,6 +10,7 @@ use super::staticfiles;
 use super::aio::http;
 use super::util::tree_collect;
 use super::stats::{Stats, Key};
+use super::rules::{Query, query};
 use super::scan::processes::Pid;
 
 
@@ -152,8 +154,14 @@ fn handle_request(stats: &RwLock<Stats>, req: &http::Request)
                     key.get("state").is_some()
                 }),
             })),
-            "/query.json" => Ok(http::reply_json(req,
-                &vec!(req.body.map(|x| from_utf8(x).unwrap())))),
+            "/query.json"
+            => from_utf8(req.body.unwrap_or(b""))
+               .map_err(|_| http::Error::BadRequest("Bad utf-8 encoding"))
+               .and_then(|s| json::decode::<Query>(s)
+               .map_err(|_| http::Error::BadRequest("Failed to decode query")))
+               .and_then(|r| {
+                   Ok(http::reply_json(req, &try!(query(&r, &*stats))))
+                }),
             _ => Err(http::Error::NotFound),
         }
     }

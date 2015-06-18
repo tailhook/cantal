@@ -1,3 +1,16 @@
+use std::collections::HashMap;
+
+use super::aio::http;
+use super::stats::{Stats, Key};
+
+pub struct Error(&'static str);
+
+impl From<Error> for http::Error {
+    fn from(err: Error) -> http::Error {
+        return http::Error::BadRequest(err.0);
+    }
+}
+
 
 #[derive(RustcEncodable, RustcDecodable, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Source {
@@ -40,6 +53,11 @@ pub struct Rule {
 }
 
 #[derive(RustcEncodable, RustcDecodable, Debug, Clone)]
-pub struct Request {
+pub struct Query {
     pub rules: HashMap<String, Rule>,
+}
+
+pub fn query(query: &Query, stats: &Stats) -> Result<Vec<String>, Error> {
+    debug!("Query {:?}", query);
+    return Err(Error("Not implemented"));
 }
