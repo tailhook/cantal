@@ -1,4 +1,5 @@
 use std::ops::Add;
+use std::iter::repeat;
 use std::collections::{HashMap, BTreeMap};
 
 use regex::Regex;
@@ -28,7 +29,7 @@ pub enum Source {
 #[derive(RustcEncodable, RustcDecodable, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Aggregation {
     None,
-    Sum,
+    CasualSum,  // does ignore absent data points, treating them as zero
 }
 
 #[derive(RustcEncodable, RustcDecodable, Debug, Clone, Copy, PartialEq, Eq)]
@@ -37,13 +38,6 @@ pub enum Load {
     Rate,
     Tip,
 }
-
-pub enum TipValue {
-    Integer(i64),
-    Float(f64),
-    States(Vec<(u64, String)>),
-}
-
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Condition {
@@ -101,50 +95,6 @@ pub struct Query {
     pub rules: HashMap<String, Rule>,
 }
 
-impl<'a> From<&'a Value> for Option<TipValue> {
-    fn from(val: &Value) -> Option<TipValue> {
-        match val {
-            &Value::Counter(_, _, _) => None,
-            &Value::Integer(val, _, _) => Some(TipValue::Integer(val)),
-            &Value::Float(val, _, _) => Some(TipValue::Float(val)),
-            &Value::State(ref val, _)
-            => Some(TipValue::States(vec![val.clone()])),
-        }
-    }
-}
-
-impl<'a> Add<&'a Value> for Option<TipValue> {
-    type Output = Option<TipValue>;
-
-    fn add(self, other: &Value) -> Option<TipValue> {
-        use super::history::Value as V;
-        use self::TipValue as T;
-        match (self, other) {
-            (Some(T::Integer(a)), &V::Integer(b, _, _))
-            => Some(T::Integer(a+b)),
-            (Some(T::Float(a)), &V::Float(b, _, _))
-            => Some(T::Float(a+b)),
-            (Some(T::States(ref vec)), &V::State(ref b, _)) => {
-                // TODO(tailhook) do not need to clone vector
-                let mut vec = vec.clone();
-                vec.push(b.clone());
-                Some(T::States(vec))
-            }
-            _ => None,
-        }
-    }
-}
-
-impl ToJson for TipValue {
-    fn to_json(&self) -> Json {
-        match self {
-            &TipValue::Integer(x) => Json::I64(x),
-            &TipValue::Float(x) => Json::F64(x),
-            &TipValue::States(ref lst) => lst.to_json(),
-        }
-    }
-}
-
 fn match_cond(key: &BTreeMap<String, String>, cond: &Condition) -> bool {
     use self::Condition::*;
     match cond {
@@ -200,40 +150,30 @@ fn query_fine(rule: &Rule, stats: &Stats) -> Result<Json, Error> {
     use self::Load::*;
     use std::collections::hash_map::Entry::{Occupied, Vacant};
     let dummy = String::from("");
-    let mut h = HashMap::<_, Vec<_>>::new();
+    let mut keys = HashMap::<_, Vec<_>>::new();
     for (ref k, _) in stats.history.fine.iter() {
         let ref key = k.0;
         if match_cond(key, &rule.condition) {
             let target_key = rule.key.iter()
                              .map(|x| key.get(x).unwrap_or(&dummy))
                              .collect::<Vec<_>>();
-            let value = stats.history.fine.get(&k).unwrap();
-            match h.entry(target_key) {
-                Occupied(mut e) => { e.get_mut().push(value); }
-                Vacant(e) => { e.insert(vec![value]); }
+            match keys.entry(target_key) {
+                Occupied(mut e) => { e.get_mut().push(k.clone()); }
+                Vacant(e) => { e.insert(vec![k.clone()]); }
             };
         }
     }
-    println!("MATCHED {:?}", h);
-    Ok(json_tree(h.into_iter().map(|(key, vec)| {
+    Ok(json_tree(keys.into_iter().map(|(key, hkeys)| {
         (key, match rule.aggregation {
             None => match rule.load {
-                Tip => vec.into_iter()
-                        .map(|v| Option::<TipValue>::from(v))
-                        .collect::<Vec<_>>().to_json(),
+                Tip => unimplemented!(),
                 Raw => unimplemented!(),
                 Rate => unimplemented!(),
             },
-            Sum => match rule.load {
-                Tip => {
-                    let mut iter = vec.into_iter();
-                    let val = iter.next().and_then(Option::<TipValue>::from);
-                    iter.fold(val, |x, y| x+y).to_json()
-                }
+            CasualSum => match rule.load {
+                Tip => unimplemented!(),
                 Raw => unimplemented!(),
-                Rate => {
-                    unimplemented!();
-                }
+                Rate => unimplemented!(),
             },
         })
     })))

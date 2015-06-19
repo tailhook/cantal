@@ -14,9 +14,11 @@ use cantal::Value as TipValue;
 
 #[derive(Debug, RustcEncodable, RustcDecodable)]
 pub enum Value {
+    // value, age, delta-buffer
     Counter(u64, u64, DeltaBuf),
     Integer(i64, u64, DeltaBuf),
     Float(f64, u64, VecDeque<f64>),  // No compression, sorry
+    // (timestamp, text), age
     State((u64, String), u64),  // No useful history
 }
 
@@ -256,85 +258,6 @@ impl History {
         self.fine_timestamps.push_front((timestamp, duration));
         self.coarse_timestamps.push_front((timestamp, duration));
         self.tip_timestamp = (timestamp, duration);
-    }
-    pub fn get_tip_json(&self, key: &Key) -> Json {
-        self.fine.get(key)
-        .or_else(|| self.coarse.get(key))
-        .map(|x| match *x {
-            Value::Counter(c, _, _) => Json::U64(c),
-            Value::Integer(c, _, _) => Json::I64(c),
-            Value::Float(c, _, _) => Json::F64(c),
-            Value::State((ts, ref text), _) => Json::Array(vec!(
-                Json::U64(ts),
-                Json::String(text.clone()),
-                )),
-        })
-        .or_else(||
-            self.tip.get(key)
-            .map(|x| match *x {
-                Value::State((ts, ref text), _age) => Json::Array(vec!(
-                    Json::U64(ts),
-                    Json::String(text.clone()),
-                    )),
-                _ => unreachable!(),
-            }))
-        .unwrap_or(Json::Null)
-    }
-    pub fn get_history_json(&self, key: &Key, num: usize) -> Json {
-        self.fine.get(key)
-            .map(|x| Json::Object(vec!(
-                ("fine".to_string(), x.json_history(num, self.age)),
-                ).into_iter().collect()))
-        .or_else(|| self.coarse.get(key)
-            .map(|x| Json::Object(vec!(
-                ("coarse".to_string(), x.json_history(num, self.age)),
-                ).into_iter().collect())))
-        .unwrap_or(Json::Null)
-    }
-    pub fn get_timestamps(&self, num: usize) -> Vec<(u64, u32)> {
-         self.fine_timestamps.iter().take(num).cloned().collect()
-    }
-    pub fn latest<'x, F:Fn(&Key) -> bool>(&'x self, predicate: F)
-        -> Vec<(Json, Json)>
-    {
-        let mut res = Vec::new();
-        for (key, _) in self.fine.iter() {
-            if predicate(key) {
-                // TODO(tailhook) optimize lookups
-                res.push((key.to_json(), self.get_tip_json(key)));
-            }
-        }
-        for (key, _) in self.coarse.iter() {
-            if predicate(key) {
-                // TODO(tailhook) optimize lookups
-                res.push((key.to_json(), self.get_tip_json(key)));
-            }
-        }
-        for (key, _) in self.tip.iter() {
-            if predicate(key) {
-                // TODO(tailhook) optimize lookups
-                res.push((key.to_json(), self.get_tip_json(key)));
-            }
-        }
-        return res;
-    }
-    pub fn history<'x, F:Fn(&Key) -> bool>(&'x self, num: usize, predicate: F)
-        -> Vec<(Json, Json)>
-    {
-        let mut res = Vec::new();
-        for (key, _) in self.fine.iter() {
-            if predicate(key) {
-                // TODO(tailhook) optimize lookups
-                res.push((key.to_json(), self.get_history_json(key, num)));
-            }
-        }
-        for (key, _) in self.coarse.iter() {
-            if predicate(key) {
-                // TODO(tailhook) optimize lookups
-                res.push((key.to_json(), self.get_history_json(key, num)));
-            }
-        }
-        return res;
     }
     pub fn truncate_by_time(&mut self, timestamp: u64) {
         let fine_ts = self.fine_timestamps.iter().enumerate()
