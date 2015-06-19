@@ -1,8 +1,9 @@
-use regex::Regex;
+use std::ops::Add;
 use std::collections::{HashMap, BTreeMap};
-use rustc_serialize::json::Json;
+
+use regex::Regex;
+use rustc_serialize::json::{Json, ToJson};
 use rustc_serialize::{Decodable, Decoder};
-use std::collections::hash_map::Entry::{Occupied, Vacant};
 
 use super::aio::http;
 use super::stats::{Stats, Key};
@@ -36,6 +37,13 @@ pub enum Load {
     Rate,
     Tip,
 }
+
+pub enum TipValue {
+    Integer(i64),
+    Float(f64),
+    States(Vec<(u64, String)>),
+}
+
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Condition {
@@ -93,6 +101,50 @@ pub struct Query {
     pub rules: HashMap<String, Rule>,
 }
 
+impl<'a> From<&'a Value> for Option<TipValue> {
+    fn from(val: &Value) -> Option<TipValue> {
+        match val {
+            &Value::Counter(_, _, _) => None,
+            &Value::Integer(val, _, _) => Some(TipValue::Integer(val)),
+            &Value::Float(val, _, _) => Some(TipValue::Float(val)),
+            &Value::State(ref val, _)
+            => Some(TipValue::States(vec![val.clone()])),
+        }
+    }
+}
+
+impl<'a> Add<&'a Value> for Option<TipValue> {
+    type Output = Option<TipValue>;
+
+    fn add(self, other: &Value) -> Option<TipValue> {
+        use super::history::Value as V;
+        use self::TipValue as T;
+        match (self, other) {
+            (Some(T::Integer(a)), &V::Integer(b, _, _))
+            => Some(T::Integer(a+b)),
+            (Some(T::Float(a)), &V::Float(b, _, _))
+            => Some(T::Float(a+b)),
+            (Some(T::States(ref vec)), &V::State(ref b, _)) => {
+                // TODO(tailhook) do not need to clone vector
+                let mut vec = vec.clone();
+                vec.push(b.clone());
+                Some(T::States(vec))
+            }
+            _ => None,
+        }
+    }
+}
+
+impl ToJson for TipValue {
+    fn to_json(&self) -> Json {
+        match self {
+            &TipValue::Integer(x) => Json::I64(x),
+            &TipValue::Float(x) => Json::F64(x),
+            &TipValue::States(ref lst) => lst.to_json(),
+        }
+    }
+}
+
 fn match_cond(key: &BTreeMap<String, String>, cond: &Condition) -> bool {
     use self::Condition::*;
     match cond {
@@ -106,18 +158,47 @@ fn match_cond(key: &BTreeMap<String, String>, cond: &Condition) -> bool {
     }
 }
 
-fn query_tip(rule: &Rule, stats: &Stats) -> Result<Json, Error> {
-    for (&Key(ref key), ref value) in stats.history.tip.iter() {
-        if match_cond(key, &rule.condition) {
+fn query_tip(_rule: &Rule, _stats: &Stats) -> Result<Json, Error> {
+    unimplemented!()
+}
+
+fn tree_insert(map: &mut BTreeMap<String, Json>, key: &[&String], val: Json) {
+    use std::collections::btree_map::Entry::{Occupied, Vacant};
+    if key.len() == 1 {
+        map.insert(key[0].clone(), val);
+    } else {
+        match map.entry(key[0].clone()) {
+                Occupied(mut x) => {
+                    tree_insert(x.get_mut().as_object_mut().unwrap(),
+                                &key[1..], val);
+                }
+                Vacant(x) => {
+                    let mut m = BTreeMap::new();
+                    tree_insert(&mut m, &key[1..], val);
+                    x.insert(Json::Object(m));
+                }
         }
     }
-    return Ok(Json::Object(BTreeMap::new()));
+}
+
+fn json_tree<'x, I>(iter: I) -> Json
+    where I: Iterator<Item=(Vec<&'x String>, Json)>
+{
+    let mut res = BTreeMap::new();
+    for (key, val) in iter {
+        if key.len() == 0 {
+            // assert!(iter.next().is_none());
+            return val;
+        }
+        tree_insert(&mut res, &key[..], val);
+    }
+    return Json::Object(res);
 }
 
 fn query_fine(rule: &Rule, stats: &Stats) -> Result<Json, Error> {
     use self::Aggregation::*;
     use self::Load::*;
-    use super::history::Value::*;
+    use std::collections::hash_map::Entry::{Occupied, Vacant};
     let dummy = String::from("");
     let mut h = HashMap::<_, Vec<_>>::new();
     for (ref k, _) in stats.history.fine.iter() {
@@ -134,22 +215,28 @@ fn query_fine(rule: &Rule, stats: &Stats) -> Result<Json, Error> {
         }
     }
     println!("MATCHED {:?}", h);
-    let root = BTreeMap::new();
-    for (key, vec) in h.into_iter() {
-        match rule.aggregation {
-            None => {
-                unimplemented!();
-            }
-            Sum => {
-                match rule.load {
-                    Tip => {}
-                    Raw => {}
-                    Rate => {}
+    Ok(json_tree(h.into_iter().map(|(key, vec)| {
+        (key, match rule.aggregation {
+            None => match rule.load {
+                Tip => vec.into_iter()
+                        .map(|v| Option::<TipValue>::from(v))
+                        .collect::<Vec<_>>().to_json(),
+                Raw => unimplemented!(),
+                Rate => unimplemented!(),
+            },
+            Sum => match rule.load {
+                Tip => {
+                    let mut iter = vec.into_iter();
+                    let val = iter.next().and_then(Option::<TipValue>::from);
+                    iter.fold(val, |x, y| x+y).to_json()
                 }
-            }
-        }
-    }
-    return Ok(Json::Object(root));
+                Raw => unimplemented!(),
+                Rate => {
+                    unimplemented!();
+                }
+            },
+        })
+    })))
 }
 
 pub fn query(query: &Query, stats: &Stats) -> Result<Json, Error> {
@@ -168,3 +255,4 @@ pub fn query(query: &Query, stats: &Stats) -> Result<Json, Error> {
     }
     return Ok(Json::Object(items));
 }
+

@@ -27,7 +27,6 @@ pub enum Interval {
     Tip,        // No history
 }
 
-
 #[derive(Debug, RustcEncodable, RustcDecodable)]
 pub struct History {
     age: u64,

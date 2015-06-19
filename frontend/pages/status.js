@@ -26,31 +26,27 @@ const MEM_ORDER = {
     CommitLimit: 10,
 }
 
-function memchart(data) {
-    var mem = {}
-    for(var item of data.latest) {
-        if(item[0].metric.substr(0, 7) == 'memory.') {
-            mem[item[0].metric.substr(7)] = item[1]
-        }
-    }
-    mem.Used = mem.MemTotal
-               - mem.MemFree
-               - mem.Buffers
-               - mem.Cached
+function memchart(metrics) {
+    metrics['memory.Used'] = [metrics['memory.MemTotal'][0]
+                    - metrics['memory.MemFree'][0]
+                    - metrics['memory.Buffers'][0]
+                    - metrics['memory.Cached'][0]]
     return {
         title: 'Memory',
         unit: 'MiB',
-        total: mem.MemTotal,
-        items: Object.keys(mem).map(key => {
-            var item = mem[key];
+        total: metrics['memory.MemTotal'][0],
+        items: Object.keys(metrics).map(metricname => {
+            var value = metrics[metricname][0];
+            let key = metricname.substr('memory.'.length);
             return {
                 color: MEM_COLORS[key],
                 title: key,
-                value: mem[key],
-                text: (mem[key]/1048576).toFixed(1),
+                value: value,
+                text: (value/1048576).toFixed(1),
                 collapsed: MEM_ORDER[key] === undefined,
             }
-        }).sort((a, b) => (MEM_ORDER[a.title] || 10000) - (MEM_ORDER[b.title] || 10000))
+        }).sort((a, b) => (MEM_ORDER[a.title] || 10000) -
+                          (MEM_ORDER[b.title] || 10000))
     }
 }
 
@@ -108,7 +104,7 @@ export class Status extends Component {
                 return {
                     error: null,
                     timestamps: data.history_timestamps,
-                    mem_chart: memchart(data),
+                    //mem_chart: memchart(data),
                     network: network(data),
                     disk: disk(data),
                 }
@@ -124,22 +120,28 @@ export class Status extends Component {
                     'load': 'Tip',
                     'limit': 1,
                     },
-                'network': {
-                    'source':'Fine',
-                    'condition': ['and',
-                        ['regex-like', 'metric',
-                         "^net.interface.[rt]x.bytes$"],
-                        ['not', ['or',
-                            ['eq', 'interface', 'lo'],
-                            ['regex-like', 'interface', '^tun']]]],
-                    'key': ['metric'],
-                    'aggregation': 'None',
-                    'load': 'Raw',
-                    'limit': 1,
-                    },
+                //'network': {
+                //    'source':'Fine',
+                //    'condition': ['and',
+                //        ['regex-like', 'metric',
+                //         "^net.interface.[rt]x.bytes$"],
+                //        ['not', ['or',
+                //            ['eq', 'interface', 'lo'],
+                //            ['regex-like', 'interface', '^tun']]]],
+                //    'key': ['metric'],
+                //    'aggregation': 'None',
+                //    'load': 'Rate',
+                //    'limit': 1,
+                //    },
             }})}))
         .process((data, latency) => {
-            console.log("GOT DATA", data)
+            if(data instanceof Error) {
+                return {error: data, latency}
+            } else {
+                return {
+                    mem_chart: memchart(data.memory),
+                }
+            }
         })
     }
     render() {
