@@ -1,6 +1,8 @@
 use std::str::from_utf8;
 use std::sync::RwLock;
+use std::collections::HashMap;
 use rustc_serialize::json;
+use rustc_serialize::json::ToJson;
 
 use super::aio;
 use super::scan;
@@ -38,6 +40,7 @@ fn handle_request(stats: &RwLock<Stats>, req: &http::Request)
         return staticfiles::serve(req);
     } else {
         let stats = stats.read().unwrap();
+        let ref h = stats.history;
         match req.uri() {
             "/status.json" => Ok(http::reply_json(req, &StatusData {
                 startup_time: stats.startup_time,
@@ -58,7 +61,14 @@ fn handle_request(stats: &RwLock<Stats>, req: &http::Request)
                .and_then(|s| json::decode::<Query>(s)
                .map_err(|_| http::Error::BadRequest("Failed to decode query")))
                .and_then(|r| {
-                   Ok(http::reply_json(req, &try!(query(&r, &*stats))))
+                   Ok(http::reply_json(req, &vec![
+                    (String::from("dataset"), try!(query(&r, &*stats))),
+                    (String::from("tip_timestamp"), h.tip_timestamp.to_json()),
+                    (String::from("fine_timestamps"), h.fine_timestamps
+                        .iter().cloned().collect::<Vec<_>>().to_json()),
+                    (String::from("coarse_timestamps"), h.coarse_timestamps
+                        .iter().cloned().collect::<Vec<_>>().to_json()),
+                   ].into_iter().collect::<HashMap<_,_>>().to_json()))
                 }),
             _ => Err(http::Error::NotFound),
         }

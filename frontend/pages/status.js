@@ -27,6 +27,7 @@ const MEM_ORDER = {
 }
 
 function memchart(metrics) {
+    console.log("MEMCHART", metrics)
     metrics['memory.Used'] = [metrics['memory.MemTotal'][0]
                     - metrics['memory.MemFree'][0]
                     - metrics['memory.Buffers'][0]
@@ -96,20 +97,6 @@ export class Status extends Component {
         this.mem_chart = {items:[]}
     }
     init(elem) {
-        this.guard('json', new RefreshJson("/details.json"))
-        .process((data, latency) => {
-            if(data instanceof Error) {
-                return {error: data, latency}
-            } else {
-                return {
-                    error: null,
-                    timestamps: data.history_timestamps,
-                    //mem_chart: memchart(data),
-                    network: network(data),
-                    disk: disk(data),
-                }
-            }
-        })
         this.guard('new_query', new RefreshJson("/query.json", {
             post_body: JSON.stringify({'rules': {
                 'memory': {
@@ -133,19 +120,34 @@ export class Status extends Component {
                     'load': 'Rate',
                     'limit': 500,
                     },
+                'disk': {
+                    'source':'Fine',
+                    'condition': ['and',
+                        ['regex-like', 'metric',
+                         "^disk\.(?:read|write)\.ops$"],
+                        ['regex-like', 'device',
+                         "^sd[a-z]$"]],
+                    'key': ['metric'],
+                    'aggregation': 'CasualSum',
+                    'load': 'Rate',
+                    'limit': 500,
+                    },
             }})}))
         .process((data, latency) => {
             if(data instanceof Error) {
                 return {error: data, latency}
             } else {
                 return {
-                    mem_chart: memchart(data.memory),
+                    mem_chart: memchart(data.dataset.memory),
+                    network: data.dataset.network,
+                    fine_timestamps: data.fine_timestamps
+                                     .map(([v, d]) => from_ms(v + d/2)),
                 }
             }
         })
     }
     render() {
-        const ts = this.timestamps && this.timestamps.slice(1)
+        const ts = this.fine_timestamps
         return template.render(this.error, ts, this.mem_chart, this.network)
     }
 }

@@ -56,7 +56,8 @@ html render(error, timestamps, mem_chart, network):
     h2 "Network"
     h3 "Receive"
     if network:
-      =plot.render(timestamps, network.bytes_rx)
+      =String(console.log("NETWORK", network))
+      =plot.render(timestamps, network['net.interface.rx.bytes'])
     h3 "Transfer"
     if network:
       =plot.render(timestamps, network.bytes_tx)

@@ -48,24 +48,24 @@ function linear_axis(min, max, nticks) {
 }
 
 function time_axis(ts) {
-    let min = ts[0][0]
-    let max = ts[ts.length-1][0]
+    let min = ts[0]
+    let max = ts[ts.length-1]
     let diff = min - max
-    console.log("TIME", diff, min, max)
 }
 
 export class Plot {
     constructor(ts, data, width, height) {
-        var xoff = ts[0][0]
+        console.log("DATA", data)
+        var xoff = ts[0]
         var max = this.max = Math.max.apply(null, data);
         var min = this.min = Math.min.apply(null, data);
         var yaxis = this.yaxis = linear_axis(0, max, 0.3 * Math.sqrt(height))
         var xaxis = this.xaxis = time_axis(ts)
-        var xscale = width / (xoff - ts[ts.length-1][0])
+        var xscale = width / (xoff - ts[ts.length-1])
         var yscale = height / yaxis.height;
         var path = `M ${width}, ${data[0]*yscale} L`
         for(var i = 1, il = data.length; i < il; ++i) {
-            path += ` ${width - (xoff - ts[i][0])*xscale}
+            path += ` ${width - (xoff - ts[i])*xscale}
                       ${height - data[i]*yscale}`
         }
         this.xscale = xscale

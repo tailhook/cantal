@@ -294,7 +294,6 @@ fn query_fine(rule: &Rule, stats: &Stats) -> Result<Json, Error> {
 }
 
 pub fn query(query: &Query, stats: &Stats) -> Result<Json, Error> {
-    debug!("Query {:?}", query);
     let mut items = BTreeMap::new();
     for (name, rule) in query.rules.iter() {
         match rule.source {

@@ -54,8 +54,8 @@ export class Navbar extends Component {
                 return {error: data, latency}
             } else {
                 return {data, error, latency,
-                    cpu_chart: cpu_graph_data(data),
-                    memory_chart: memory_graph_data(data),
+                    //cpu_chart: cpu_graph_data(data),
+                    //memory_chart: memory_graph_data(data),
                     }
             }
         })
