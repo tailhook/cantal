@@ -1,16 +1,17 @@
 use std::f64::NAN;
-use std::cmp::min;
 use std::mem::replace;
+use std::iter::{repeat, Take, Repeat, Chain};
 use std::collections::VecDeque;
+use std::collections::vec_deque::Iter as DequeIter;
 use std::collections::HashMap;
 use std::collections::hash_map::Entry::{Occupied, Vacant};
-use rustc_serialize::json::Json;
 
 use super::stats::Key;
 use super::scan::Tip;
-use super::deltabuf::{DeltaBuf, Delta};
+use super::deltabuf::{DeltaBuf, DeltaIter, Delta};
 use cantal::Value as TipValue;
 
+type FloatHistory<'a> = Chain<Take<Repeat<Option<f64>>>, NoneMap<'a>>;
 
 #[derive(Debug, RustcEncodable, RustcDecodable)]
 pub enum Value {
@@ -20,6 +21,19 @@ pub enum Value {
     Float(f64, u64, VecDeque<f64>),  // No compression, sorry
     // (timestamp, text), age
     State((u64, String), u64),  // No useful history
+}
+
+pub enum ValueHistory<'a> {
+    Counter(CounterHistory<'a>),
+    Integer(IntegerHistory<'a>),
+    Float(FloatHistory<'a>),
+}
+
+pub enum Histories<'a> {
+    Empty,
+    Counters(Vec<CounterHistory<'a>>),
+    Integers(Vec<IntegerHistory<'a>>),
+    Floats(Vec<FloatHistory<'a>>),
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -75,6 +89,18 @@ impl Source for TipValue {
     }
 }
 
+#[derive(Clone)]
+struct NoneMap<'a> {
+    iter: DequeIter<'a, f64>,
+}
+
+impl<'a> Iterator for NoneMap<'a> {
+    type Item = Option<f64>;
+    fn next(&mut self) -> Option<Option<f64>> {
+        self.iter.next().map(|x| if x.is_nan() { None } else { Some(*x) })
+    }
+}
+
 impl Value {
     fn push(&mut self, tip: TipValue, age: u64) -> Option<TipValue> {
         match self {
@@ -109,73 +135,18 @@ impl Value {
         }
         return Some(tip);
     }
-    fn json_history(&self, mut num: usize, current_age: u64) -> Json {
+    fn history<'x>(&'x self, current_age: u64) -> ValueHistory<'x> {
+        use self::ValueHistory::*;
         match self {
-            &Value::Counter(tip, age, ref buf) => {
-                let mut res = vec!();
-                for _ in 0..min(current_age - age, num as u64) {
-                    num -= 1;
-                    res.push(Json::Null);
-                }
-                res.push(Json::U64(tip));
-                num -= 1;
-                let mut val = tip;
-                for dlt in buf.deltas(num) {
-                    match dlt {
-                        Delta::Positive(x) => {
-                            val -= x as u64;
-                            res.push(Json::U64(val));
-                        }
-                        Delta::Negative(x) => {
-                            val += x as u64;
-                            res.push(Json::U64(val));
-                        }
-                        Delta::Skip => res.push(Json::Null),
-                    }
-                }
-                return Json::Array(res);
-            }
-            &Value::Integer(tip, age, ref buf) => {
-                let mut res = vec!();
-                for _ in 0..min(current_age - age, num as u64) {
-                    num -= 1;
-                    res.push(Json::Null);
-                }
-                res.push(Json::I64(tip));
-                num -= 1;
-                let mut val = tip;
-                for dlt in buf.deltas(num) {
-                    match dlt {
-                        Delta::Positive(x) => {
-                            val -= x as i64;
-                            res.push(Json::I64(val));
-                        }
-                        Delta::Negative(x) => {
-                            val += x as i64;
-                            res.push(Json::I64(val));
-                        }
-                        Delta::Skip => res.push(Json::Null),
-                    }
-                }
-                return Json::Array(res);
-            }
-            &Value::Float(tip, age, ref buf) => {
-                let mut res = vec!();
-                for _ in 0..min(current_age - age, num as u64) {
-                    num -= 1;
-                    res.push(Json::Null);
-                }
-                res.push(Json::F64(tip));
-                num -= 1;
-                for (idx, val) in buf.iter().enumerate() {
-                    if idx > num { break; }
-                    res.push(Json::F64(*val));
-                }
-                return Json::Array(res);
-            }
-            &Value::State(_, _) => {
-                return Json::Null;  // No history for State
-            }
+            &Value::Counter(tip, age, ref buf)
+            => Counter(CounterHistory::new(tip, current_age - age, buf)),
+            &Value::Integer(tip, age, ref buf)
+            => Integer(IntegerHistory::new(tip, current_age - age, buf)),
+            &Value::Float(_, age, ref buf)
+            => Float(repeat(None).take((current_age - age) as usize)
+                     .chain(NoneMap { iter: buf.iter() })),
+            &Value::State(_, _)
+            => unreachable!(),
         }
     }
     fn truncate(&mut self, trim_age: u64) -> bool {
@@ -215,6 +186,86 @@ impl Value {
     }
 }
 
+#[derive(Clone)]
+struct CounterHistory<'a> {
+    iter: Chain<Take<Repeat<Delta>>, DeltaIter<'a>>,
+    tip: u64,
+}
+
+impl<'a> CounterHistory<'a> {
+    fn new<'x>(tip: u64, age_diff: u64, dbuf: &'x DeltaBuf)
+        -> CounterHistory<'x>
+    {
+        CounterHistory {
+            iter: repeat(Delta::Skip)
+                .take(age_diff as usize)
+                .chain(dbuf.deltas()),
+            tip: tip,
+        }
+    }
+}
+
+impl<'a> Iterator for CounterHistory<'a> {
+    type Item = Option<u64>;
+    fn next(&mut self) -> Option<Option<u64>> {
+        match self.iter.next() {
+            Some(Delta::Positive(x)) => {
+                self.tip -= x as u64;
+            }
+            Some(Delta::Negative(x)) => {
+                self.tip += x as u64;
+            }
+            Some(Delta::Skip) => {
+                return Some(None);
+            }
+            None => {
+                return None;
+            }
+        }
+        return Some(Some(self.tip));
+    }
+}
+
+#[derive(Clone)]
+struct IntegerHistory<'a> {
+    iter: Chain<Take<Repeat<Delta>>, DeltaIter<'a>>,
+    tip: i64,
+}
+
+impl<'a> IntegerHistory<'a> {
+    fn new<'x>(tip: i64, age_diff: u64, dbuf: &'x DeltaBuf)
+        -> IntegerHistory<'x>
+    {
+        IntegerHistory {
+            iter: repeat(Delta::Skip)
+                .take(age_diff as usize)
+                .chain(dbuf.deltas()),
+            tip: tip,
+        }
+    }
+}
+
+impl<'a> Iterator for IntegerHistory<'a> {
+    type Item = Option<i64>;
+    fn next(&mut self) -> Option<Option<i64>> {
+        match self.iter.next() {
+            Some(Delta::Positive(x)) => {
+                self.tip -= x as i64;
+            }
+            Some(Delta::Negative(x)) => {
+                self.tip += x as i64;
+            }
+            Some(Delta::Skip) => {
+                return Some(None);
+            }
+            None => {
+                return None;
+            }
+        }
+        return Some(Some(self.tip));
+    }
+}
+
 impl History {
     pub fn new() -> History {
         return History {
@@ -226,6 +277,9 @@ impl History {
             tip_timestamp: (0, 0),
             tip: HashMap::new(),
         }
+    }
+    pub fn get_fine_history(&self, key: &Key) -> Option<ValueHistory> {
+        self.fine.get(key).map(|v| v.history(self.age))
     }
     pub fn push(&mut self, timestamp: u64, duration: u32, tip: Tip) {
         self.age += 1;
@@ -295,4 +349,23 @@ impl History {
                 }).collect();
         }
     }
+}
+
+pub fn merge<'x, I: Iterator<Item=ValueHistory<'x>>>(iter: I)
+    -> Option<Histories<'x>>
+{
+    use self::Histories::*;
+    use self::ValueHistory::*;
+    iter.fold(Some(Empty), |acc, val| acc.and_then(|a| Some(match (a, val) {
+        (Empty, Counter(i)) => Counters(vec![i]),
+        (Empty, Integer(i)) => Integers(vec![i]),
+        (Empty, Float(i)) => Floats(vec![i]),
+        (Counters(mut v), Counter(i)) => { v.push(i); Counters(v) }
+        (Integers(mut v), Integer(i)) => { v.push(i); Integers(v) }
+        (Floats(mut v), Float(i)) => { v.push(i); Floats(v) }
+        // We don't use (_, _) below, to keep track of added pairs
+        (Counters(_), _) => return None,
+        (Integers(_), _) => return None,
+        (Floats(_), _) => return None,
+    })))
 }

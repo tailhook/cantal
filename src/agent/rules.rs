@@ -1,5 +1,5 @@
-use std::ops::Add;
-use std::iter::repeat;
+use std::ops::{Add, Sub};
+use std::iter::{repeat};
 use std::collections::{HashMap, BTreeMap};
 
 use regex::Regex;
@@ -8,7 +8,7 @@ use rustc_serialize::{Decodable, Decoder};
 
 use super::aio::http;
 use super::stats::{Stats, Key};
-use super::history::Value;
+use super::history::{merge};
 
 pub struct Error(&'static str);
 
@@ -95,7 +95,7 @@ pub struct Query {
     pub rules: HashMap<String, Rule>,
 }
 
-fn match_cond(key: &BTreeMap<String, String>, cond: &Condition) -> bool {
+fn match_cond(key: &Key, cond: &Condition) -> bool {
     use self::Condition::*;
     match cond {
         &Eq(ref name, ref value) => key.get(name) == Some(value),
@@ -112,12 +112,12 @@ fn query_tip(_rule: &Rule, _stats: &Stats) -> Result<Json, Error> {
     unimplemented!()
 }
 
-fn tree_insert(map: &mut BTreeMap<String, Json>, key: &[&String], val: Json) {
+fn tree_insert(map: &mut BTreeMap<String, Json>, key: &[&str], val: Json) {
     use std::collections::btree_map::Entry::{Occupied, Vacant};
     if key.len() == 1 {
-        map.insert(key[0].clone(), val);
+        map.insert(key[0].to_string(), val);
     } else {
-        match map.entry(key[0].clone()) {
+        match map.entry(key[0].to_string()) {
                 Occupied(mut x) => {
                     tree_insert(x.get_mut().as_object_mut().unwrap(),
                                 &key[1..], val);
@@ -132,7 +132,7 @@ fn tree_insert(map: &mut BTreeMap<String, Json>, key: &[&String], val: Json) {
 }
 
 fn json_tree<'x, I>(iter: I) -> Json
-    where I: Iterator<Item=(Vec<&'x String>, Json)>
+    where I: Iterator<Item=(Vec<&'x str>, Json)>
 {
     let mut res = BTreeMap::new();
     for (key, val) in iter {
@@ -145,37 +145,151 @@ fn json_tree<'x, I>(iter: I) -> Json
     return Json::Object(res);
 }
 
+fn take_tip<T:ToJson, I:Iterator<Item=Option<T>>>(items: Vec<I>, limit: u32)
+    -> Json
+{
+    items.into_iter()
+        .map(|x| x.take(limit as usize).find(Option::is_some).and_then(|x| x))
+        .collect::<Vec<_>>().to_json()
+}
+
+fn take_raw<T:ToJson, I:Iterator<Item=Option<T>>>(items: Vec<I>, limit: u32)
+    -> Json
+{
+    items.into_iter()
+        .map(|x| x.take(limit as usize).collect::<Vec<_>>())
+        .collect::<Vec<_>>().to_json()
+}
+
+fn take_rate<T:Sub<T, Output=T>+ToJson, I>(items: Vec<I>, limit: u32)
+    -> Json
+    where I: Iterator<Item=Option<T>> + Clone
+{
+    items.into_iter().map(|iter| {
+        let mut pair = iter.clone();
+        pair.next();
+        iter.zip(pair)
+            .map(|(new, old)| new.and_then(|new| old.map(|old| new - old)))
+            .take(limit as usize)
+            .collect::<Vec<_>>()
+    }).collect::<Vec<_>>().to_json()
+}
+fn sum_tip<T, I>(items: Vec<I>, limit: u32, zero: T) -> Json
+    where T: Add<T, Output=T> + ToJson,
+          I: Iterator<Item=Option<T>>
+{
+    items.into_iter()
+        .filter_map(|x| x.take(limit as usize)
+                         .find(Option::is_some).and_then(|x| x))
+        .fold(zero, |acc, val| acc + val).to_json()
+}
+
+fn sum_raw<T, I>(items: Vec<I>, limit: u32, zero: T) -> Json
+    where T: Add<T, Output=T> + ToJson + Copy,
+          I: Iterator<Item=Option<T>>
+{
+    let zeros = repeat(zero).take(limit as usize).collect::<Vec<T>>();
+    items.into_iter()
+        .map(|x| x.take(limit as usize)
+                  .map(|x| x.unwrap_or(zero))
+                  .collect::<Vec<_>>())
+        .fold(zeros, |mut acc, val| {
+            for (i, v) in val.into_iter().enumerate() {
+                acc[i] = acc[i] + v;
+            }
+            acc
+        })
+        .to_json()
+}
+
+fn sum_rate<T, I>(items: Vec<I>, limit: u32, zero: T)
+    -> Json
+    where I: Iterator<Item=Option<T>> + Clone,
+          T: Sub<T, Output=T> + Add<T, Output=T> + ToJson + Copy
+{
+    let zeros = repeat(zero).take(limit as usize).collect::<Vec<T>>();
+    items.into_iter().map(|iter| {
+        let mut pair = iter.clone();
+        pair.next();
+        iter.zip(pair)
+            .map(|(new, old)|
+                new.and_then(|new| old.map(|old| new - old))
+                .unwrap_or(zero))
+            .take(limit as usize)
+            .collect::<Vec<_>>()
+    })
+    .fold(zeros, |mut acc, val| {
+        for (i, v) in val.into_iter().enumerate() {
+            acc[i] = acc[i] + v;
+        }
+        acc
+    })
+    .to_json()
+}
+
 fn query_fine(rule: &Rule, stats: &Stats) -> Result<Json, Error> {
     use self::Aggregation::*;
     use self::Load::*;
     use std::collections::hash_map::Entry::{Occupied, Vacant};
-    let dummy = String::from("");
     let mut keys = HashMap::<_, Vec<_>>::new();
-    for (ref k, _) in stats.history.fine.iter() {
-        let ref key = k.0;
+    for (ref key, _) in stats.history.fine.iter() {
         if match_cond(key, &rule.condition) {
             let target_key = rule.key.iter()
-                             .map(|x| key.get(x).unwrap_or(&dummy))
+                             .map(|x| key.get(x).unwrap_or(""))
                              .collect::<Vec<_>>();
             match keys.entry(target_key) {
-                Occupied(mut e) => { e.get_mut().push(k.clone()); }
-                Vacant(e) => { e.insert(vec![k.clone()]); }
+                Occupied(mut e) => { e.get_mut().push(key.clone()); }
+                Vacant(e) => { e.insert(vec![key.clone()]); }
             };
         }
     }
     Ok(json_tree(keys.into_iter().map(|(key, hkeys)| {
-        (key, match rule.aggregation {
+        use super::history::Histories::*;
+        let stream = merge(hkeys.iter()
+               .filter_map(|key| stats.history.get_fine_history(key)));
+        let json = match rule.aggregation {
             None => match rule.load {
-                Tip => unimplemented!(),
-                Raw => unimplemented!(),
-                Rate => unimplemented!(),
+                Tip => stream.map(|s| match s {
+                    Empty => Json::Null,
+                    Counters(x) => take_tip(x, rule.limit),
+                    Integers(x) => take_tip(x, rule.limit),
+                    Floats(x) => take_tip(x, rule.limit),
+                }),
+                Raw => stream.map(|s| match s {
+                    Empty => Json::Null,
+                    Counters(x) => take_raw(x, rule.limit),
+                    Integers(x) => take_raw(x, rule.limit),
+                    Floats(x) => take_raw(x, rule.limit),
+                }),
+                Rate => stream.map(|s| match s {
+                    Empty => Json::Null,
+                    Counters(x) => take_rate(x, rule.limit),
+                    Integers(x) => take_rate(x, rule.limit),
+                    Floats(x) => take_rate(x, rule.limit),
+                }),
             },
             CasualSum => match rule.load {
-                Tip => unimplemented!(),
-                Raw => unimplemented!(),
-                Rate => unimplemented!(),
+                Tip => stream.map(|s| match s {
+                    Empty => Json::Null,
+                    Counters(x) => sum_tip(x, rule.limit, 0),
+                    Integers(x) => sum_tip(x, rule.limit, 0),
+                    Floats(x) => sum_tip(x, rule.limit, 0.),
+                }),
+                Raw => stream.map(|s| match s {
+                    Empty => Json::Null,
+                    Counters(x) => sum_raw(x, rule.limit, 0),
+                    Integers(x) => sum_raw(x, rule.limit, 0),
+                    Floats(x) => sum_raw(x, rule.limit, 0.),
+                }),
+                Rate => stream.map(|s| match s {
+                    Empty => Json::Null,
+                    Counters(x) => sum_rate(x, rule.limit, 0),
+                    Integers(x) => sum_rate(x, rule.limit, 0),
+                    Floats(x) => sum_rate(x, rule.limit, 0.),
+                }),
             },
-        })
+        };
+        (key, json.unwrap_or(Json::Null))
     })))
 }
 

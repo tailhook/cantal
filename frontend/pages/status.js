@@ -118,7 +118,7 @@ export class Status extends Component {
                     'key': ['metric'],
                     'aggregation': 'None',
                     'load': 'Tip',
-                    'limit': 500,
+                    'limit': 15,  // about 30 seconds
                     },
                 'network': {
                     'source':'Fine',
@@ -131,7 +131,7 @@ export class Status extends Component {
                     'key': ['metric'],
                     'aggregation': 'CasualSum',
                     'load': 'Rate',
-                    'limit': 1,
+                    'limit': 500,
                     },
             }})}))
         .process((data, latency) => {

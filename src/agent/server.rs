@@ -1,20 +1,13 @@
-use std::str::FromStr;
 use std::str::from_utf8;
 use std::sync::RwLock;
 use rustc_serialize::json;
-use rustc_serialize::json::Json;
 
 use super::aio;
 use super::scan;
 use super::staticfiles;
 use super::aio::http;
-use super::util::tree_collect;
-use super::stats::{Stats, Key};
+use super::stats::{Stats};
 use super::rules::{Query, query};
-use super::scan::processes::Pid;
-
-
-const SHORT_HISTORY: usize = 30;
 
 
 #[derive(RustcEncodable)]
@@ -29,23 +22,9 @@ struct StatusData {
 }
 
 #[derive(RustcEncodable)]
-struct Metrics {
-    pub latest: Vec<(Json, Json)>,
-    pub history: Vec<(Json, Json)>,
-    pub history_timestamps: Vec<(u64, u32)>,
-}
-
-#[derive(RustcEncodable)]
 struct ProcessesData<'a> {
     boot_time: Option<u64>,
     all: &'a Vec<scan::processes::MinimalProcess>,
-}
-
-#[derive(RustcEncodable)]
-struct ProcessData<'a> {
-    pub pid: Pid,
-    pub process: &'a scan::processes::MinimalProcess,
-    pub values: Vec<(Json, Json)>,
 }
 
 fn handle_request(stats: &RwLock<Stats>, req: &http::Request)
@@ -59,7 +38,6 @@ fn handle_request(stats: &RwLock<Stats>, req: &http::Request)
         return staticfiles::serve(req);
     } else {
         let stats = stats.read().unwrap();
-        let ref h = stats.history;
         match req.uri() {
             "/status.json" => Ok(http::reply_json(req, &StatusData {
                 startup_time: stats.startup_time,

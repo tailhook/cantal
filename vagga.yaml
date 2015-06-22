@@ -23,7 +23,7 @@ commands:
     container: ubuntu
     environ:
       RUST_BACKTRACE: 1
-    run: [make, test]
+    run: [cargo, test]
 
   py3: !Command
     description: Run python3 example
