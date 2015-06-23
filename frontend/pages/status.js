@@ -27,7 +27,6 @@ const MEM_ORDER = {
 }
 
 function memchart(metrics) {
-    console.log("MEMCHART", metrics)
     metrics['memory.Used'] = [metrics['memory.MemTotal'][0]
                     - metrics['memory.MemFree'][0]
                     - metrics['memory.Buffers'][0]
@@ -140,6 +139,7 @@ export class Status extends Component {
                 return {
                     mem_chart: memchart(data.dataset.memory),
                     network: data.dataset.network,
+                    disk: data.dataset.disk,
                     fine_timestamps: data.fine_timestamps
                                      .map(([v, d]) => from_ms(v + d/2)),
                 }
@@ -148,6 +148,7 @@ export class Status extends Component {
     }
     render() {
         const ts = this.fine_timestamps
-        return template.render(this.error, ts, this.mem_chart, this.network)
+        return template.render(this.error, ts, this.mem_chart,
+            this.network, this.disk)
     }
 }

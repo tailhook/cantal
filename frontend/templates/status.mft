@@ -10,7 +10,7 @@ css:
       width: 1em
       height: 1em
 
-html render(error, timestamps, mem_chart, network):
+html render(error, timestamps, mem_chart, network, disk):
   .container
     h1 "System Status"
     if error:
@@ -56,10 +56,15 @@ html render(error, timestamps, mem_chart, network):
     h2 "Network"
     h3 "Receive"
     if network:
-      =String(console.log("NETWORK", network))
       =plot.render(timestamps, network['net.interface.rx.bytes'])
     h3 "Transfer"
     if network:
       =plot.render(timestamps, network['net.interface.tx.bytes'])
 
-    h2 "Disk"
+    h2 "Disk Ops"
+    h3 "Read"
+    if disk:
+      =plot.render(timestamps, disk['disk.read.ops'])
+    h3 "Write"
+    if disk:
+      =plot.render(timestamps, disk['disk.write.ops'])
