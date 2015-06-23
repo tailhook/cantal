@@ -67,10 +67,6 @@ impl Key {
         }
         return Key(res);
     }
-    pub fn to_json(&self) -> Json {
-        let &Key(ref res) = self;
-        return res.to_json();
-    }
     pub fn from_pair(key: &str, val: &str) -> Key {
         let mut res = BTreeMap::new();
         res.insert(key.to_string(), val.to_string());
@@ -90,4 +86,15 @@ impl Key {
     }
 }
 
+impl ToJson for Key {
+    fn to_json(&self) -> Json {
+        self.0.to_json()
+    }
+}
+
+impl<'a> ToJson for &'a Key {
+    fn to_json(&self) -> Json {
+        self.0.to_json()
+    }
+}
 

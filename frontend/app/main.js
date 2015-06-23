@@ -6,6 +6,7 @@ import {Processes} from 'pages/processes'
 import {Status} from 'pages/status'
 import {Values} from 'pages/values'
 import {Totals} from 'pages/totals'
+import {Metrics} from 'pages/metrics'
 import {update, append} from 'util/render'
 
 
@@ -32,6 +33,8 @@ export class App {
                 app.page = Values;
             } else if(window.location.hash == '#/totals') {
                 app.page = Totals;
+            } else if(window.location.hash == '#/metrics') {
+                app.page = Metrics;
             }
             update()
         }

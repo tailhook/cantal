@@ -1,0 +1,10 @@
+html render(metrics):
+  .container
+    h1 "All metrics"
+    div
+      if metrics:
+        for m of metrics:
+          pre
+            code
+              =JSON.stringify(m)
+

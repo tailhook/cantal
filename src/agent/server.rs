@@ -55,6 +55,13 @@ fn handle_request(stats: &RwLock<Stats>, req: &http::Request)
                 boot_time: stats.boot_time,
                 all: &stats.processes,
             })),
+            "/all_metrics.json" => Ok(http::reply_json(req,
+                &stats.history.tip.keys()
+                .chain(stats.history.fine.keys())
+                .chain(stats.history.coarse.keys())
+                .collect::<Vec<_>>()
+                .to_json()
+            )),
             "/query.json"
             => from_utf8(req.body.unwrap_or(b""))
                .map_err(|_| http::Error::BadRequest("Bad utf-8 encoding"))

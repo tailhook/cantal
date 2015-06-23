@@ -50,12 +50,9 @@ html render(data, latency, error, current_page):
           li.active?(current_page == 'processes')
             a[href="#/processes"]
               "Processes"
-          li.active?(current_page == 'values')
-            a[href="#/values"]
-              "Values"
-          li.active?(current_page == 'totals')
-            a[href="#/totals"]
-              "Totals"
+          li.active?(current_page == 'metrics')
+            a[href="#/metrics"]
+              "Metrics"
         form.navbar-form.navbar-right.bg-danger?(error)
           "("
           =icon('hdd')
