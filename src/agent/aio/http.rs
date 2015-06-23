@@ -169,7 +169,7 @@ impl<'a> Stream<'a> {
     }
     pub fn read_http(&mut self) -> HandlerResult {
         match read_to_vec(self.fd, &mut self.buf) {
-            ReadResult::Read(start, end) => {
+            ReadResult::Read(_, end) => {
                 assert!(end == self.buf.len());
                 if self.buf.len() > MAX_HEADERS_SIZE {
                     return HandlerResult::Close;
