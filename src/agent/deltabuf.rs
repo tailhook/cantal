@@ -2,9 +2,9 @@ use std::cmp::min;
 use std::collections::VecDeque;
 use std::collections::vec_deque::Iter as DequeIter;
 
-const SIGN_BIT: u8 = 0b00100000;
-const SPECIAL_BIT: u8 = 0b01000000;
-const SPECIAL_BITS: u8 = 0b01100000;
+const SIGN_BIT: u8     = 0b00100000;
+const SPECIAL_BIT: u8  = 0b01000000;  // WARNING! check only with CONTINUATION
+const SPECIAL_BITS: u8 = 0b11100000;
 const SPECIAL_MASK: u8 = 0b00011111;
 //                       vv
 const SKIP_BITS: u8 = 0b01100000;
@@ -258,6 +258,11 @@ mod test {
             vec!(Positive(5), Positive(0), Positive(0), Positive(0),
                  Negative(99995), Positive(99000),
                  Positive(990), Positive(8), Positive(1) ));
+    }
+    #[test]
+    fn i64_zero_cont_bug() {
+        assert_eq!(deltify(&[0, 2943, 2943, 2943]),
+            vec!(Positive(0), Positive(0), Positive(2943)));
     }
     #[test]
     fn i64_skips() {
