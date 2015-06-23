@@ -60,7 +60,7 @@ export class Plot {
         var min = this.min = Math.min.apply(null, data);
         var yaxis = this.yaxis = linear_axis(0, max, 0.3 * Math.sqrt(height))
         var xaxis = this.xaxis = time_axis(ts)
-        var xscale = width / (xoff - ts[ts.length-1].getTime())
+        var xscale = width / (xoff - ts[data.length-1].getTime())
         var yscale = height / yaxis.height;
         var path = `M ${width}, ${height - data[0]*yscale} L`
         for(var i = 1, il = data.length; i < il; ++i) {
