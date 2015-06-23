@@ -83,6 +83,15 @@ containers:
       url: "http://static.rust-lang.org/dist/rust-1.0.0-x86_64-unknown-linux-gnu.tar.gz"
       script: "./install.sh --prefix=/usr --components=rustc,cargo"
 
+    - !GitInstall
+      url: "git://github.com/tailhook/marafet"
+      script: |
+        mkdir /tmp/marafet
+        # Cargo can't build in /tmp/git:%2F...
+        cp -R . /tmp/marafet
+        cd /tmp/marafet
+        make install PREFIX=/usr
+
     environ:
       HOME: /work/target
       PATH: /bin:/usr/bin:/usr/local/bin:/usr/lib/watch-make
