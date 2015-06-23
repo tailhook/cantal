@@ -171,15 +171,13 @@ impl<'a> Stream<'a> {
         match read_to_vec(self.fd, &mut self.buf) {
             ReadResult::Read(start, end) => {
                 assert!(end == self.buf.len());
-                let check_start = if start > 3 { start - 3 } else { 0 };
-                if end - check_start < 4 {
-                    if self.buf.len() > MAX_HEADERS_SIZE {
-                        return HandlerResult::Close;
-                    } else {
-                        return HandlerResult::ContinueRead;
-                    }
+                if self.buf.len() > MAX_HEADERS_SIZE {
+                    return HandlerResult::Close;
                 }
-                for i in check_start..(end - 3) {
+                if end < 4 {
+                    return HandlerResult::ContinueRead;
+                }
+                for i in 0..(end - 3) {
                     if &self.buf[i..i+4] == b"\r\n\r\n" {
                         match self.parse_request(&self.buf[0..i+2]) {
                             Ok(mut req) => {
