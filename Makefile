@@ -61,7 +61,7 @@ install:
 	install -d $(DESTDIR)$(PREFIX)/lib/cantal
 	install -m 755 cantal $(DESTDIR)$(PREFIX)/bin/cantal
 
-	install -m 755 cantal_agent $(DESTDIR)$(PREFIX)/lib/cantal/cantal-agent
+	install -m 755 cantal-agent $(DESTDIR)$(PREFIX)/lib/cantal/cantal-agent
 	ln -s ../lib/cantal/cantal-agent $(DESTDIR)$(PREFIX)/bin/cantal-agent
 	# setcap is required to be able to read other processes environment
 	# without root privileges
