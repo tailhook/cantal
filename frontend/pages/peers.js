@@ -1,8 +1,14 @@
 import {Component} from 'util/base'
+import {Stream} from 'util/streams'
 import {RefreshJson} from 'util/request'
-import metrics from 'templates/metrics.mft'
+import peers from 'templates/peers.mft'
 
-export class Metrics extends Component {
+export class Peers extends Component {
+    constructor() {
+        super()
+        this.add_host = new Stream("add_host")
+        this.add_host.handle(this.call_add_host.bind(this))
+    }
     init() {
         this.guard('json', new RefreshJson('/all_metrics.json',
                                            {interval: 120000}))
@@ -11,12 +17,14 @@ export class Metrics extends Component {
             if(data instanceof Error) {
                 error = data
             } else {
-                data.sort((a, b) => a.metric > b.metric ? 1 : a.metric < b.metric ? -1 : 0)
             }
-            return {error, metrics: data, latency}
+            return {error, data: data, latency}
         })
     }
     render() {
-        return metrics.render(this.metrics)
+        return peers.render(this.data, this)
+    }
+    call_add_host(value) {
+        console.log("VALUE", value)
     }
 }

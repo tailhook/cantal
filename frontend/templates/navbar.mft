@@ -53,6 +53,9 @@ html render(data, latency, error, current_page):
           li.active?(current_page == 'metrics')
             a[href="#/metrics"]
               "Metrics"
+          li.active?(current_page == 'peers')
+            a[href="#/peers"]
+              "Peers"
         form.navbar-form.navbar-right.bg-danger?(error)
           "("
           =icon('hdd')

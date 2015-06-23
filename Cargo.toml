@@ -15,8 +15,11 @@ cbor = "0.3"
 libc = "0.1"
 regex = "0.1"
 mio = "0.3"
-time = "0.1"
-argparse = "0.1"
+argparse = "0.2"
+
+[dependencies.time]
+version = "0.1"
+features = ["rustc-serialize"]
 
 [dependencies.log]
 git = "git://github.com/rust-lang/log"

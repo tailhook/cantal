@@ -7,6 +7,7 @@ import {Status} from 'pages/status'
 import {Values} from 'pages/values'
 import {Totals} from 'pages/totals'
 import {Metrics} from 'pages/metrics'
+import {Peers} from 'pages/peers'
 import {update, append} from 'util/render'
 
 
@@ -35,6 +36,8 @@ export class App {
                 app.page = Totals;
             } else if(window.location.hash == '#/metrics') {
                 app.page = Metrics;
+            } else if(window.location.hash == '#/peers') {
+                app.page = Peers;
             }
             update()
         }

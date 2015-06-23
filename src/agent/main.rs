@@ -7,6 +7,7 @@ extern crate rustc_serialize;
 extern crate env_logger;
 extern crate regex;
 extern crate mio;
+extern crate time;
 
 use std::thread;
 use std::fs::File;

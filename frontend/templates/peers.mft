@@ -1,0 +1,36 @@
+import {Toggle, Store, Value} from 'util/stores'
+
+html render(peers, ctr):
+  .container
+    store toggle = new Toggle()
+    h1
+      "All peers "
+      if not toggle.visible:
+        button.btn.btn-default
+          link click = toggle.toggle
+          span.glyphicon.glyphicon-chevron-down
+    if toggle.visible:
+      .form-inline
+        store new_host = new Value()
+        .form-group
+          button.btn.btn-default
+            link click = toggle.toggle
+            span.glyphicon.glyphicon-chevron-up
+        " "
+        .form-group
+          label "IP"
+          " "
+          input.form-control[type="ip"]
+            link {change, keyup} = new_host
+        " "
+        .form-group
+          button.btn.btn-default
+            link click = new_host.value -> ctr.add_host
+            "Add"
+    div
+      if peers:
+        for p of peers:
+          pre
+            code
+              =JSON.stringify(m)
+

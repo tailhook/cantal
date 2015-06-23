@@ -47,3 +47,17 @@ export class Toggle {
 
 }
 
+
+export class Value  {
+    constructor() {
+        this.keydown = new Stream('set_value')
+        this.keydown.handle(this.store.bind(this))
+        this.change = this.keydown;
+        this.keyup = this.keydown;
+        this.value = null;
+    }
+
+    store(ev) {
+        this.value = ev.target.value;
+    }
+}
