@@ -2,7 +2,8 @@ use std::hash::{Hasher};
 use std::default::Default;
 use std::collections::BTreeMap;
 
-use rustc_serialize::json::{Json, ToJson};
+use rustc_serialize::json::{Json, ToJson, as_json};
+use rustc_serialize::{Decodable, Encodable, Encoder, Decoder, json};
 
 use super::scan::time_ms;
 use super::scan;
@@ -39,8 +40,7 @@ impl Stats {
     }
 }
 
-#[derive(Hash, PartialEq, Eq, PartialOrd, Ord, Debug,
-         RustcEncodable, RustcDecodable)]
+#[derive(Hash, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct Key(BTreeMap<String, String>);
 
 impl Key {
@@ -83,6 +83,23 @@ impl Key {
     pub fn get<'x>(&'x self, key: &str) -> Option<&'x str> {
         let &Key(ref map) = self;
         return map.get(key).map(|x| &x[..]);
+    }
+}
+
+// This is needed because rust implementation of Cbor allows only string
+// keys
+impl Decodable for Key {
+    fn decode<D: Decoder>(d: &mut D) -> Result<Key, D::Error> {
+        d.read_str().and_then(|x|
+            json::decode(&x[..])
+            .map_err(|e| d.error(&format!("Error decoding key: {}", e)))
+            .map(Key))
+    }
+}
+
+impl Encodable for Key {
+    fn encode<E: Encoder>(&self, e: &mut E) -> Result<(), E::Error> {
+        e.emit_str(&format!("{}", as_json(&self.0)))
     }
 }
 

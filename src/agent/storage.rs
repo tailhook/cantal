@@ -21,8 +21,8 @@ pub struct Buffer {
 pub fn storage_loop(cell: &Cell<Buffer>, path: &Path, stats: &RwLock<Stats>) {
     let tmp = path.join("current.tmp");
     let tmplink = path.join("current.tmp.link");
-    let current = path.join("current.msgpack");
-    let file_re = Regex::new(r#"^hourly-(\d+).msgpack$"#).unwrap();
+    let current = path.join("current.cbor");
+    let file_re = Regex::new(r#"^hourly-(\d+).cbor$"#).unwrap();
     loop {
         let buf = cell.get();
         let start_time = time_ms();
@@ -30,7 +30,7 @@ pub fn storage_loop(cell: &Cell<Buffer>, path: &Path, stats: &RwLock<Stats>) {
         .and_then(|mut f| f.write_all(&buf.data))
         .and_then(|()| {
             if let Some(ref filename) = buf.snapshot {
-                let filename = path.join(filename).with_extension("msgpack");
+                let filename = path.join(filename).with_extension("cbor");
                 try!(soft_link(&filename, &tmplink));
                 try!(rename(&tmp, &filename));
                 rename(&tmplink, &current)

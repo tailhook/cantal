@@ -54,7 +54,7 @@ pub fn scan_loop(stats: &RwLock<Stats>, cell: Option<&Cell<Buffer>>) {
                 if let Some(cell) = cell {
                     let mut enc = Mencoder::from_memory();
                     enc.encode(&[&stats.history])
-                        .map_err(|_| error!("Can't serialize history"))
+                        .map_err(|e| error!("Can't serialize history: {}", e))
                         .map(|_| {
                             cell.put(Buffer {
                                 timestamp: start,

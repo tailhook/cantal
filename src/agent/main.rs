@@ -59,7 +59,7 @@ fn main() {
     let cell_copy2 = cell.clone();
 
     let _storage = storage_dir.as_ref().map(|path| {
-        let result = File::open(&path.join("current.msgpack"))
+        let result = File::open(&path.join("current.cbor"))
             .map_err(|e| error!("Error reading old data: {}. Ignoring...", e))
             .and_then(|f| Decoder::from_reader(f).decode().next()
                 .ok_or_else(|| error!(
