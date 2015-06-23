@@ -233,7 +233,8 @@ impl<'a> Iterator for CounterHistory<'a> {
                     }
                     Some(Delta::Negative(x)) => {
                         self.tip += x as u64;
-                        Some(Some(self.tip))
+                        // Probably counter reset
+                        Some(None)
                     }
                     Some(Delta::Skip) => Some(None),
                     None => None
