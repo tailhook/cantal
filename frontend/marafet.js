@@ -6,7 +6,7 @@ module.exports = function(content) {
     var pathname = path.relative(process.cwd(), this.resourcePath);
     var amd_name = path.dirname(pathname) + path.basename(pathname, '.mft')
     var ch = child.exec(
-        "marafet -f- --amd --auto-load-css --js -"
+        "/usr/bin/marafet -f- --amd --auto-load-css --js -"
         + " --amd-name '" + amd_name + "'"
         + " --block-name 'b-" + path.basename(this.resourcePath, '.mft') + "'"
         , function(error, stdout, stderr) {

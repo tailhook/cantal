@@ -1,3 +1,4 @@
+import {Toggle} from 'util/stores'
 import {Plot} from 'util/plot'
 
 css:
@@ -23,12 +24,13 @@ css:
 
 html render(timestamps, values):
   .row
-    let height = 256
-    let plot = new Plot(timestamps, values, 512, 256)
+    store toggle = new Toggle()
+    let height = toggle.visible and 256 or 128
+    let plot = new Plot(timestamps, values, 512, height)
     .col-xs-6
       svg[style={
           'width': '564px',
-          'height': '270px'
+          'height': (height + 14) + 'px'
           }]
           g[transform="translate(50, 8)"]
             rect.border[width=514, height=height, x="-1", y="-1"]
@@ -49,4 +51,10 @@ html render(timestamps, values):
       .value
         "Min: "
         "{plot.min}"
+      button.btn.btn-default
+        link click = toggle.toggle
+        if toggle.visible:
+          span.glyphicon.glyphicon-chevron-up
+        else:
+          span.glyphicon.glyphicon-chevron-down
 
