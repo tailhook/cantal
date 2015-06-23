@@ -6,6 +6,7 @@ extern crate cantal;
 extern crate rustc_serialize;
 extern crate env_logger;
 extern crate regex;
+extern crate mio;
 
 use std::thread;
 use std::fs::File;
@@ -29,6 +30,7 @@ mod deltabuf;
 mod history;
 mod storage;
 mod rules;
+mod p2p;
 
 
 fn main() {
@@ -54,9 +56,11 @@ fn main() {
     let stats = Arc::new(RwLock::new(stats::Stats::new()));
     let stats_copy1 = stats.clone();
     let stats_copy2 = stats.clone();
+    let stats_copy3 = stats.clone();
     let cell = Arc::new(util::Cell::new());
     let cell_copy1 = cell.clone();
     let cell_copy2 = cell.clone();
+    let host_copy1 = host.clone();
 
     let _storage = storage_dir.as_ref().map(|path| {
         let result = File::open(&path.join("current.cbor"))
@@ -80,7 +84,11 @@ fn main() {
         scanner::scan_loop(&*stats_copy2, storage_dir.map(|_| &*cell_copy2))
     });
 
-    match server::run_server(&*stats, host, port) {
+    let _p2p = thread::spawn(move || {
+        p2p::p2p_loop(&*stats_copy3, &host_copy1, port)
+    });
+
+    match server::run_server(&*stats, &host, port) {
         Ok(()) => {}
         Err(x) => {
             error!("Error running server: {}", x);

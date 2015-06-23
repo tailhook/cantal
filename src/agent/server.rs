@@ -83,7 +83,7 @@ fn handle_request(stats: &RwLock<Stats>, req: &http::Request)
 }
 
 
-pub fn run_server(stats: &RwLock<Stats>, host: String, port: u16)
+pub fn run_server(stats: &RwLock<Stats>, host: &str, port: u16)
     -> Result<(), String>
 {
     let handler: &for<'b> Fn(&'b aio::http::Request<'b>)
@@ -93,7 +93,7 @@ pub fn run_server(stats: &RwLock<Stats>, host: String, port: u16)
     };
     let mut main = try!(aio::MainLoop::new()
         .map_err(|e| format!("Can't create main loop: {}", e)));
-    try!(main.add_http_server(&host, port, handler)
+    try!(main.add_http_server(host, port, handler)
         .map_err(|e| format!("Can't bind {}:{}: {}", host, port, e)));
     main.run();
 }
