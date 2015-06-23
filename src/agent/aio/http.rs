@@ -170,9 +170,11 @@ impl<'a> Stream<'a> {
     pub fn read_http(&mut self) -> HandlerResult {
         match read_to_vec(self.fd, &mut self.buf) {
             ReadResult::Read(start, end) => {
+                assert!(end == self.buf.len());
                 let check_start = if start > 3 { start - 3 } else { 0 };
                 if end - check_start < 4 {
                     if self.buf.len() > MAX_HEADERS_SIZE {
+                        return HandlerResult::Close;
                     } else {
                         return HandlerResult::ContinueRead;
                     }
@@ -181,10 +183,10 @@ impl<'a> Stream<'a> {
                     if &self.buf[i..i+4] == b"\r\n\r\n" {
                         match self.parse_request(&self.buf[0..i+2]) {
                             Ok(mut req) => {
-                                if i+4 + req.content_length < end {
+                                let rend = i+4 + req.content_length;
+                                if rend > end {
                                     return HandlerResult::ContinueRead;
                                 }
-                                let rend = i+4 + req.content_length;
                                 req.body = Some(&self.buf[i+4..rend]);
                                 match (*self.handler)(&req) {
                                     Ok(resp) => {

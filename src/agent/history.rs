@@ -106,7 +106,11 @@ impl Value {
         match self {
             &mut Value::Counter(ref mut oval, ref mut oage, ref mut buf) => {
                 if let TipValue::Counter(nval) = tip {
+                    // In case deltabuf fails
+                    // let mut deltas: Vec<_> = buf.deltas().collect();
+                    // deltas.insert(0, Delta::Positive(nval - *oval));
                     buf.push(*oval as i64, nval as i64, age - *oage);
+                    // assert_eq!(buf.deltas().collect::<Vec<_>>(), deltas);
                     *oval = nval;
                     *oage = age;
                     return None;
@@ -186,9 +190,17 @@ impl Value {
     }
 }
 
+#[derive(Clone, PartialEq, Eq, Copy, Debug)]
+enum HState {
+    Skip(u64),
+    Tip,
+    Diff,
+}
+
 #[derive(Clone)]
 struct CounterHistory<'a> {
-    iter: Chain<Take<Repeat<Delta>>, DeltaIter<'a>>,
+    state: HState,
+    iter: DeltaIter<'a>,
     tip: u64,
 }
 
@@ -196,10 +208,10 @@ impl<'a> CounterHistory<'a> {
     fn new<'x>(tip: u64, age_diff: u64, dbuf: &'x DeltaBuf)
         -> CounterHistory<'x>
     {
+        use self::HState::*;
         CounterHistory {
-            iter: repeat(Delta::Skip)
-                .take(age_diff as usize)
-                .chain(dbuf.deltas()),
+            state: if age_diff > 0 { Skip(age_diff) } else { Tip },
+            iter: dbuf.deltas(),
             tip: tip,
         }
     }
@@ -208,27 +220,36 @@ impl<'a> CounterHistory<'a> {
 impl<'a> Iterator for CounterHistory<'a> {
     type Item = Option<u64>;
     fn next(&mut self) -> Option<Option<u64>> {
-        match self.iter.next() {
-            Some(Delta::Positive(x)) => {
-                self.tip -= x as u64;
+        use self::HState::*;
+        let (res, nstate) = match self.state {
+            Skip(1) => (Some(None), Tip),
+            Skip(x) => (Some(None), Skip(x-1)),
+            Tip => (Some(Some(self.tip)), Diff),
+            Diff => {
+                let res = match self.iter.next() {
+                    Some(Delta::Positive(x)) => {
+                        self.tip -= x as u64;
+                        Some(Some(self.tip))
+                    }
+                    Some(Delta::Negative(x)) => {
+                        self.tip += x as u64;
+                        Some(Some(self.tip))
+                    }
+                    Some(Delta::Skip) => Some(None),
+                    None => None
+                };
+                (res, Diff)
             }
-            Some(Delta::Negative(x)) => {
-                self.tip += x as u64;
-            }
-            Some(Delta::Skip) => {
-                return Some(None);
-            }
-            None => {
-                return None;
-            }
-        }
-        return Some(Some(self.tip));
+        };
+        self.state = nstate;
+        return res;
     }
 }
 
 #[derive(Clone)]
 struct IntegerHistory<'a> {
-    iter: Chain<Take<Repeat<Delta>>, DeltaIter<'a>>,
+    state: HState,
+    iter: DeltaIter<'a>,
     tip: i64,
 }
 
@@ -236,10 +257,10 @@ impl<'a> IntegerHistory<'a> {
     fn new<'x>(tip: i64, age_diff: u64, dbuf: &'x DeltaBuf)
         -> IntegerHistory<'x>
     {
+        use self::HState::*;
         IntegerHistory {
-            iter: repeat(Delta::Skip)
-                .take(age_diff as usize)
-                .chain(dbuf.deltas()),
+            state: if age_diff > 0 { Skip(age_diff) } else { Tip },
+            iter: dbuf.deltas(),
             tip: tip,
         }
     }
@@ -248,21 +269,29 @@ impl<'a> IntegerHistory<'a> {
 impl<'a> Iterator for IntegerHistory<'a> {
     type Item = Option<i64>;
     fn next(&mut self) -> Option<Option<i64>> {
-        match self.iter.next() {
-            Some(Delta::Positive(x)) => {
-                self.tip -= x as i64;
+        use self::HState::*;
+        let (res, nstate) = match self.state {
+            Skip(1) => (Some(None), Tip),
+            Skip(x) => (Some(None), Skip(x-1)),
+            Tip => (Some(Some(self.tip)), Diff),
+            Diff => {
+                let res = match self.iter.next() {
+                    Some(Delta::Positive(x)) => {
+                        self.tip -= x as i64;
+                        Some(Some(self.tip))
+                    }
+                    Some(Delta::Negative(x)) => {
+                        self.tip += x as i64;
+                        Some(Some(self.tip))
+                    }
+                    Some(Delta::Skip) => Some(None),
+                    None => None
+                };
+                (res, Diff)
             }
-            Some(Delta::Negative(x)) => {
-                self.tip += x as i64;
-            }
-            Some(Delta::Skip) => {
-                return Some(None);
-            }
-            None => {
-                return None;
-            }
-        }
-        return Some(Some(self.tip));
+        };
+        self.state = nstate;
+        return res;
     }
 }
 

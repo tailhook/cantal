@@ -114,7 +114,7 @@ export class Status extends Component {
                          "^net.interface.[rt]x.bytes$"],
                         ['not', ['or',
                             ['eq', 'interface', 'lo'],
-                            ['regex-like', 'interface', '^tun']]]],
+                            ['regex-like', 'interface', '^tun|^vboxnet']]]],
                     'key': ['metric'],
                     'aggregation': 'CasualSum',
                     'load': 'Rate',

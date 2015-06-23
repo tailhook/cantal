@@ -55,17 +55,17 @@ function time_axis(ts) {
 
 export class Plot {
     constructor(ts, data, width, height) {
-        console.log("DATA", data)
-        var xoff = ts[0]
+        console.log("TS DATA", ts.length, data.length)
+        var xoff = ts[0].getTime()
         var max = this.max = Math.max.apply(null, data);
         var min = this.min = Math.min.apply(null, data);
         var yaxis = this.yaxis = linear_axis(0, max, 0.3 * Math.sqrt(height))
         var xaxis = this.xaxis = time_axis(ts)
-        var xscale = width / (xoff - ts[ts.length-1])
+        var xscale = width / (xoff - ts[ts.length-1].getTime())
         var yscale = height / yaxis.height;
         var path = `M ${width}, ${data[0]*yscale} L`
         for(var i = 1, il = data.length; i < il; ++i) {
-            path += ` ${width - (xoff - ts[i])*xscale}
+            path += ` ${width - (xoff - ts[i].getTime())*xscale}
                       ${height - data[i]*yscale}`
         }
         this.xscale = xscale

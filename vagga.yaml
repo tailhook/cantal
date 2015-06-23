@@ -84,7 +84,7 @@ containers:
       script: "./install.sh --prefix=/usr --components=rustc,cargo"
 
     environ:
-      HOME: /work/run
+      HOME: /work/target
       PATH: /bin:/usr/bin:/usr/local/bin:/usr/lib/watch-make
       NODE_PATH: /usr/local/lib/node_modules
 

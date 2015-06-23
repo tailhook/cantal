@@ -188,11 +188,14 @@ fn sum_raw<T, I>(items: Vec<I>, limit: u32, zero: T) -> Json
     where T: Add<T, Output=T> + ToJson + Copy,
           I: Iterator<Item=Option<T>>
 {
-    let zeros = repeat(zero).take(limit as usize).collect::<Vec<T>>();
-    items.into_iter()
+    let buf: Vec<_> = items.into_iter()
         .map(|x| x.take(limit as usize)
                   .map(|x| x.unwrap_or(zero))
                   .collect::<Vec<_>>())
+        .collect();
+    let rlen = buf.iter().map(Vec::len).max().unwrap_or(0);
+    let zeros = repeat(zero).take(rlen).collect::<Vec<T>>();
+    buf.into_iter()
         .fold(zeros, |mut acc, val| {
             for (i, v) in val.into_iter().enumerate() {
                 acc[i] = acc[i] + v;
@@ -207,8 +210,7 @@ fn sum_rate<T, I>(items: Vec<I>, limit: u32, zero: T)
     where I: Iterator<Item=Option<T>> + Clone,
           T: Sub<T, Output=T> + Add<T, Output=T> + ToJson + Copy
 {
-    let zeros = repeat(zero).take(limit as usize).collect::<Vec<T>>();
-    items.into_iter().map(|iter| {
+    let buf: Vec<_> = items.into_iter().map(|iter| {
         let mut pair = iter.clone();
         pair.next();
         iter.zip(pair)
@@ -217,14 +219,17 @@ fn sum_rate<T, I>(items: Vec<I>, limit: u32, zero: T)
                 .unwrap_or(zero))
             .take(limit as usize)
             .collect::<Vec<_>>()
-    })
-    .fold(zeros, |mut acc, val| {
-        for (i, v) in val.into_iter().enumerate() {
-            acc[i] = acc[i] + v;
-        }
-        acc
-    })
-    .to_json()
+    }).collect();
+    let rlen = buf.iter().map(Vec::len).max().unwrap_or(0);
+    let zeros = repeat(zero).take(rlen).collect::<Vec<T>>();
+    buf.into_iter()
+        .fold(zeros, |mut acc, val| {
+            for (i, v) in val.into_iter().enumerate() {
+                acc[i] = acc[i] + v;
+            }
+            acc
+        })
+        .to_json()
 }
 
 fn query_fine(rule: &Rule, stats: &Stats) -> Result<Json, Error> {
