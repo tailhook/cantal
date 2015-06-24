@@ -28,10 +28,11 @@ pub fn p2p_loop(stats: &RwLock<Stats>, host: &str, port: u16,
     let mut eloop = EventLoop::new().unwrap();
     eloop.register(&server, GOSSIP).unwrap();
     sender.send(eloop.channel()).unwrap();
-    eloop.run(&mut Context {
+    let mut ctx = Context {
         sock: server,
         stats: stats.read().unwrap().gossip.clone(),
-    }).unwrap();
+    };
+    eloop.run(&mut ctx).unwrap();
 }
 
 #[derive(Debug, Clone, RustcEncodable, RustcDecodable)]
