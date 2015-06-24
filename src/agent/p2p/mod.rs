@@ -1,19 +1,19 @@
 use std::io::{Read, Write};
-use std::net::SocketAddr;
-use std::sync::{RwLock};
+use std::net::Ipv4Addr;
+use std::sync::{RwLock, mpsc};
 use std::default::Default;
 use std::collections::HashMap;
 
+use mio;
 use mio::{EventLoop, Token, NonBlock, ReadHint, Handler};
 use mio::buf::ByteBuf;
-use mio::udp;
+use mio::{Sender, udp};
 use cbor::{Decoder, Encoder};
 use time::Timespec;
 use rustc_serialize::Decodable;
 
 use super::stats::Stats;
-use self::peer::Peer;
-
+use self::peer::{Peer};
 
 mod peer;
 
@@ -21,11 +21,13 @@ mod peer;
 const GOSSIP: Token = Token(0);
 
 
-pub fn p2p_loop(stats: &RwLock<Stats>, host: &str, port: u16) {
+pub fn p2p_loop(stats: &RwLock<Stats>, host: &str, port: u16,
+    sender: mpsc::Sender<mio::Sender<Command>>) {
     let server = udp::bind(&format!("{}:{}", host, port).parse().unwrap()
                             ).unwrap();
     let mut eloop = EventLoop::new().unwrap();
     eloop.register(&server, GOSSIP).unwrap();
+    sender.send(eloop.channel()).unwrap();
     eloop.run(&mut Cantal {
         sock: server,
         peers: Default::default(),
@@ -47,15 +49,20 @@ enum Packet {
     },
 }
 
+#[derive(Debug)]
+pub enum Command {
+    AddGossipHost(Ipv4Addr),
+}
+
 struct Cantal {
     sock: NonBlock<udp::UdpSocket>,
-    peers: HashMap<SocketAddr, Peer>,
+    peers: HashMap<Ipv4Addr, Peer>,
 }
 
 
 impl Handler for Cantal {
     type Timeout = ();
-    type Message = ();
+    type Message = Command;
 
     fn readable(&mut self, eloop: &mut EventLoop<Cantal>,
                 tok: Token, hint: ReadHint)
@@ -80,5 +87,9 @@ impl Handler for Cantal {
             }
             _ => unreachable!(),
         }
+    }
+
+    fn notify(&mut self, eloop: &mut EventLoop<Cantal>, msg: Command) {
+        println!("Command {:?}", msg);
     }
 }

@@ -4,12 +4,15 @@ use std::collections::HashMap;
 use rustc_serialize::json;
 use rustc_serialize::json::ToJson;
 
+use mio;
+
 use super::aio;
 use super::scan;
 use super::staticfiles;
 use super::aio::http;
 use super::stats::{Stats};
 use super::rules::{Query, query};
+use super::p2p::Command;
 
 
 #[derive(RustcEncodable)]
@@ -29,7 +32,8 @@ struct ProcessesData<'a> {
     all: &'a Vec<scan::processes::MinimalProcess>,
 }
 
-fn handle_request(stats: &RwLock<Stats>, req: &http::Request)
+fn handle_request(stats: &RwLock<Stats>, req: &http::Request,
+    gossip_cmd: mio::Sender<Command>)
     -> Result<http::Response, http::Error>
 {
     if  req.uri().starts_with("/js") ||
@@ -77,19 +81,41 @@ fn handle_request(stats: &RwLock<Stats>, req: &http::Request)
                         .iter().cloned().collect::<Vec<_>>().to_json()),
                    ].into_iter().collect::<HashMap<_,_>>().to_json()))
                 }),
+            "/add_host.json" => {
+                #[derive(RustcDecodable)]
+                struct Query {
+                    ip: String,
+                }
+                from_utf8(req.body.unwrap_or(b""))
+               .map_err(|_| http::Error::BadRequest("Bad utf-8 encoding"))
+               .and_then(|x| json::decode(x)
+               .map_err(|e| error!("Error parsing query: {:?}", e))
+               .map_err(|_| http::Error::ServerError("Request format error")))
+               .and_then(|x: Query| x.ip.parse()
+               .map_err(|_| http::Error::BadRequest("Can't parse IP address")))
+               .and_then(|x| gossip_cmd.send(Command::AddGossipHost(x))
+               .map_err(|e| error!("Error sending to p2p loop: {:?}", e))
+               .map_err(|_| http::Error::ServerError("Notify Error")))
+               .and_then(|_| {
+                    Ok(http::reply_json(req, &vec![
+                        (String::from("ok"), true)
+                    ].into_iter().collect::<HashMap<_, _>>().to_json()))
+                })
+            }
             _ => Err(http::Error::NotFound),
         }
     }
 }
 
 
-pub fn run_server(stats: &RwLock<Stats>, host: &str, port: u16)
+pub fn run_server(stats: &RwLock<Stats>, host: &str, port: u16,
+    mut gossip_cmd: mio::Sender<Command>)
     -> Result<(), String>
 {
     let handler: &for<'b> Fn(&'b aio::http::Request<'b>)
         -> Result<aio::http::Response, aio::http::Error>
         = &|req| {
-        handle_request(stats, req)
+        handle_request(stats, req, gossip_cmd.clone())
     };
     let mut main = try!(aio::MainLoop::new()
         .map_err(|e| format!("Can't create main loop: {}", e)));

@@ -12,7 +12,7 @@ extern crate time;
 use std::thread;
 use std::fs::File;
 use std::path::PathBuf;
-use std::sync::{RwLock,Arc};
+use std::sync::{RwLock,Arc,mpsc};
 
 use rustc_serialize::Decodable;
 use cbor::{Decoder};
@@ -85,11 +85,13 @@ fn main() {
         scanner::scan_loop(&*stats_copy2, storage_dir.map(|_| &*cell_copy2))
     });
 
+    let (tx, rx) = mpsc::channel();
     let _p2p = thread::spawn(move || {
-        p2p::p2p_loop(&*stats_copy3, &host_copy1, port)
+        p2p::p2p_loop(&*stats_copy3, &host_copy1, port, tx)
     });
+    let chan = rx.recv().unwrap();
 
-    match server::run_server(&*stats, &host, port) {
+    match server::run_server(&*stats, &host, port, chan) {
         Ok(()) => {}
         Err(x) => {
             error!("Error running server: {}", x);

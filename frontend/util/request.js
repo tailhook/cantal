@@ -37,6 +37,7 @@ export class RefreshJson {
     }
     refresh_now() {
         if(this._req) {
+            this._req.onreadystatechange = null;
             this._req.abort();
         }
         var req = this._req = new XMLHttpRequest();
@@ -72,5 +73,78 @@ export class RefreshJson {
             req.open('GET', this.url, true);
             req.send()
         }
+    }
+}
+
+export class HTTPError extends Error {
+    constructor(req) {
+        super(`HTTP Error: ${req.status}`)
+        this.status = req.status
+        this.status_text = req.statusText
+        this.text = req.responseText
+    }
+    toString() {
+        if(this.status == 400) {
+            return `Error: ${this.text}`
+        } else {
+            return `HTTP Error: ${this.status} ${this.status_text}`
+        }
+    }
+}
+
+export class Submit {
+    constructor(url, data) {
+        this.url = url
+        this.data = JSON.stringify(data)
+    }
+    set_handler(fun) {
+        this.handler = fun
+    }
+    stop() {
+        if(this._req) {
+            this._req.abort();
+            this._req = null;
+        }
+    }
+    replace_with(other) {
+        if(this.url != other.url || this.data != other.data || !this._req) {
+            this.stop()
+            other.start()
+        }
+        return other
+    }
+    start() {
+        if(this._req) {
+            this._req.abort();
+        }
+        var req = this._req = new XMLHttpRequest();
+        var time = new Date();
+        req.onreadystatechange = (ev) => {
+            this._req = null;
+            if(req.readyState < 4) {
+                return;
+            }
+            var lcy = new Date() - time;
+            if(req.status != 200) {
+                console.error("Error fetching", this.url, req);
+                this.handler(new HTTPError(req), lcy);
+                return;
+            }
+            try {
+                var json = JSON.parse(req.responseText);
+            } catch(e) {
+                console.error("Error parsing json at", this.url, e);
+                this.handler(Error("Bad Json"), lcy);
+                return;
+            }
+            if(!json || typeof(json) != "object") {
+                console.error("Returned json is not an object", this.url, req);
+                this.handler(Error("Bad Json"), lcy);
+                return;
+            }
+            this.handler(json, lcy);
+        }
+        req.open('POST', this.url, true);
+        req.send(this.data)
     }
 }

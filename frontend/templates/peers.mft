@@ -9,7 +9,9 @@ html render(peers, ctr):
         button.btn.btn-default
           link click = toggle.toggle
           span.glyphicon.glyphicon-chevron-down
-    if toggle.visible:
+    if ctr.last_add and ctr.last_add.progress:
+      "Adding ..."
+    elif toggle.visible:
       .form-inline
         store new_host = new Value()
         .form-group
@@ -27,6 +29,12 @@ html render(peers, ctr):
           button.btn.btn-default
             link click = new_host.value -> ctr.add_host
             "Add"
+        if ctr.last_add:
+          .row
+            if ctr.last_add.result == 'success':
+              "Successfully added"
+            else:
+              "Error adding host: {ctr.last_add.error}"
     div
       if peers:
         for p of peers:
