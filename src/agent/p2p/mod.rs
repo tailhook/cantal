@@ -1,6 +1,6 @@
 use std::io::{Read, Write};
 use std::net::Ipv4Addr;
-use std::sync::{RwLock, mpsc};
+use std::sync::{Arc, RwLock, mpsc};
 use std::default::Default;
 use std::collections::HashMap;
 
@@ -28,9 +28,9 @@ pub fn p2p_loop(stats: &RwLock<Stats>, host: &str, port: u16,
     let mut eloop = EventLoop::new().unwrap();
     eloop.register(&server, GOSSIP).unwrap();
     sender.send(eloop.channel()).unwrap();
-    eloop.run(&mut Cantal {
+    eloop.run(&mut Context {
         sock: server,
-        peers: Default::default(),
+        stats: stats.read().unwrap().gossip.clone(),
     }).unwrap();
 }
 
@@ -54,18 +54,23 @@ pub enum Command {
     AddGossipHost(Ipv4Addr),
 }
 
-struct Cantal {
+struct Context {
     sock: NonBlock<udp::UdpSocket>,
-    peers: HashMap<Ipv4Addr, Peer>,
+    stats: Arc<RwLock<GossipStats>>,
+}
+
+#[derive(Default)]
+pub struct GossipStats {
+    pub peers: HashMap<Ipv4Addr, Peer>,
 }
 
 
-impl Handler for Cantal {
+impl Handler for Context {
     type Timeout = ();
     type Message = Command;
 
-    fn readable(&mut self, eloop: &mut EventLoop<Cantal>,
-                tok: Token, hint: ReadHint)
+    fn readable(&mut self, eloop: &mut EventLoop<Context>,
+                tok: Token, _hint: ReadHint)
     {
         match tok {
             GOSSIP => {
@@ -89,7 +94,19 @@ impl Handler for Cantal {
         }
     }
 
-    fn notify(&mut self, eloop: &mut EventLoop<Cantal>, msg: Command) {
+    fn notify(&mut self, eloop: &mut EventLoop<Context>, msg: Command) {
+        use self::Command::*;
         println!("Command {:?}", msg);
+        match msg {
+            AddGossipHost(ip) => {
+                let ref mut peers = &mut self.stats.write().unwrap().peers;
+                if !peers.contains_key(&ip) {
+                    peers.insert(ip, Peer {
+                        addr: format!("{}", ip),
+                        .. Default::default()
+                    });
+                }
+            }
+        }
     }
 }

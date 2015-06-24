@@ -14,11 +14,11 @@ export class Peers extends Component {
                                            {interval: 5000}))
         .process((data, latency) => {
             let error = null;
-            let peers = null;
+            let peers = this.peers;
             if(data instanceof Error) {
                 error = data
             } else {
-                peers = data
+                peers = data.peers
             }
             return {error, peers, latency}
         })

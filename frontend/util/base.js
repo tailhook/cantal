@@ -74,7 +74,6 @@ export function component(cls, ...args) {
                 tag: 'span',
                 attrs: {class: 'error'},
                 children: e.toString(),
-                component: cmp,
                 }
         }
         el.component = cmp

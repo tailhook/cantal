@@ -1,44 +1,87 @@
 import {Toggle, Store, Value} from 'util/stores'
+import {format_uptime, till_now_ms, from_ms} from 'util/time'
 
 html render(peers, ctr):
   .container
     store toggle = new Toggle()
-    h1
-      "All peers "
-      if not toggle.visible:
-        button.btn.btn-default
-          link click = toggle.toggle
-          span.glyphicon.glyphicon-chevron-down
-    if ctr.last_add and ctr.last_add.progress:
-      "Adding ..."
-    elif toggle.visible:
-      .form-inline
-        store new_host = new Value()
-        .form-group
-          button.btn.btn-default
-            link click = toggle.toggle
-            span.glyphicon.glyphicon-chevron-up
-        " "
-        .form-group
-          label "IP"
-          " "
-          input.form-control[type="ip"]
-            link {change, keyup} = new_host
-        " "
-        .form-group
-          button.btn.btn-default
-            link click = new_host.value -> ctr.add_host
-            "Add"
-        if ctr.last_add:
-          .row
+    .row
+      .col-xs-12
+        h1
+          "All peers "
+          if not toggle.visible:
+            button.btn.btn-default
+              link click = toggle.toggle
+              span.glyphicon.glyphicon-plus
+    .row
+      p.col-xs-12
+        if ctr.last_add and ctr.last_add.progress:
+          "Adding ..."
+        elif toggle.visible:
+          .form-inline
+            store new_host = new Value()
+            .form-group
+              button.btn.btn-default
+                link click = toggle.toggle
+                span.glyphicon.glyphicon-chevron-up
+            " "
+            .form-group
+              label "IP"
+              " "
+              input.form-control[type="ip"]
+                link {change, keyup} = new_host
+            " "
+            .form-group
+              button.btn.btn-default
+                link click = new_host.value -> ctr.add_host
+                "Add"
+          if ctr.last_add:
             if ctr.last_add.result == 'success':
-              "Successfully added"
+              p
+                "Successfully added"
             else:
-              "Error adding host: {ctr.last_add.error}"
-    div
-      if peers:
-        for p of peers:
-          pre
-            code
-              =JSON.stringify(m)
-
+              p.text-warning
+                "Error adding host: {ctr.last_add.error}"
+    .row
+      p.col-xs-12
+        if peers:
+          if peers.length > 0:
+            table.table.table-bordered.table-hover
+              thead
+                tr
+                  th "IP"
+                  th "Hostname"
+                  th "Last Probe"
+                  th "Last Report"
+                  th "Roundtrip"
+              tbody
+                for p of peers:
+                  tr
+                    td "{p.ip}"
+                    td .text-muted?(p.report == null)
+                      if p.hostname:
+                        "{p.hostname}"
+                      else:
+                        "unknown"
+                    td.text-muted?(p.report == null)
+                      if p.probe:
+                        =format_uptime(till_now_ms(from_ms(p.probe)))
+                      else:
+                        "never"
+                    td.text-muted?(p.report == null)
+                      if p.report:
+                        =format_uptime(till_now_ms(from_ms(p.report)))
+                      else:
+                        "never"
+                    td.text-muted?(p.report == null)
+                      if p.roundtrip != null:
+                        "{p.roundtrip}ms"
+                      else:
+                        "∅"
+          else:
+            .panel.panel-warning
+              .panel-heading
+                "No known peers ☹"
+              .panel-body "
+                You must add first peer by yourself
+                (or some other node might find you too)
+                "

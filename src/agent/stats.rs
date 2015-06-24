@@ -1,4 +1,5 @@
 use std::hash::{Hasher};
+use std::sync::{Arc, RwLock};
 use std::default::Default;
 use std::collections::BTreeMap;
 
@@ -8,20 +9,20 @@ use rustc_serialize::{Decodable, Encodable, Encoder, Decoder, json};
 use super::scan::time_ms;
 use super::scan;
 use super::history::History;
+use super::storage::StorageStats;
+use super::p2p::GossipStats;
 
-#[derive(RustcEncodable)]
+
 pub struct Stats {
 
     pub startup_time: u64,
     pub scan_duration: u32,
     pub boot_time: Option<u64>,
-    pub store_time: u64,
-    pub store_timestamp: u64,
-    pub store_duration: u32,
-    pub store_size: usize,
 
+    pub storage: StorageStats,
     pub history: History,
     pub processes: Vec<scan::processes::MinimalProcess>,
+    pub gossip: Arc<RwLock<GossipStats>>,
 }
 
 impl Stats {
@@ -30,10 +31,8 @@ impl Stats {
             startup_time: time_ms(),
             scan_duration: 0,
             boot_time: None,
-            store_time: 0,
-            store_timestamp: 0,
-            store_duration: 0,
-            store_size: 0,
+            storage: Default::default(),
+            gossip: Arc::new(RwLock::new(Default::default())),
             history: History::new(),
             processes: Default::default(),
         };

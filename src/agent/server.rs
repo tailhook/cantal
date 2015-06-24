@@ -11,6 +11,7 @@ use super::scan;
 use super::staticfiles;
 use super::aio::http;
 use super::stats::{Stats};
+use super::storage::{StorageStats};
 use super::rules::{Query, query};
 use super::p2p::Command;
 
@@ -19,10 +20,7 @@ use super::p2p::Command;
 struct StatusData {
     pub startup_time: u64,
     pub scan_duration: u32,
-    pub store_time: u64,
-    pub store_timestamp: u64,
-    pub store_duration: u32,
-    pub store_size: usize,
+    pub storage: StorageStats,
     pub boot_time: Option<u64>,
 }
 
@@ -49,10 +47,7 @@ fn handle_request(stats: &RwLock<Stats>, req: &http::Request,
             "/status.json" => Ok(http::reply_json(req, &StatusData {
                 startup_time: stats.startup_time,
                 scan_duration: stats.scan_duration,
-                store_time: stats.store_time,
-                store_duration: stats.store_duration,
-                store_timestamp: stats.store_timestamp,
-                store_size: stats.store_size,
+                storage: stats.storage,
                 boot_time: stats.boot_time,
             })),
             "/all_processes.json" => Ok(http::reply_json(req, &ProcessesData {
@@ -66,6 +61,14 @@ fn handle_request(stats: &RwLock<Stats>, req: &http::Request,
                 .collect::<Vec<_>>()
                 .to_json()
             )),
+            "/all_peers.json" => Ok(http::reply_json(req,
+                &json::Json::Object(vec![
+                    (String::from("peers"), json::Json::Array(
+                        stats.gossip.read().unwrap().peers.values()
+                        .map(ToJson::to_json)
+                        .collect())),
+                ].into_iter().collect()
+            ))),
             "/query.json"
             => from_utf8(req.body.unwrap_or(b""))
                .map_err(|_| http::Error::BadRequest("Bad utf-8 encoding"))
@@ -109,7 +112,7 @@ fn handle_request(stats: &RwLock<Stats>, req: &http::Request,
 
 
 pub fn run_server(stats: &RwLock<Stats>, host: &str, port: u16,
-    mut gossip_cmd: mio::Sender<Command>)
+    gossip_cmd: mio::Sender<Command>)
     -> Result<(), String>
 {
     let handler: &for<'b> Fn(&'b aio::http::Request<'b>)

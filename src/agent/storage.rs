@@ -17,6 +17,14 @@ pub struct Buffer {
     pub data: Vec<u8>,
 }
 
+#[derive(Default, RustcEncodable, Clone, Copy)]
+pub struct StorageStats {
+    pub time: u64,
+    pub timestamp: u64,
+    pub duration: u32,
+    pub size: usize,
+}
+
 
 pub fn storage_loop(cell: &Cell<Buffer>, path: &Path, stats: &RwLock<Stats>) {
     let tmp = path.join("current.tmp");
@@ -44,10 +52,10 @@ pub fn storage_loop(cell: &Cell<Buffer>, path: &Path, stats: &RwLock<Stats>) {
             debug!("Stored {:?}: {} bytes in {} ms",
                 &buf.snapshot, buf.data.len(), dur);
             if let Ok(mut stats) = stats.write() {
-                stats.store_duration = dur;
-                stats.store_time = time;
-                stats.store_timestamp = buf.timestamp;
-                stats.store_size = buf.data.len();
+                stats.storage.duration = dur;
+                stats.storage.time = time;
+                stats.storage.timestamp = buf.timestamp;
+                stats.storage.size = buf.data.len();
             }
         })
         .map_err(|e| error!("Error storing snapshot: {}", e))
