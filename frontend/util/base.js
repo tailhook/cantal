@@ -51,26 +51,30 @@ export class Component {
 
 export function component(cls, ...args) {
     return function(old_item) {
-        if(old_item && (old_item.component instanceof cls)) {
-            var cmp = old_item.component
-            if(cmp.init) {
-                // TODO(tailhook) optimize init
-                cmp.init(...args)
-            }
-        } else {
-            var cmp = new cls()
-            if(cmp.init) {
-                cmp.init(...args)
-            }
-        }
         try {
+            if(old_item && (old_item.component instanceof cls)) {
+                var cmp = old_item.component
+                if(cmp.init) {
+                    // TODO(tailhook) optimize init
+                    cmp.init(...args)
+                }
+            } else {
+                var cmp = new cls()
+                if(cmp.init) {
+                    cmp.init(...args)
+                }
+            }
             var el = cmp.render()
+            while(typeof el == 'function') {
+                el = el(old_item)
+            }
         } catch(e) {
             console.error("Rendering error", e, e.stack)
             return {
                 tag: 'span',
                 attrs: {class: 'error'},
                 children: e.toString(),
+                component: cmp,
                 }
         }
         el.component = cmp
