@@ -93,15 +93,14 @@ impl Context {
                 friends: vec![],
             }]).unwrap();
         }
-        match self.sock.send_to(&mut buf.flip(),
-            &FromStr::from_str(&format!("{}", addr)).unwrap()) {
+        match self.sock.send_to(&mut buf.flip(), &addr) {
             Ok(_) => {
                 let peer = peers.entry(addr)
                     .or_insert_with(|| Peer::new(addr));
                 peer.last_probe = Some(get_time());
             }
-            Err(_) => {
-                error!("Error sending probe to {:?}", addr);
+            Err(e) => {
+                error!("Error sending probe to {:?}: {}", addr, e);
             }
         }
     }
