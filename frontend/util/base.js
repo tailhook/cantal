@@ -52,11 +52,19 @@ export class Component {
 export function component(cls, ...args) {
     return function(old_item) {
         try {
-            if(old_item && (old_item.component instanceof cls)) {
-                var cmp = old_item.component
-                if(cmp.init) {
-                    // TODO(tailhook) optimize init
-                    cmp.init(...args)
+            if(old_item && old_item.component != null) {
+                if(old_item.component instanceof cls) {
+                    var cmp = old_item.component
+                    if(cmp.init) {
+                        // TODO(tailhook) optimize init
+                        cmp.init(...args)
+                    }
+                } else {
+                    old_item.component.destroy()
+                    var cmp = new cls()
+                    if(cmp.init) {
+                        cmp.init(...args)
+                    }
                 }
             } else {
                 var cmp = new cls()
