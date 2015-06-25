@@ -6,8 +6,10 @@ extern crate cantal;
 extern crate rustc_serialize;
 extern crate env_logger;
 extern crate regex;
+extern crate nix;
 extern crate mio;
 extern crate time;
+extern crate rand;
 
 use std::thread;
 use std::fs::File;

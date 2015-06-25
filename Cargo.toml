@@ -16,6 +16,8 @@ libc = "0.1"
 regex = "0.1"
 mio = "0.3"
 argparse = "0.2"
+rand = "0.3"
+nix = "0.3"
 
 [dependencies.time]
 version = "0.1"

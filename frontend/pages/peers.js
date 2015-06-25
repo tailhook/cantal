@@ -28,8 +28,11 @@ export class Peers extends Component {
     }
     call_add_host(value) {
         this.last_add = {progress: true}
+        if(value.indexOf(':') < 0) {
+            value = value + ":" + (location.port || "22682");
+        }
         this.guard('add_host', new Submit('/add_host.json', {
-            'ip': value,
+            'addr': value,
         })).process((data, latency) => {
             return {last_add: (data instanceof Error)
                         ? {result: 'error', error: data}

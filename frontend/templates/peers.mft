@@ -53,10 +53,11 @@ html render(peers, ctr):
                   th "Last Probe"
                   th "Last Report"
                   th "Roundtrip"
+                  th "Peers"
               tbody
                 for p of peers:
                   tr
-                    td "{p.ip}"
+                    td "{p.addr}"
                     td .text-muted?(p.report == null)
                       if p.hostname:
                         "{p.hostname}"
@@ -64,17 +65,22 @@ html render(peers, ctr):
                         "unknown"
                     td.text-muted?(p.report == null)
                       if p.probe:
-                        =format_uptime(till_now_ms(from_ms(p.probe)))
+                        =format_uptime(till_now_ms(from_ms(p.probe*1000)))
                       else:
                         "never"
                     td.text-muted?(p.report == null)
                       if p.report:
-                        =format_uptime(till_now_ms(from_ms(p.report)))
+                        =format_uptime(till_now_ms(from_ms(p.report*1000)))
                       else:
                         "never"
                     td.text-muted?(p.report == null)
                       if p.roundtrip != null:
                         "{p.roundtrip}ms"
+                      else:
+                        "∅"
+                    td.text-muted?(p.peers == null)
+                      if p.peers != null:
+                        "{p.peers}"
                       else:
                         "∅"
           else:

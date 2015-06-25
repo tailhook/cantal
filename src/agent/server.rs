@@ -87,14 +87,14 @@ fn handle_request(stats: &RwLock<Stats>, req: &http::Request,
             "/add_host.json" => {
                 #[derive(RustcDecodable)]
                 struct Query {
-                    ip: String,
+                    addr: String,
                 }
                 from_utf8(req.body.unwrap_or(b""))
                .map_err(|_| http::Error::BadRequest("Bad utf-8 encoding"))
                .and_then(|x| json::decode(x)
                .map_err(|e| error!("Error parsing query: {:?}", e))
                .map_err(|_| http::Error::ServerError("Request format error")))
-               .and_then(|x: Query| x.ip.parse()
+               .and_then(|x: Query| x.addr.parse()
                .map_err(|_| http::Error::BadRequest("Can't parse IP address")))
                .and_then(|x| gossip_cmd.send(Command::AddGossipHost(x))
                .map_err(|e| error!("Error sending to p2p loop: {:?}", e))
