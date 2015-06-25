@@ -58,12 +58,12 @@ html render(peers, ctr):
                 for p of peers:
                   tr
                     td "{p.addr}"
-                    td .text-muted?(p.report == null)
+                    td .text-muted?(p.hostname == null)
                       if p.hostname:
                         "{p.hostname}"
                       else:
                         "unknown"
-                    td.text-muted?(p.report == null)
+                    td.text-muted?(p.probe == null)
                       if p.probe:
                         =format_uptime(till_now_ms(from_ms(p.probe*1000)))
                       else:
@@ -73,7 +73,7 @@ html render(peers, ctr):
                         =format_uptime(till_now_ms(from_ms(p.report*1000)))
                       else:
                         "never"
-                    td.text-muted?(p.report == null)
+                    td.text-muted?(p.roundtrip == null)
                       if p.roundtrip != null:
                         "{p.roundtrip}ms"
                       else:
