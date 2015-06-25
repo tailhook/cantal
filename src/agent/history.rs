@@ -344,39 +344,50 @@ impl History {
         self.tip_timestamp = (timestamp, duration);
     }
     pub fn truncate_by_time(&mut self, timestamp: u64) {
-        let fine_ts = self.fine_timestamps.iter().enumerate()
-            .skip_while(|&(_idx, &(ts, _dur))| ts >= timestamp).next();
-        if let Some((idx, _)) = fine_ts {
-            let target_age = self.age - idx as u64;
-            self.fine = replace(&mut self.fine, HashMap::new()).into_iter()
-                .filter_map(|(key, mut val)| {
-                    if val.truncate(target_age) {
-                        return Some((key, val));
-                    } else {
-                        return None;
-                    }
-                }).collect();
-            self.tip = replace(&mut self.tip, HashMap::new()).into_iter()
-                .filter_map(|(key, mut val)| {
-                    if val.truncate(target_age) {
-                        return Some((key, val));
-                    } else {
-                        return None;
-                    }
-                }).collect();
+        let idx = self.fine_timestamps.iter().enumerate()
+            .skip_while(|&(_idx, &(ts, _dur))| ts >= timestamp)
+            .next().unwrap_or((1000000, &(0, 0)))
+            .0;
+
+        let target_age = self.age - idx as u64;
+        self.fine = replace(&mut self.fine, HashMap::new()).into_iter()
+            .filter_map(|(key, mut val)| {
+                if val.truncate(target_age) {
+                    return Some((key, val));
+                } else {
+                    return None;
+                }
+            }).collect();
+        self.tip = replace(&mut self.tip, HashMap::new()).into_iter()
+            .filter_map(|(key, mut val)| {
+                if val.truncate(target_age) {
+                    return Some((key, val));
+                } else {
+                    return None;
+                }
+            }).collect();
+        // TODO(tailhook) fix to truncate
+        while self.fine_timestamps.len() > idx+1 {
+            self.fine_timestamps.pop_back();
         }
-        let coarse_ts = self.coarse_timestamps.iter().enumerate()
-            .skip_while(|&(_, &(ts, _))| ts >= timestamp).next();
-        if let Some((idx, _)) = coarse_ts {
-            let target_age = self.age - idx as u64;
-            self.coarse = replace(&mut self.coarse, HashMap::new()).into_iter()
-                .filter_map(|(key, mut val)| {
-                    if val.truncate(target_age) {
-                        return Some((key, val));
-                    } else {
-                        return None;
-                    }
-                }).collect();
+
+        let idx = self.coarse_timestamps.iter().enumerate()
+            .skip_while(|&(_, &(ts, _))| ts >= timestamp)
+            .next().unwrap_or((1000000, &(0, 0)))
+            .0;
+
+        let target_age = self.age - idx as u64;
+        self.coarse = replace(&mut self.coarse, HashMap::new()).into_iter()
+            .filter_map(|(key, mut val)| {
+                if val.truncate(target_age) {
+                    return Some((key, val));
+                } else {
+                    return None;
+                }
+            }).collect();
+        // TODO(tailhook) fix to truncate
+        while self.coarse_timestamps.len() > idx+1 {
+            self.coarse_timestamps.pop_back();
         }
     }
 }

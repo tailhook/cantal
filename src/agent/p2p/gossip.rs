@@ -1,5 +1,4 @@
 use std::net::{SocketAddr};
-use std::str::FromStr;
 use std::collections::HashMap;
 
 use time::{Timespec, Duration, get_time};
