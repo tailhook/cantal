@@ -22,6 +22,10 @@ export function format_datetime(dt) {
            + `:${_two(dt.getSeconds())}`)
 }
 
+export function format_time(dt) {
+    return `${_two(dt.getHours())}:${_two(dt.getMinutes())}`
+}
+
 export function format_uptime(ms) {
     if(ms < 1000) {
         return "∅";

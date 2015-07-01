@@ -1,0 +1,52 @@
+import compact from 'util/charts/compact'
+
+css:
+  .bar
+    width: 1100px
+    height: 42px
+    border-bottom: solid black 1px
+    position: relative
+  .title
+    font-family: Tahoma
+    text-shadow: 1px 1px 0 white
+    position: absolute
+    left: 12px
+    top: 8px
+    font-size: 18px
+  .value
+    font-family: Tahoma
+    text-shadow: 1px 1px 0 white
+    position: absolute
+    right: 12px
+    top: 8px
+    font-size: 18px
+  .xaxis
+    width: 1100px
+    height: 42px
+    position: relative
+    border-bottom: solid black 1px
+    padding-bottom: 0px
+  line.tick
+    stroke: black
+  text.tick
+    font-family: Tahoma
+    text-anchor: middle
+    font-size: 12px
+
+html render(timestamps, items):
+  div
+    let width = 1100
+    let axis = compact.xaxis(timestamps, 1100)
+    .xaxis
+      svg[width="{width}", height="42"]
+        for tick of axis.ticks:
+          g[transform="translate({tick.x}, 40)"]
+            line.tick[y2="-6", x2="0"]
+            text.tick[y="-8"] "{tick.text}"
+    div
+      for item of items:
+        .bar
+          canvas[width="1100", height="42"]
+          .title "{item.title}"
+          .value "{item.last}"
+

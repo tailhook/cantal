@@ -3,6 +3,8 @@ import {Toggle} from 'util/stores'
 import {DonutChart} from 'util/donut'
 import donut from 'templates/donut.mft'
 import plot from 'templates/plot.mft'
+import compact from 'templates/charts/compact.mft'
+import list from 'util/list'
 
 css:
   .sample
@@ -53,18 +55,23 @@ html render(error, timestamps, mem_chart, network, disk):
                     span.glyphicon.glyphicon-chevron-down
               td
 
-    h2 "Network"
-    h3 "Receive"
-    if network:
-      =plot.render(timestamps, network['net.interface.rx.bytes'])
-    h3 "Transfer"
-    if network:
-      =plot.render(timestamps, network['net.interface.tx.bytes'])
+    #h2 "Network"
+    #h3 "Receive"
+    #if network:
+    #  =plot.render(timestamps, network['net.interface.rx.bytes'])
+    #h3 "Transfer"
+    #if network:
+    #  =plot.render(timestamps, network['net.interface.tx.bytes'])
 
-    h2 "Disk Ops"
-    h3 "Read"
+    #h2 "Disk Ops"
+    #h3 "Read"
+    #if disk:
+    #  =plot.render(timestamps, disk['disk.read.ops'])
+    #h3 "Write"
+    #if disk:
+    #  =plot.render(timestamps, disk['disk.write.ops'])
+
+    h2 "Disks"
     if disk:
-      =plot.render(timestamps, disk['disk.read.ops'])
-    h3 "Write"
-    if disk:
-      =plot.render(timestamps, disk['disk.write.ops'])
+      =compact.render(timestamps, list.from_obj(disk))
+
