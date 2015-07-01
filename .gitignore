@@ -1,8 +1,9 @@
 /.vagga
 /cantal
-/cantal_agent
+/cantal-agent
 /libcantal.rlib
 /todo.txt
 /run
 /public/js
 /frontend/tools/jadecompile
+/target
