@@ -5,7 +5,7 @@ use std::io::{BufReader, Read, BufRead};
 use std::collections::HashMap;
 use std::collections::hash_map::Entry::{Vacant,Occupied};
 
-use cantal::itertools::{words};
+use cantal::itertools::{words, NextValue};
 use cantal::Value::{Counter, Integer};
 
 use super::Tip;
@@ -185,10 +185,16 @@ pub fn read(t: &mut Tip) -> Option<u64> {
                             ("device", device),
                             ("metric", "disk.read.merges"),
                             ]), &mut pieces);
-            t.add_next_cnt(Key::pairs(&[
-                            ("device", device),
-                            ("metric", "disk.read.sectors"),
-                            ]), &mut pieces);
+
+            // It's not documented but it seems all other monitoring systems
+            // use 512 multiplier instead of relying on physical_block_size
+            if let Ok(x) = pieces.next_value::<u32>() {
+                t.add(Key::pairs(&[
+                                ("device", device),
+                                ("metric", "disk.read.bytes"),
+                                ]), Counter((x as u64) * 512));
+            }
+
             t.add_next_cnt(Key::pairs(&[
                             ("device", device),
                             ("metric", "disk.read.time"),
@@ -201,10 +207,16 @@ pub fn read(t: &mut Tip) -> Option<u64> {
                             ("device", device),
                             ("metric", "disk.write.merges"),
                             ]), &mut pieces);
-            t.add_next_cnt(Key::pairs(&[
-                            ("device", device),
-                            ("metric", "disk.write.sectors"),
-                            ]), &mut pieces);
+
+            // It's not documented but it seems all other monitoring systems
+            // use 512 multiplier instead of relying on physical_block_size
+            if let Ok(x) = pieces.next_value::<u32>() {
+                t.add(Key::pairs(&[
+                                ("device", device),
+                                ("metric", "disk.write.bytes"),
+                                ]), Counter((x as u64)*512));
+            }
+
             t.add_next_cnt(Key::pairs(&[
                             ("device", device),
                             ("metric", "disk.write.time"),

@@ -12,7 +12,7 @@ css:
       width: 1em
       height: 1em
 
-html render(error, timestamps, mem_chart, network, disk):
+html render(error, timestamps, mem_chart, data):
   .container
     h1 "System Status"
     if error:
@@ -68,16 +68,16 @@ html render(error, timestamps, mem_chart, network, disk):
           ]
       }
     h2 "Network"
-    if network:
+    if data.network:
       =compact.render(timestamps, [{
             'title': 'Receive',
-            'values': network['net.interface.rx.bytes'],
-            'last': last(network['net.interface.rx.bytes']),
+            'values': data.network['net.interface.rx.bytes'],
+            'last': last(data.network['net.interface.rx.bytes']),
             'yaxis': net_yaxis
             }, {
             'title': 'Transfer',
-            'values': network['net.interface.tx.bytes'],
-            'last': last(network['net.interface.tx.bytes']),
+            'values': data.network['net.interface.tx.bytes'],
+            'last': last(data.network['net.interface.tx.bytes']),
             'yaxis': net_yaxis
             }])
 
@@ -106,15 +106,42 @@ html render(error, timestamps, mem_chart, network, disk):
           [100000, "black"]
           ]
       }
-    if disk:
+    let num_yaxis = {
+      height: 40,
+      bg_color: 'rgb(237,248,233)',
+      skip_color: "white",
+      colors: [
+          [5, 'rgb(186,228,179)'],
+          [10,'rgb(116,196,118)'],
+          [20, 'rgb(49,163,84)'],
+          [100, 'rgb(0,109,44)'],
+          [1000, "black"]
+          ]
+      }
+    if data.disk:
       =compact.render(timestamps, [{
             'title': 'Disk Read Ops',
-            'values': disk['disk.read.ops'],
-            'last': last(disk['disk.read.ops']),
+            'values': data.disk['disk.read.ops'],
+            'last': last(data.disk['disk.read.ops']),
             'yaxis': ops_yaxis
             }, {
             'title': 'Disk Write Ops',
-            'values': disk['disk.write.ops'],
-            'last': last(disk['disk.write.ops']),
+            'values': data.disk['disk.write.ops'],
+            'last': last(data.disk['disk.write.ops']),
             'yaxis': ops_yaxis
+            }, {
+            'title': 'Disk Read Bytes',
+            'values': data.disk['disk.read.bytes'],
+            'last': last(data.disk['disk.read.bytes']),
+            'yaxis': bytes_yaxis
+            }, {
+            'title': 'Disk Write Bytes',
+            'values': data.disk['disk.write.bytes'],
+            'last': last(data.disk['disk.write.bytes']),
+            'yaxis': bytes_yaxis
+            }, {
+            'title': 'Disk in Progress Ops',
+            'values': data.disk_in_progress['disk.in_progress'],
+            'last': last(data.disk_in_progress['disk.in_progress']),
+            'yaxis': num_yaxis
             }])

@@ -123,12 +123,24 @@ export class Status extends Component {
                     'source':'Fine',
                     'condition': ['and',
                         ['regex-like', 'metric',
-                         "^disk\.(?:read|write)\.ops$"],
+                         "^disk\.(?:read|write)\.(:?ops|bytes)$"],
                         ['regex-like', 'device',
                          "^sd[a-z]$"]],
                     'key': ['metric'],
                     'aggregation': 'CasualSum',
                     'load': 'Rate',
+                    'limit': 1100,
+                    },
+                'disk_in_progress': {
+                    'source':'Fine',
+                    'condition': ['and',
+                        ['regex-like', 'metric',
+                         "^disk\.in_progress$"],
+                        ['regex-like', 'device',
+                         "^sd[a-z]$"]],
+                    'key': ['metric'],
+                    'aggregation': 'CasualSum',
+                    'load': 'Raw',
                     'limit': 1100,
                     },
             }})}))
@@ -138,8 +150,7 @@ export class Status extends Component {
             } else {
                 return {
                     mem_chart: memchart(data.dataset.memory),
-                    network: data.dataset.network,
-                    disk: data.dataset.disk,
+                    dataset: data.dataset,
                     fine_timestamps: data.fine_timestamps
                                      .map(([v, d]) => from_ms(v + d/2)),
                 }
@@ -149,6 +160,6 @@ export class Status extends Component {
     render() {
         const ts = this.fine_timestamps
         return template.render(this.error, ts, this.mem_chart,
-            this.network, this.disk)
+            this.dataset || {})
     }
 }
