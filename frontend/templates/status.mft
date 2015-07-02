@@ -72,12 +72,12 @@ html render(error, timestamps, mem_chart, data):
       =compact.render(timestamps, [{
             'title': 'Receive',
             'values': data.network['net.interface.rx.bytes'],
-            'last': last(data.network['net.interface.rx.bytes']),
+            'last': data.network['net.interface.rx.bytes'][0],
             'yaxis': net_yaxis
             }, {
             'title': 'Transfer',
             'values': data.network['net.interface.tx.bytes'],
-            'last': last(data.network['net.interface.tx.bytes']),
+            'last': data.network['net.interface.tx.bytes'][0],
             'yaxis': net_yaxis
             }])
 
@@ -122,26 +122,21 @@ html render(error, timestamps, mem_chart, data):
       =compact.render(timestamps, [{
             'title': 'Disk Read Ops',
             'values': data.disk['disk.read.ops'],
-            'last': last(data.disk['disk.read.ops']),
             'yaxis': ops_yaxis
             }, {
             'title': 'Disk Write Ops',
             'values': data.disk['disk.write.ops'],
-            'last': last(data.disk['disk.write.ops']),
             'yaxis': ops_yaxis
             }, {
             'title': 'Disk Read Bytes',
             'values': data.disk['disk.read.bytes'],
-            'last': last(data.disk['disk.read.bytes']),
             'yaxis': bytes_yaxis
             }, {
             'title': 'Disk Write Bytes',
             'values': data.disk['disk.write.bytes'],
-            'last': last(data.disk['disk.write.bytes']),
             'yaxis': bytes_yaxis
             }, {
             'title': 'Disk in Progress Ops',
             'values': data.disk_in_progress['disk.in_progress'],
-            'last': last(data.disk_in_progress['disk.in_progress']),
             'yaxis': num_yaxis
             }])

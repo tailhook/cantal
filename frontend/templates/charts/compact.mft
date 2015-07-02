@@ -48,5 +48,5 @@ html render(timestamps, items):
         .bar
           =compact.draw(xaxis, item.yaxis, item.values)
           .title "{item.title}"
-          .value "{item.last}"
+          .value "{item.values[0]}"
 
