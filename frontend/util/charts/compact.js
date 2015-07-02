@@ -57,9 +57,6 @@ function draw_on(canvas, xaxis, yaxis, data) {
             prev_color = color
             idx += 1
         }
-        if(i > 1090) {
-            console.log("IDX", idx, h, color, prev_color)
-        }
         let h = Math.ceil((val - prev_thresh)/(thresh - prev_thresh)
                           * yaxis.height)
         ctx.fillStyle = color
