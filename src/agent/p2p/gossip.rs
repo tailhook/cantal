@@ -107,19 +107,48 @@ impl Context {
     pub fn consume_gossip(&self, packet: Packet, addr: SocketAddr) {
         let tm = get_time();
         let mut stats = self.stats.write().unwrap();
-        let peer = stats.peers.entry(addr)
-                    .or_insert_with(|| Peer::new(addr));
         match packet {
-            Packet::Ping { me: info, .. } => {
+            Packet::Ping { me: info, now, .. } => {
+                {
+                    let peer = stats.peers.entry(addr)
+                                .or_insert_with(|| Peer::new(addr));
+                    peer.report = Some(Report {
+                        peers: info.peers,
+                    });
+                    peer.host = Some(info.host.clone());
+                    peer.last_report = Some(tm);
+                }
+                let mut buf = ByteBuf::mut_with_capacity(1024);
+                {
+                    let mut e = Encoder::from_writer(&mut buf);
+                    e.encode(&[&Packet::Pong {
+                        me: MyInfo {
+                            host: self.hostname.clone(),
+                            peers: stats.peers.len() as u32,
+                        },
+                        ping_time: now,
+                        peer_time: tm,
+                        friends: vec![],
+                    }]).unwrap();
+                }
+                self.sock.send_to(&mut buf.flip(), &addr)
+                    .map_err(|e| error!("Error sending probe to {:?}: {}",
+                        addr, e))
+                    .ok();
+            }
+            Packet::Pong { me: info, ping_time, peer_time, .. } => {
+                let peer = stats.peers.entry(addr)
+                            .or_insert_with(|| Peer::new(addr));
                 peer.report = Some(Report {
                     peers: info.peers,
                 });
+                // sanity check
+                if ping_time < tm && ping_time < peer_time {
+                    peer.last_roundtrip = Some(
+                        (tm, (tm - ping_time).num_milliseconds() as u64));
+                }
                 peer.host = Some(info.host.clone());
                 peer.last_report = Some(tm);
-            }
-            other => {
-                error!("Unknown packet {:?}", other);
-                return;
             }
         }
     }

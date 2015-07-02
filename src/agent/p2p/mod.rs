@@ -87,7 +87,7 @@ impl Handler for Context {
                     let mut dec = Decoder::from_reader(buf.flip());
                     match dec.decode::<gossip::Packet>().next() {
                         Some(Ok(packet)) => {
-                            println!("Packet {:?} from {:?}", packet, addr);
+                            trace!("Packet {:?} from {:?}", packet, addr);
                             self.consume_gossip(packet, addr);
                         }
                         None => {
@@ -105,7 +105,7 @@ impl Handler for Context {
 
     fn notify(&mut self, _eloop: &mut EventLoop<Context>, msg: Command) {
         use self::Command::*;
-        println!("Command {:?}", msg);
+        trace!("Command {:?}", msg);
         match msg {
             AddGossipHost(ip) => {
                 let ref mut peers = &mut self.stats.write().unwrap().peers;
