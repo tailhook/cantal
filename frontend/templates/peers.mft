@@ -8,6 +8,8 @@ html render(peers, ctr):
       .col-xs-12
         h1
           "All peers "
+          if peers:
+            "({peers.length}) "
           if not toggle.visible:
             button.btn.btn-default
               link click = toggle.toggle

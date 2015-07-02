@@ -1,6 +1,9 @@
 html render(metrics):
   .container
-    h1 "All metrics"
+    h1
+      "All metrics"
+      if metrics:
+        " ({metrics.length})"
     div
       if metrics:
         for m of metrics:
