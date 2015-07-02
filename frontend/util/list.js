@@ -1,10 +1,11 @@
+export function last(lst) {
+    return lst[lst.length-1]
+}
+
 export function from_obj(obj) {
     const res = []
     for(var k of Object.keys(obj)) {
         res.push({
-            'title': k,
-            'values': obj[k],
-            'last': obj[k][obj[k].length-1],
             })
     }
     return res

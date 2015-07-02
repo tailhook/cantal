@@ -3,7 +3,7 @@ import compact from 'util/charts/compact'
 css:
   .bar
     width: 1100px
-    height: 42px
+    height: 41px
     border-bottom: solid black 1px
     position: relative
   .title
@@ -22,7 +22,7 @@ css:
     font-size: 18px
   .xaxis
     width: 1100px
-    height: 42px
+    height: 40px
     position: relative
     border-bottom: solid black 1px
     padding-bottom: 0px
@@ -36,17 +36,17 @@ css:
 html render(timestamps, items):
   div
     let width = 1100
-    let axis = compact.xaxis(timestamps, 1100)
+    let xaxis = compact.xaxis(timestamps, 1100)
     .xaxis
-      svg[width="{width}", height="42"]
-        for tick of axis.ticks:
+      svg[width="{width}", height="40"]
+        for tick of xaxis.ticks:
           g[transform="translate({tick.x}, 40)"]
             line.tick[y2="-6", x2="0"]
             text.tick[y="-8"] "{tick.text}"
     div
       for item of items:
         .bar
-          canvas[width="1100", height="42"]
+          =compact.draw(xaxis, item.yaxis, item.values)
           .title "{item.title}"
           .value "{item.last}"
 

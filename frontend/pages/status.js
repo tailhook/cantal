@@ -117,7 +117,7 @@ export class Status extends Component {
                     'key': ['metric'],
                     'aggregation': 'CasualSum',
                     'load': 'Rate',
-                    'limit': 500,
+                    'limit': 1100,
                     },
                 'disk': {
                     'source':'Fine',
@@ -129,7 +129,7 @@ export class Status extends Component {
                     'key': ['metric'],
                     'aggregation': 'CasualSum',
                     'load': 'Rate',
-                    'limit': 500,
+                    'limit': 1100,
                     },
             }})}))
         .process((data, latency) => {

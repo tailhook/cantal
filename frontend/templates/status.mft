@@ -4,7 +4,7 @@ import {DonutChart} from 'util/donut'
 import donut from 'templates/donut.mft'
 import plot from 'templates/plot.mft'
 import compact from 'templates/charts/compact.mft'
-import list from 'util/list'
+import {last} from 'util/list'
 
 css:
   .sample
@@ -55,23 +55,66 @@ html render(error, timestamps, mem_chart, network, disk):
                     span.glyphicon.glyphicon-chevron-down
               td
 
-    #h2 "Network"
-    #h3 "Receive"
-    #if network:
-    #  =plot.render(timestamps, network['net.interface.rx.bytes'])
-    #h3 "Transfer"
-    #if network:
-    #  =plot.render(timestamps, network['net.interface.tx.bytes'])
-
-    #h2 "Disk Ops"
-    #h3 "Read"
-    #if disk:
-    #  =plot.render(timestamps, disk['disk.read.ops'])
-    #h3 "Write"
-    #if disk:
-    #  =plot.render(timestamps, disk['disk.write.ops'])
+    let net_yaxis = {
+      height: 40,
+      bg_color: 'rgb(237,248,233)',
+      skip_color: "white",
+      colors: [
+          [1024, 'rgb(186,228,179)'],
+          [100*1024,'rgb(116,196,118)'],
+          [1024*1024, 'rgb(49,163,84)'],
+          [1024*1024*1024, 'rgb(0,109,44)'],
+          [1024*1024*1024*1024, "black"]
+          ]
+      }
+    h2 "Network"
+    if network:
+      =compact.render(timestamps, [{
+            'title': 'Receive',
+            'values': network['net.interface.rx.bytes'],
+            'last': last(network['net.interface.rx.bytes']),
+            'yaxis': net_yaxis
+            }, {
+            'title': 'Transfer',
+            'values': network['net.interface.tx.bytes'],
+            'last': last(network['net.interface.tx.bytes']),
+            'yaxis': net_yaxis
+            }])
 
     h2 "Disks"
+    let bytes_yaxis = {
+      height: 40,
+      bg_color: 'rgb(237,248,233)',
+      skip_color: "white",
+      colors: [
+          [1024, 'rgb(186,228,179)'],
+          [100*1024,'rgb(116,196,118)'],
+          [1024*1024, 'rgb(49,163,84)'],
+          [1024*1024*1024, 'rgb(0,109,44)'],
+          [1024*1024*1024*1024, "black"]
+          ]
+      }
+    let ops_yaxis = {
+      height: 40,
+      bg_color: 'rgb(237,248,233)',
+      skip_color: "white",
+      colors: [
+          [5, 'rgb(186,228,179)'],
+          [20,'rgb(116,196,118)'],
+          [100, 'rgb(49,163,84)'],
+          [1000, 'rgb(0,109,44)'],
+          [100000, "black"]
+          ]
+      }
     if disk:
-      =compact.render(timestamps, list.from_obj(disk))
-
+      =compact.render(timestamps, [{
+            'title': 'Disk Read Ops',
+            'values': disk['disk.read.ops'],
+            'last': last(disk['disk.read.ops']),
+            'yaxis': ops_yaxis
+            }, {
+            'title': 'Disk Write Ops',
+            'values': disk['disk.write.ops'],
+            'last': last(disk['disk.write.ops']),
+            'yaxis': ops_yaxis
+            }])
