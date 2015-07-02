@@ -67,7 +67,7 @@ containers:
     setup:
     - !Ubuntu trusty
     - !UbuntuUniverse ~
-    - !Install [make, checkinstall, wget]
+    - !Install [make, checkinstall, wget, ca-certificates, libssl-dev]
 
     - !NpmInstall [jade, babel, uglify-js, webpack, babel-loader]
 
@@ -78,7 +78,6 @@ containers:
       url: git://github.com/andrewffff/watch-make.git
       path: /usr/lib/watch-make
 
-    - !BuildDeps [ca-certificates]
     - !TarInstall
       url: "http://static.rust-lang.org/dist/rust-1.0.0-x86_64-unknown-linux-gnu.tar.gz"
       script: "./install.sh --prefix=/usr --components=rustc,cargo"

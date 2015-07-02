@@ -18,6 +18,7 @@ mio = "0.3"
 argparse = "0.2"
 rand = "0.3"
 nix = "0.3"
+hyper = "0.6"
 
 [dependencies.time]
 version = "0.1"
