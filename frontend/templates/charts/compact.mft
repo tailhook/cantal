@@ -1,4 +1,6 @@
+import {format_datetime} from 'util/time'
 import compact from 'util/charts/compact'
+import {Follow} from 'util/stores'
 
 css:
   .bar
@@ -7,19 +9,34 @@ css:
     border-bottom: solid black 1px
     position: relative
   .title
-    font-family: Tahoma
-    text-shadow: 1px 1px 0 white
+    font-family: Verdana, Tahoma, sans-serif
+    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5)
     position: absolute
     left: 12px
     top: 8px
     font-size: 18px
   .value
-    font-family: Tahoma
-    text-shadow: 1px 1px 0 white
-    position: absolute
-    right: 12px
-    top: 8px
+    font-family: Verdana, Tahoma, sans-serif
+    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5)
     font-size: 18px
+    position: absolute
+    right: 0px
+    top: 0px
+    padding-top: 8px
+    padding-right: 8px
+    height: 41px
+  .value.follow
+    border-right: solid black 1px
+  .footer
+    position: relative
+    width: 1100px
+  .footer-time
+    position: absolute
+    right: 0px
+    top: 0px
+    padding-top: 8px
+    padding-right: 8px
+    height: 41px
   .xaxis
     width: 1100px
     height: 40px
@@ -29,12 +46,14 @@ css:
   line.tick
     stroke: black
   text.tick
-    font-family: Tahoma
+    font-family: Verdana, Tahoma, sans-serif
     text-anchor: middle
     font-size: 12px
 
 html render(timestamps, items):
   div
+    store mouse_position = new Follow()
+    link {mousemove,mouseenter,mouseleave} = mouse_position
     let width = 1100
     let xaxis = compact.xaxis(timestamps, 1100)
     .xaxis
@@ -48,5 +67,26 @@ html render(timestamps, items):
         .bar
           =compact.draw(xaxis, item.yaxis, item.values)
           .title "{item.title}"
-          .value "{item.values[0]}"
+          if mouse_position.x != null and mouse_position.x < width:
+            .value.follow[style={'right': width - mouse_position.x + 'px'}]
+              let px = xaxis.pixels[mouse_position.x]
+              if px:
+                "{item.values[px.index]}"
+              else:
+                "--"
+          else:
+            .value "{item.values[0]}"
+    if mouse_position.x != null and mouse_position.x < width:
+      .footer
+        .footer-time.follow[style={'right': width - mouse_position.x + 'px'}]
+          let px = xaxis.pixels[mouse_position.x]
+          if px:
+            "{format_datetime(px.exact_time)}"
+          else:
+            "--"
+    else:
+      .footer
+        let px = xaxis.pixels[width-1]
+        if px:
+          .footer-time "{format_datetime(px.exact_time)}"
 

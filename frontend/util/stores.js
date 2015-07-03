@@ -61,3 +61,43 @@ export class Value  {
         this.value = ev.target.value;
     }
 }
+
+export class Follow  {
+    constructor() {
+        this.mousemove = new Stream('mousemove')
+        this.mouseenter = new Stream('mouseenter')
+        this.mouseleave = new Stream('mouseleave')
+        this.owner_destroyed = new Stream('owner_destroyed')
+        this.mousemove.handle(this.set_coords.bind(this))
+        this.mouseenter.handle(this.set_coords.bind(this))
+        this.mouseleave.handle(this.do_mouseleave.bind(this))
+        this.owner_destroyed.handle(this.cleanup.bind(this))
+        this.x = null
+        this.y = null
+        this._timer = null
+    }
+
+    set_coords(ev) {
+        this._reset_timer()
+        const rect = ev.currentTarget.getBoundingClientRect()
+        this.x = Math.floor(ev.clientX - rect.left)
+        this.y = Math.floor(ev.clientY - rect.top)
+    }
+    do_mouseleave() {
+        this._timer = setTimeout(this.reset_coords.bind(this), 500)
+    }
+    reset_coords() {
+        this.x = null
+        this.y = null
+    }
+    _reset_timer() {
+        if(this._timer) {
+            clearInterval(this._timer)
+            this._timer = null
+        }
+    }
+    cleanup() {
+        this.reset_coords()
+        this._reset_timer()
+    }
+}

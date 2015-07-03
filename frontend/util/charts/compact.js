@@ -19,12 +19,12 @@ export function xaxis(timestamps, width, step=2000) {
     const start = Math.floor(now / step) * step
     for(var i = timestamps.length-1; i >= 0; --i) {
         let tx = timestamps[i]
-        let px = width - Math.floor((start - tx) / step)
-        if(pixels[px]) {
-            console.warn("Duplicate pixel", px, tx, start)
-        }
+        let px = width - Math.round((start - tx) / step)
         if(px < 0 || px >= width) {
             continue
+        }
+        if(pixels[px]) {
+            //console.warn("Duplicate pixel", px, tx, start)
         }
         pixels[px] = {
             index: i,
