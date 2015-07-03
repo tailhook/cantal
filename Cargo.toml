@@ -14,11 +14,12 @@ rustc-serialize = "0.3"
 cbor = "0.3"
 libc = "0.1"
 regex = "0.1"
-mio = "0.3"
+mio = { git = "git://github.com/carllerche/mio" }
 argparse = "0.2"
 rand = "0.3"
 nix = "0.3"
 hyper = "0.6"
+websocket = "0.12"
 
 [dependencies.time]
 version = "0.1"

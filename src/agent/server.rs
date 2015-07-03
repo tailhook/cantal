@@ -1,10 +1,18 @@
 use std::str::from_utf8;
+use std::net::{SocketAddr, SocketAddrV4};
 use std::sync::RwLock;
+use std::sync::atomic::{AtomicUsize, Ordering, ATOMIC_USIZE_INIT};
+use std::default::Default;
 use std::collections::HashMap;
+
 use rustc_serialize::json;
 use rustc_serialize::json::ToJson;
-
 use mio;
+use hyper::buffer::BufReader;
+use mio::buf::{RingBuf, MutBuf};
+use mio::TryRead;
+use mio::{EventLoop, Token, ReadHint, Handler};
+use hyper::http::h1::parse_request;
 
 use super::aio;
 use super::scan;
@@ -15,6 +23,12 @@ use super::storage::{StorageStats};
 use super::rules::{Query, query};
 use super::p2p::Command;
 
+
+const INPUT: Token = Token(0);
+const MAX_HEADER_SIZE: usize = 8192;
+static TOKEN_COUNTER: AtomicUsize = ATOMIC_USIZE_INIT;
+
+type Loop<'x> = &'x mut EventLoop<Context<'x>>;
 
 #[derive(RustcEncodable)]
 struct StatusData {
@@ -30,6 +44,7 @@ struct ProcessesData<'a> {
     all: &'a Vec<scan::processes::MinimalProcess>,
 }
 
+/*
 fn handle_request(stats: &RwLock<Stats>, req: &http::Request,
     gossip_cmd: mio::Sender<Command>)
     -> Result<http::Response, http::Error>
@@ -109,20 +124,114 @@ fn handle_request(stats: &RwLock<Stats>, req: &http::Request,
         }
     }
 }
+*/
 
+fn new_token() -> Token {
+    Token(TOKEN_COUNTER.fetch_add(1, Ordering::Relaxed))
+}
+
+#[derive(Debug)]
+struct HttpClient {
+    token: Token,
+    sock: mio::tcp::TcpStream,
+    buf: RingBuf,
+}
+
+struct Context<'a> {
+    input: mio::tcp::TcpListener,
+    stats: &'a RwLock<Stats>,
+    http_inputs: HashMap<Token, HttpClient>,
+}
+impl HttpClient {
+    fn read(&mut self, eloop: &mut EventLoop<Context>) -> bool {
+        debug!("Http {:?}", self);
+        if(self.buf.remaining() == 0) {
+            debug!("Headers too long");
+            return false;
+        }
+        let res = self.sock.try_read_buf(&mut self.buf);
+        match res {
+            Ok(Some(x)) => {
+                let req = parse_request(&mut BufReader::new(self.buf));
+                debug!("GOT REQUEST {:?}", req);
+            }
+            Ok(None) => {
+                return true;
+            }
+            Err(e) => {
+                error!("Error reading request {}", e);
+                return false;
+            }
+        }
+        return true;
+    }
+}
+
+impl<'a> Handler for Context<'a> {
+    type Timeout = ();
+    type Message = ();
+
+    fn readable(&mut self, eloop: &mut EventLoop<Context>,
+                tok: Token, _hint: ReadHint)
+    {
+        match tok {
+            INPUT => {
+                let sock = match self.input.accept() {
+                    Ok(Some(sock)) => sock,
+                    Ok(None) => return,
+                    Err(e) => {
+                        error!("Can't accept connection: {}", e);
+                        return;
+                    }
+                };
+                debug!("Accepted {:?}", sock.peer_addr());
+                let tok = new_token();
+                if let Err(e) = eloop.register(&sock, tok) {
+                    error!("Error registering accepted connection: {}", e);
+                }
+                self.http_inputs.insert(tok, HttpClient {
+                    token: tok,
+                    sock: sock,
+                    buf: RingBuf::new(MAX_HEADER_SIZE),
+                }).ok_or(()).err().expect("Duplicate token in http_inputs");
+            }
+            tok => {
+                let keep = match self.http_inputs.get_mut(&tok) {
+                    Some(cli) => {
+                        if !cli.read(eloop) {
+                            eloop.deregister(cli.sock);
+                            false
+                        } else {
+                            true
+                        }
+                    }
+                    None => {
+                        error!("Unexpected token {:?}", tok);
+                        return;
+                    }
+                };
+                if !keep {
+                    self.http_inputs.remove(&tok);
+                }
+            }
+        }
+    }
+}
 
 pub fn run_server(stats: &RwLock<Stats>, host: &str, port: u16,
     gossip_cmd: mio::Sender<Command>)
     -> Result<(), String>
 {
-    let handler: &for<'b> Fn(&'b aio::http::Request<'b>)
-        -> Result<aio::http::Response, aio::http::Error>
-        = &|req| {
-        handle_request(stats, req, gossip_cmd.clone())
+    TOKEN_COUNTER.fetch_add(1, Ordering::Relaxed);  // start from 1
+    let server = mio::tcp::TcpListener::bind(&SocketAddr::V4(
+        SocketAddrV4::new(host.parse().unwrap(), port))).unwrap();
+    let mut eloop = EventLoop::new().unwrap();
+    eloop.register(&server, INPUT).unwrap();
+    let mut ctx = Context {
+        input: server,
+        stats: stats,
+        http_inputs: Default::default(),
     };
-    let mut main = try!(aio::MainLoop::new()
-        .map_err(|e| format!("Can't create main loop: {}", e)));
-    try!(main.add_http_server(host, port, handler)
-        .map_err(|e| format!("Can't bind {}:{}: {}", host, port, e)));
-    main.run();
+    eloop.run(&mut ctx)
+        .map_err(|e| format!("Error running http loop: {}", e))
 }
