@@ -10,6 +10,8 @@ extern crate nix;
 extern crate mio;
 extern crate time;
 extern crate rand;
+#[macro_use] extern crate mime;
+extern crate httparse;
 extern crate hyper;
 
 use std::thread;
@@ -35,6 +37,7 @@ mod history;
 mod storage;
 mod rules;
 mod p2p;
+mod http;
 
 
 fn main() {

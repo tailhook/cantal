@@ -18,6 +18,8 @@ mio = { git = "git://github.com/carllerche/mio" }
 argparse = "0.2"
 rand = "0.3"
 nix = "0.3"
+mime = "*"
+httparse = "0.1"
 hyper = "0.6"
 websocket = "0.12"
 

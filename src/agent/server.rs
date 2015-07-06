@@ -1,27 +1,38 @@
 use std::str::from_utf8;
+use std::io::{Read, Write};
+use std::io::ErrorKind::{Interrupted, WouldBlock};
+use std::fmt::{Debug, Formatter};
+use std::fmt::Error as FmtError;
 use std::net::{SocketAddr, SocketAddrV4};
 use std::sync::RwLock;
 use std::sync::atomic::{AtomicUsize, Ordering, ATOMIC_USIZE_INIT};
 use std::default::Default;
 use std::collections::HashMap;
 
+use httparse;
 use rustc_serialize::json;
 use rustc_serialize::json::ToJson;
 use mio;
 use hyper::buffer::BufReader;
-use mio::buf::{RingBuf, MutBuf};
-use mio::TryRead;
+use mio::buf::{RingBuf, ByteBuf, MutByteBuf, MutBuf, Buf};
+use mio::{TryRead, Interest, PollOpt};
 use mio::{EventLoop, Token, ReadHint, Handler};
+use hyper::uri::RequestUri;
+use hyper::header::{Headers, ContentLength};
+use hyper::method::Method;
+use hyper::version::HttpVersion as Version;
 use hyper::http::h1::parse_request;
+use hyper::error::Error as HyperError;
 
-use super::aio;
 use super::scan;
+use super::http;
 use super::staticfiles;
-use super::aio::http;
 use super::stats::{Stats};
 use super::storage::{StorageStats};
 use super::rules::{Query, query};
 use super::p2p::Command;
+use super::http::NotFound;
+use super::http::Request;
 
 
 const INPUT: Token = Token(0);
@@ -130,11 +141,42 @@ fn new_token() -> Token {
     Token(TOKEN_COUNTER.fetch_add(1, Ordering::Relaxed))
 }
 
+fn make_request(req: httparse::Request) -> Result<Request, HyperError> {
+    Ok(Request {
+        version: if req.version.unwrap() == 1
+            { Version::Http11 } else { Version::Http10 },
+        method: try!(req.method.unwrap().parse()),
+        uri: try!(req.path.unwrap().parse()),
+        headers: try!(Headers::from_raw(req.headers)),
+        body: Some(vec!()),
+    })
+}
+
+enum Mode {
+    ReadHeaders,
+    ReadContent(MutByteBuf),
+    WriteResponse(Vec<u8>, usize),
+}
+
+impl Debug for Mode {
+    fn fmt(&self, fmt: &mut Formatter) -> Result<(), FmtError> {
+        use self::Mode::*;
+        match self {
+            &ReadHeaders => write!(fmt, "ReadHeaders"),
+            &ReadContent(ref x) => write!(fmt, "ReadContent({}/{})",
+                x.remaining(), x.capacity()),
+            &WriteResponse(ref x, y) => write!(fmt, "WriteResponse({}/{})",
+                y, x.len()),
+        }
+    }
+}
+
 #[derive(Debug)]
 struct HttpClient {
     token: Token,
     sock: mio::tcp::TcpStream,
     buf: RingBuf,
+    mode: Mode,
 }
 
 struct Context<'a> {
@@ -142,18 +184,141 @@ struct Context<'a> {
     stats: &'a RwLock<Stats>,
     http_inputs: HashMap<Token, HttpClient>,
 }
+
 impl HttpClient {
+    fn resolve(&self, req: &Request)
+        -> Result<http::Response, Box<http::Error>>
+    {
+        use hyper::method::Method::*;
+        use hyper::uri::RequestUri::AbsolutePath as P;
+        match (&req.method, &req.uri) {
+            (&Get, &P(ref x)) if &x[..] == "/"
+            => staticfiles::serve(req),
+            (&Get, &P(ref x)) if x.starts_with("/js/")
+            => staticfiles::serve(req),
+            (&Get, &P(ref x)) if x.starts_with("/css/")
+            => staticfiles::serve(req),
+            (&Get, &P(ref x)) if x.starts_with("/fonts/")
+            => staticfiles::serve(req),
+            //(Get, P("/status.json")) => self.serve_status(req),
+            //(Get, P("/all_processes.json")) => self.serve_processes(req),
+            //(Get, P("/all_metrics.json")) => self.serve_metrics(req),
+            //(Get, P("/all_peers.json")) => self.serve_peers(req),
+            //(Post, P("/query.json")) => self.serve_query(req),
+            //(Post, P("/add_host.json")) => self.do_add_host(req),
+            _ => Err(Box::new(NotFound) as Box<http::Error>),
+        }
+    }
+    fn write(&mut self, eloop: &mut EventLoop<Context>) -> bool {
+        use self::Mode::*;
+        match self.mode {
+            ReadHeaders => unreachable!(),
+            ReadContent(_) => unreachable!(),
+            WriteResponse(ref buf, ref mut off) => {
+                match self.sock.write(&buf[*off..]) {
+                    Ok(0) => {
+                        return false;
+                    }
+                    Ok(x) => {
+                        *off += x;
+                        if *off >= buf.len() {
+                            // TODO(tailhook) arrange for next request
+                            return false;
+                        }
+                        return true;
+                    }
+                    Err(ref x) if x.kind() == Interrupted ||
+                              x.kind() == WouldBlock
+                    => {
+                        return true;
+                    }
+                    Err(x) => {
+                        error!("Error writing response: {:?}", x);
+                        return false;
+                    }
+                }
+            }
+        }
+    }
     fn read(&mut self, eloop: &mut EventLoop<Context>) -> bool {
+        use self::Mode::*;
+        match self.mode {
+            ReadHeaders => self.read_headers(eloop),
+            ReadContent(_) => unimplemented!(),
+            WriteResponse(_, _) => unreachable!(),
+        }
+    }
+    fn read_headers(&mut self, eloop: &mut EventLoop<Context>) -> bool {
         debug!("Http {:?}", self);
-        if(self.buf.remaining() == 0) {
+        if(MutBuf::remaining(&self.buf) == 0) {
             debug!("Headers too long");
             return false;
         }
         let res = self.sock.try_read_buf(&mut self.buf);
         match res {
+            Ok(Some(0)) => {
+                return false; // Connection closed
+            }
             Ok(Some(x)) => {
-                let req = parse_request(&mut BufReader::new(self.buf));
-                debug!("GOT REQUEST {:?}", req);
+                use hyper::error::Error::*;
+                let mut headers = [httparse::EMPTY_HEADER; 64];
+                let (rreq, len) = {
+                    let mut req = httparse::Request::new(&mut headers);
+                    let len = match req.parse(Buf::bytes(&self.buf)) {
+                        Ok(httparse::Status::Complete(len)) => len,
+                        Ok(httparse::Status::Partial) => {
+                            trace!("Partial read");
+                            return true;
+                        }
+                        Err(err) => {
+                            debug!("Error while reading request: {:?}", err);
+                            // TODO(tailhook) respond with bad request
+                            return false;
+                        }
+                    };
+                    let rreq = match make_request(req) {
+                        Ok(rreq) => rreq,
+                        Err(e) => {
+                            debug!("Error decoding request: {:?}", e);
+                            // TODO(tailhook) respond with bad request
+                            return false;
+                        }
+                    };
+                    (rreq, len)
+                };
+                MutBuf::advance(&mut self.buf, len);
+                self.buf.mark(); // TODO(tailhook) needed ?
+                match rreq.headers.get::<ContentLength>() {
+                    Some(&ContentLength(x)) => {
+                        self.mode = Mode::ReadContent(
+                            ByteBuf::mut_with_capacity(x as usize));
+                        return true;
+                    }
+                    None => {}
+                }
+                debug!("Got request, rreq {:?}", rreq);
+                match self.resolve(&rreq) {
+                    Ok(mut resp) => {
+                        trace!("Response {:?}", resp);
+                        self.mode = Mode::WriteResponse(
+                            resp.to_buf(rreq.version), 0);
+                    }
+                    Err(err) => {
+                        trace!("Error {:?}", err);
+                        self.mode = Mode::WriteResponse(
+                            err.to_response().to_buf(rreq.version), 0);
+                    }
+                }
+                match eloop.reregister(&self.sock, self.token,
+                    Interest::writable(), PollOpt::level())
+                {
+                    Ok(_) => {}
+                    Err(e) => {
+                        error!("Can't reregister http socket");
+                        return false;
+                    }
+                }
+                return true;
             }
             Ok(None) => {
                 return true;
@@ -186,20 +351,48 @@ impl<'a> Handler for Context<'a> {
                 };
                 debug!("Accepted {:?}", sock.peer_addr());
                 let tok = new_token();
-                if let Err(e) = eloop.register(&sock, tok) {
+                if let Err(e) = eloop.register_opt(&sock, tok,
+                    Interest::readable(), PollOpt::level()) {
                     error!("Error registering accepted connection: {}", e);
                 }
                 self.http_inputs.insert(tok, HttpClient {
                     token: tok,
                     sock: sock,
                     buf: RingBuf::new(MAX_HEADER_SIZE),
+                    mode: Mode::ReadHeaders,
                 }).ok_or(()).err().expect("Duplicate token in http_inputs");
             }
             tok => {
                 let keep = match self.http_inputs.get_mut(&tok) {
                     Some(cli) => {
                         if !cli.read(eloop) {
-                            eloop.deregister(cli.sock);
+                            eloop.deregister(&cli.sock);
+                            false
+                        } else {
+                            true
+                        }
+                    }
+                    None => {
+                        error!("Unexpected token {:?}", tok);
+                        return;
+                    }
+                };
+                if !keep {
+                    self.http_inputs.remove(&tok);
+                }
+            }
+        }
+    }
+
+    fn writable(&mut self, eloop: &mut EventLoop<Context>, tok: Token)
+    {
+        match tok {
+            INPUT => unreachable!(),
+            tok => {
+                let keep = match self.http_inputs.get_mut(&tok) {
+                    Some(cli) => {
+                        if !cli.write(eloop) {
+                            eloop.deregister(&cli.sock);
                             false
                         } else {
                             true
