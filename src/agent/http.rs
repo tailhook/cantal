@@ -1,6 +1,7 @@
 use std::io::Write;
 use std::fmt::Debug;
 use std::borrow::{Cow, IntoCow};
+use bytes::ByteBuf;
 
 use mime::{Mime};
 use hyper::status::StatusCode;
@@ -11,6 +12,8 @@ use hyper::method::Method;
 use hyper::version::HttpVersion as Version;
 use hyper::server::response::Response as HyperResponse;
 use hyper::http::h1::HttpWriter::SizedWriter;
+use rustc_serialize::Encodable;
+use rustc_serialize::json::as_json;
 
 
 pub trait Error: Debug {
@@ -33,11 +36,21 @@ impl Error for BadRequest {
             self.0);
     }
 }
+impl BadRequest {
+    pub fn err(s: &'static str) -> Box<Error> {
+        Box::new(BadRequest(s)) as Box<Error>
+    }
+}
 impl Error for NotFound {
     fn to_response(&self) -> Response {
         return Response::static_mime_str(StatusCode::NotFound,
             mime!(Text/Plain; Charset=Utf8),
             "Page Not Found");
+    }
+}
+impl ServerError {
+    pub fn err(s: &'static str) -> Box<Error> {
+        Box::new(ServerError(s)) as Box<Error>
     }
 }
 impl Error for ServerError {
@@ -63,13 +76,12 @@ pub struct Response {
     body: Cow<'static, [u8]>,
 }
 
-#[derive(Debug)]
 pub struct Request {
     pub method: Method,
     pub uri: RequestUri,
     pub version: Version,
     pub headers: Headers,
-    pub body: Option<Vec<u8>>,
+    pub body: Option<ByteBuf>,
 }
 
 impl Response {
@@ -98,6 +110,15 @@ impl Response {
         res.headers.set(ContentType(mime));
         res.status = status;
         res.body = body;
+        return res;
+    }
+    pub fn json<T: Encodable>(body: &T) -> Response
+    {
+        let mut res = Response::new();
+        res.headers.set(
+            ContentType(mime!(Application/Json; Charset=Utf8)));
+        res.status = StatusCode::Ok;
+        res.body = Cow::Owned(format!("{}", as_json(body)).into_bytes());
         return res;
     }
     pub fn to_buf(&mut self, version: HttpVersion) -> Vec<u8> {

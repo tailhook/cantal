@@ -6,15 +6,15 @@ use regex::Regex;
 use rustc_serialize::json::{Json, ToJson};
 use rustc_serialize::{Decodable, Decoder};
 
-use super::aio::http;
+use super::http;
 use super::stats::{Stats, Key};
 use super::history::{merge};
 
 pub struct Error(&'static str);
 
-impl From<Error> for http::Error {
-    fn from(err: Error) -> http::Error {
-        return http::Error::BadRequest(err.0);
+impl From<Error> for Box<http::Error> {
+    fn from(err: Error) -> Box<http::Error> {
+        return Box::new(http::BadRequest(err.0));
     }
 }
 
