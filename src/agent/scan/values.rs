@@ -70,7 +70,7 @@ fn match_mountpoint(cache: &ReadCache, pid: Pid, path: &Path)
         if path.starts_with(mp.mounted_at) {
             if let Some((ref mut pref, ref mut pt, ref mut dev)) = best_match {
                 // Modify only if new path is longer
-                if Path::new(mp.mounted_at).starts_with(&pref) {
+                if Path::new(mp.mounted_at).starts_with(&pt) {
                     *pref = PathBuf::from(mp.prefix);
                     *pt = PathBuf::from(mp.mounted_at);
                     *dev = mp.device_id;
