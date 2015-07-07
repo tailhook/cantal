@@ -88,7 +88,7 @@ impl ReadVec {
         }
         match res {
             Ok(0) => ReadVec::Close,
-            Ok(x) => {
+            Ok(_) => {
                 if nlen < max {
                     ReadVec::More
                 } else {

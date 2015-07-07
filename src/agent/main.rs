@@ -25,7 +25,6 @@ use cbor::{Decoder};
 use argparse::{ArgumentParser, Store, ParseOption};
 
 
-mod aio;
 mod util;
 mod server;
 mod stats;

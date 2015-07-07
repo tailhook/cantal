@@ -1,7 +1,5 @@
-use std::io::Write;
 use std::fmt::Debug;
-use std::borrow::{Cow, IntoCow};
-use bytes::ByteBuf;
+use std::borrow::{Cow};
 
 use mime::{Mime};
 use hyper::status::StatusCode;
@@ -11,7 +9,6 @@ use hyper::uri::RequestUri;
 use hyper::method::Method;
 use hyper::version::HttpVersion as Version;
 use hyper::server::response::Response as HyperResponse;
-use hyper::http::h1::HttpWriter::SizedWriter;
 use rustc_serialize::Encodable;
 use rustc_serialize::json::as_json;
 
@@ -121,10 +118,10 @@ impl Response {
         res.body = Cow::Owned(format!("{}", as_json(body)).into_bytes());
         return res;
     }
-    pub fn to_buf(&mut self, version: HttpVersion) -> Vec<u8> {
+    pub fn to_buf(&mut self, _version: HttpVersion) -> Vec<u8> {
         let mut buf = Vec::new();
         {
-            let mut res = HyperResponse::new(&mut buf, &mut self.headers);
+            let res = HyperResponse::new(&mut buf, &mut self.headers);
             res.send(&self.body[..]).unwrap();
         }
         return buf;

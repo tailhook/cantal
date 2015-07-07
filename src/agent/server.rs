@@ -10,18 +10,14 @@ use std::sync::atomic::{AtomicUsize, Ordering, ATOMIC_USIZE_INIT};
 use std::default::Default;
 use std::collections::HashMap;
 
-use bytes::Source;
 use httparse;
 use rustc_serialize::json;
 use rustc_serialize::json::ToJson;
 use mio;
-use mio::{TryRead, Interest, PollOpt};
+use mio::{Interest, PollOpt};
 use mio::{EventLoop, Token, ReadHint};
-use hyper::uri::RequestUri;
 use hyper::header::{Headers, ContentLength};
-use hyper::method::Method;
 use hyper::version::HttpVersion as Version;
-use hyper::http::h1::parse_request;
 use hyper::error::Error as HyperError;
 
 use super::scan;
@@ -31,7 +27,7 @@ use super::stats::{Stats};
 use super::storage::{StorageStats};
 use super::rules::{Query, query};
 use super::p2p::Command;
-use super::http::{NotFound, BadRequest, ServerError};
+use super::http::{NotFound, BadRequest, ServerError, MethodNotAllowed};
 use super::http::Request;
 use super::util::ReadVec as R;
 
@@ -136,10 +132,11 @@ impl HttpClient {
             => self.serve_query(req, context),
             (&Post, &P(ref x)) if &x[..] == "/add_host.json"
             => self.do_add_host(req, context),
-            _ => Err(Box::new(NotFound) as Box<http::Error>),
+            (&Get, _) => Err(Box::new(NotFound) as Box<http::Error>),
+            _ => Err(Box::new(MethodNotAllowed) as Box<http::Error>),
         }
     }
-    fn serve_status(&self, req: &Request, context: &Context)
+    fn serve_status(&self, _req: &Request, context: &Context)
         -> Result<http::Response, Box<http::Error>>
     {
         let stats = context.stats.read().unwrap();
@@ -150,7 +147,7 @@ impl HttpClient {
                 boot_time: stats.boot_time,
             }))
     }
-    fn serve_processes(&self, req: &Request, context: &Context)
+    fn serve_processes(&self, _req: &Request, context: &Context)
         -> Result<http::Response, Box<http::Error>>
     {
         let stats = context.stats.read().unwrap();
@@ -159,7 +156,7 @@ impl HttpClient {
                 all: &stats.processes,
             }))
     }
-    fn serve_metrics(&self, req: &Request, context: &Context)
+    fn serve_metrics(&self, _req: &Request, context: &Context)
         -> Result<http::Response, Box<http::Error>>
     {
         let stats = context.stats.read().unwrap();
@@ -171,7 +168,7 @@ impl HttpClient {
                 .to_json()
             ))
     }
-    fn serve_peers(&self, req: &Request, context: &Context)
+    fn serve_peers(&self, _req: &Request, context: &Context)
         -> Result<http::Response, Box<http::Error>>
     {
         let stats = context.stats.read().unwrap();
@@ -228,7 +225,7 @@ impl HttpClient {
             ].into_iter().collect::<HashMap<_, _>>().to_json()))
         })
     }
-    fn write(&mut self, eloop: &mut EventLoop<Handler>) -> bool {
+    fn write(&mut self, _eloop: &mut EventLoop<Handler>) -> bool {
         use self::Mode::*;
         match self.mode {
             ReadHeaders => unreachable!(),
@@ -316,7 +313,7 @@ impl HttpClient {
         {
             Ok(_) => {}
             Err(e) => {
-                error!("Can't reregister http socket");
+                error!("Can't reregister http socket: {}", e);
                 return false;
             }
         }
@@ -335,7 +332,6 @@ impl HttpClient {
                 return false; // Connection closed
             }
             R::More => {
-                use hyper::error::Error::*;
                 let mut headers = [httparse::EMPTY_HEADER; 64];
                 let (mut rreq, len) = {
                     let mut req = httparse::Request::new(&mut headers);
@@ -364,7 +360,6 @@ impl HttpClient {
                 match rreq.headers.get::<ContentLength>() {
                     Some(&ContentLength(x)) => {
                         let clen = x as usize;
-                        let mut buf = Vec::<u8>::with_capacity(clen);
                         if self.buf.len() >= len + clen {
                             rreq.body = self.buf[len..len+clen].to_vec();
                             self.buf = self.buf[len+clen..].to_vec();
@@ -400,7 +395,7 @@ impl HttpClient {
                 {
                     Ok(_) => {}
                     Err(e) => {
-                        error!("Can't reregister http socket");
+                        error!("Can't reregister http socket: {}", e);
                         return false;
                     }
                 }
@@ -414,7 +409,6 @@ impl HttpClient {
                 return false;
             }
         }
-        return true;
     }
 }
 
@@ -452,7 +446,7 @@ impl<'a> mio::Handler for Handler<'a> {
                 let keep = match self.http_inputs.get_mut(&tok) {
                     Some(cli) => {
                         if !cli.read(eloop, &mut self.context) {
-                            eloop.deregister(&cli.sock);
+                            eloop.deregister(&cli.sock).unwrap();
                             false
                         } else {
                             true
@@ -478,7 +472,7 @@ impl<'a> mio::Handler for Handler<'a> {
                 let keep = match self.http_inputs.get_mut(&tok) {
                     Some(cli) => {
                         if !cli.write(eloop) {
-                            eloop.deregister(&cli.sock);
+                            eloop.deregister(&cli.sock).unwrap();
                             false
                         } else {
                             true
