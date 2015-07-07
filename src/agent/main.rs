@@ -12,8 +12,9 @@ extern crate time;
 extern crate rand;
 #[macro_use] extern crate mime;
 extern crate httparse;
-extern crate bytes;
+extern crate unicase;
 extern crate hyper;
+extern crate websocket;
 
 use std::thread;
 use std::fs::File;

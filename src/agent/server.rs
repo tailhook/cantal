@@ -16,9 +16,13 @@ use rustc_serialize::json::ToJson;
 use mio;
 use mio::{Interest, PollOpt};
 use mio::{EventLoop, Token, ReadHint};
-use hyper::header::{Headers, ContentLength};
+use unicase::UniCase;
+use hyper::header::{Headers, ContentLength, Upgrade, ProtocolName};
+use hyper::header::{Connection};
+use hyper::header::ConnectionOption::ConnectionHeader;
 use hyper::version::HttpVersion as Version;
 use hyper::error::Error as HyperError;
+use websocket::header::{WebSocketVersion, WebSocketKey};
 
 use super::scan;
 use super::http;
@@ -106,7 +110,7 @@ struct Context<'a> {
 }
 
 impl HttpClient {
-    fn resolve(&self, req: &Request, context: &Context)
+    fn resolve(&mut self, req: &Request, context: &Context)
         -> Result<http::Response, Box<http::Error>>
     {
         use hyper::method::Method::*;
@@ -120,6 +124,8 @@ impl HttpClient {
             => staticfiles::serve(req),
             (&Get, &P(ref x)) if x.starts_with("/fonts/")
             => staticfiles::serve(req),
+            (&Get, &P(ref x)) if &x[..] == "/ws"
+            => self.respond_websock(req, context),
             (&Get, &P(ref x)) if &x[..] == "/status.json"
             => self.serve_status(req, context),
             (&Get, &P(ref x)) if &x[..] == "/all_processes.json"
@@ -224,6 +230,59 @@ impl HttpClient {
                 (String::from("ok"), true)
             ].into_iter().collect::<HashMap<_, _>>().to_json()))
         })
+    }
+    fn respond_websock(&mut self, req: &Request, _context: &Context)
+        -> Result<http::Response, Box<http::Error>>
+    {
+		if req.version != Version::Http11 {
+			return Err(BadRequest::err("Unsupported request HTTP version"));
+		}
+
+		if req.headers.get() != Some(&(WebSocketVersion::WebSocket13)) {
+			return Err(BadRequest::err("Unsupported WebSocket version"));
+		}
+
+		let key  = match req.headers.get::<WebSocketKey>() {
+            Some(key) => key,
+            None => {
+                return Err(BadRequest::err("Missing Sec-WebSocket-Key"));
+            }
+		};
+
+		match req.headers.get() {
+			Some(&Upgrade(ref upgrade)) => {
+				let mut correct_upgrade = false;
+				for u in upgrade {
+					if u.name == ProtocolName::WebSocket {
+						correct_upgrade = true;
+					}
+				}
+				if !correct_upgrade {
+                    return Err(BadRequest::err(
+                        "Invalid Upgrade WebSocket header"));
+				}
+			}
+			None => {
+                return Err(BadRequest::err("Missing Upgrade header"));
+            }
+		};
+
+		match req.headers.get() {
+			Some(&Connection(ref connection)) => {
+				if !connection.contains(&(ConnectionHeader(
+                    UniCase("Upgrade".to_string()))))
+                {
+                    return Err(BadRequest::err(
+                        "Invalid Connection WebSocket header"));
+				}
+			}
+			None => {
+                return Err(BadRequest::err(
+                    "Missing Connection WebSocket header"));
+            }
+		}
+
+        Ok(http::Response::accept_websock(key))
     }
     fn write(&mut self, _eloop: &mut EventLoop<Handler>) -> bool {
         use self::Mode::*;

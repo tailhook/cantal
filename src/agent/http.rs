@@ -2,13 +2,17 @@ use std::fmt::Debug;
 use std::borrow::{Cow};
 
 use mime::{Mime};
+use unicase::UniCase;
 use hyper::status::StatusCode;
 use hyper::version::HttpVersion;
-use hyper::header::{ContentType, Headers};
+use hyper::header::{ContentType, Headers, Connection};
+use hyper::header::{Upgrade, Protocol, ProtocolName};
+use hyper::header::ConnectionOption::ConnectionHeader;
 use hyper::uri::RequestUri;
 use hyper::method::Method;
 use hyper::version::HttpVersion as Version;
 use hyper::server::response::Response as HyperResponse;
+use websocket::header::{WebSocketAccept, WebSocketKey};
 use rustc_serialize::Encodable;
 use rustc_serialize::json::as_json;
 
@@ -109,6 +113,17 @@ impl Response {
         res.body = body;
         return res;
     }
+    pub fn accept_websock(key: &WebSocketKey) -> Response {
+        let mut resp = Response::new();
+        resp.status = StatusCode::SwitchingProtocols;
+        resp.headers.set(Upgrade(vec![
+            Protocol::new(ProtocolName::WebSocket, None),
+            ]));
+        resp.headers.set(Connection(vec![
+            ConnectionHeader(UniCase("Upgrade".to_string()))]));
+        resp.headers.set(WebSocketAccept::new(key));
+        return resp;
+    }
     pub fn json<T: Encodable>(body: &T) -> Response
     {
         let mut res = Response::new();
@@ -118,10 +133,12 @@ impl Response {
         res.body = Cow::Owned(format!("{}", as_json(body)).into_bytes());
         return res;
     }
-    pub fn to_buf(&mut self, _version: HttpVersion) -> Vec<u8> {
+    pub fn to_buf(&mut self, version: HttpVersion) -> Vec<u8> {
         let mut buf = Vec::new();
         {
-            let res = HyperResponse::new(&mut buf, &mut self.headers);
+            let mut res = HyperResponse::new(&mut buf, &mut self.headers);
+            *res.status_mut() = self.status;
+            res.version = version;
             res.send(&self.body[..]).unwrap();
         }
         return buf;
