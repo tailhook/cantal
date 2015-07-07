@@ -1,4 +1,5 @@
 use std::str::from_utf8;
+use std::mem::swap;
 use std::io::{Read, Write};
 use std::io::ErrorKind::{Interrupted, WouldBlock};
 use std::fmt::{Debug, Formatter};
@@ -14,8 +15,6 @@ use httparse;
 use rustc_serialize::json;
 use rustc_serialize::json::ToJson;
 use mio;
-use hyper::buffer::BufReader;
-use mio::buf::{RingBuf, ByteBuf, MutByteBuf, MutBuf, Buf};
 use mio::{TryRead, Interest, PollOpt};
 use mio::{EventLoop, Token, ReadHint};
 use hyper::uri::RequestUri;
@@ -34,10 +33,11 @@ use super::rules::{Query, query};
 use super::p2p::Command;
 use super::http::{NotFound, BadRequest, ServerError};
 use super::http::Request;
+use super::util::ReadVec as R;
 
 
 const INPUT: Token = Token(0);
-const MAX_HEADER_SIZE: usize = 8192;
+const MAX_HEADER_SIZE: usize = 16384;
 static TOKEN_COUNTER: AtomicUsize = ATOMIC_USIZE_INIT;
 
 type Loop<'x> = &'x mut EventLoop<Handler<'x>>;
@@ -67,13 +67,13 @@ fn make_request(req: httparse::Request) -> Result<Request, HyperError> {
         method: try!(req.method.unwrap().parse()),
         uri: try!(req.path.unwrap().parse()),
         headers: try!(Headers::from_raw(req.headers)),
-        body: None,
+        body: Vec::new(),
     })
 }
 
 enum Mode {
     ReadHeaders,
-    ReadContent(Request, MutByteBuf),
+    ReadContent(Request, Vec<u8>, usize),
     WriteResponse(Vec<u8>, usize),
 }
 
@@ -82,8 +82,8 @@ impl Debug for Mode {
         use self::Mode::*;
         match self {
             &ReadHeaders => write!(fmt, "ReadHeaders"),
-            &ReadContent(_, ref x) => write!(fmt, "ReadContent({}/{})",
-                x.remaining(), x.capacity()),
+            &ReadContent(_, ref x, c) => write!(fmt, "ReadContent({}/{})",
+                x.len(), c),
             &WriteResponse(ref x, y) => write!(fmt, "WriteResponse({}/{})",
                 y, x.len()),
         }
@@ -94,7 +94,7 @@ impl Debug for Mode {
 struct HttpClient {
     token: Token,
     sock: mio::tcp::TcpStream,
-    buf: RingBuf,
+    buf: Vec<u8>,
     mode: Mode,
 }
 
@@ -190,9 +190,7 @@ impl HttpClient {
     {
         let stats = context.stats.read().unwrap();
         let h = &stats.history;
-        println!("BODY {:?}",
-            from_utf8(req.body.as_ref().map(|x| Buf::bytes(x)).unwrap_or(b"")));
-        from_utf8(req.body.as_ref().map(|x| Buf::bytes(x)).unwrap_or(b""))
+        from_utf8(&req.body)
            .map_err(|_| BadRequest::err("Bad utf-8 encoding"))
            .and_then(|s| json::decode::<Query>(s)
            .map_err(|_| BadRequest::err("Failed to decode query")))
@@ -214,7 +212,7 @@ impl HttpClient {
         struct Query {
             addr: String,
         }
-        from_utf8(req.body.as_ref().map(|x| Buf::bytes(x)).unwrap_or(b""))
+        from_utf8(&req.body)
        .map_err(|_| BadRequest::err("Bad utf-8 encoding"))
        .and_then(|x| json::decode(x)
        .map_err(|e| error!("Error parsing query: {:?}", e))
@@ -234,7 +232,7 @@ impl HttpClient {
         use self::Mode::*;
         match self.mode {
             ReadHeaders => unreachable!(),
-            ReadContent(_, _) => unreachable!(),
+            ReadContent(_, _, _) => unreachable!(),
             WriteResponse(ref buf, ref mut off) => {
                 match self.sock.write(&buf[*off..]) {
                     Ok(0) => {
@@ -267,7 +265,7 @@ impl HttpClient {
         use self::Mode::*;
         match self.mode {
             ReadHeaders => self.read_headers(eloop, context),
-            ReadContent(_, _) => self.read_content(eloop, context),
+            ReadContent(_, _, _) => self.read_content(eloop, context),
             WriteResponse(_, _) => unreachable!(),
         }
     }
@@ -275,40 +273,32 @@ impl HttpClient {
         context: &Context)
         -> bool
     {
-        use self::Mode::ReadContent;
-        println!("READING {:?}", self.mode);
-        match self.mode {
-            ReadContent(ref req, ref mut buf) => {
-                match self.sock.try_read_buf(buf) {
-                    Ok(Some(0)) => {
-                        return false; // Connection closed
+        use self::Mode::*;
+        let mut mode = ReadHeaders;
+        swap(&mut self.mode, &mut mode);
+        let req = match mode {
+            ReadContent(mut req, mut buf, bytes) => {
+                match R::read(&mut self.sock, &mut buf, bytes) {
+                    R::Full => {
+                        swap(&mut req.body, &mut buf);
+                        req
                     }
-                    Ok(Some(_)) => {}
-                    Ok(None) => {
+                    R::More|R::Wait => {
+                        self.mode = ReadContent(req, buf, bytes);
                         return true;
                     }
-                    Err(e) => {
-                        error!("Error reading request {}", e);
+                    R::Close => {
+                        debug!("Connection closed while reading request body");
+                        return false;
+                    }
+                    R::Error(e) => {
+                        debug!("Error while reading request body: {:?}", e);
                         return false;
                     }
                 }
-
-                if(MutBuf::remaining(buf) == 0) {
-                    println!("DONE");
-                } else {
-                    return true;
-                }
             }
             _ => unreachable!(),
-        }
-        let mut mode = Mode::ReadHeaders;
-        ::std::mem::swap(&mut self.mode, &mut mode);
-        let (mut req, body) = if let ReadContent(req, body) = mode {
-            (req, body)
-        } else {
-            unreachable!();
         };
-        req.body = Some(body.flip());
         match self.resolve(&req, context) {
             Ok(mut resp) => {
                 trace!("Response {:?}", resp);
@@ -322,7 +312,7 @@ impl HttpClient {
             }
         }
         match eloop.reregister(&self.sock, self.token,
-            Interest::writable(), PollOpt::level())
+            Interest::readable(), PollOpt::level())
         {
             Ok(_) => {}
             Err(e) => {
@@ -336,22 +326,20 @@ impl HttpClient {
         context: &Context)
         -> bool
     {
-        debug!("Http {:?}", self);
-        if(MutBuf::remaining(&self.buf) == 0) {
-            debug!("Headers too long");
-            return false;
-        }
-        let res = self.sock.try_read_buf(&mut self.buf);
-        match res {
-            Ok(Some(0)) => {
+        match R::read(&mut self.sock, &mut self.buf, MAX_HEADER_SIZE) {
+            R::Full => {
+                debug!("Headers too long");
+                return false;
+            }
+            R::Close => {
                 return false; // Connection closed
             }
-            Ok(Some(x)) => {
+            R::More => {
                 use hyper::error::Error::*;
                 let mut headers = [httparse::EMPTY_HEADER; 64];
                 let (mut rreq, len) = {
                     let mut req = httparse::Request::new(&mut headers);
-                    let len = match req.parse(Buf::bytes(&self.buf)) {
+                    let len = match req.parse(&self.buf) {
                         Ok(httparse::Status::Complete(len)) => len,
                         Ok(httparse::Status::Partial) => {
                             trace!("Partial read");
@@ -373,23 +361,27 @@ impl HttpClient {
                     };
                     (rreq, len)
                 };
-                Buf::advance(&mut self.buf, len);
-                self.buf.mark(); // TODO(tailhook) needed ?
                 match rreq.headers.get::<ContentLength>() {
                     Some(&ContentLength(x)) => {
-                        let mut buf = ByteBuf::mut_with_capacity(x as usize);
-                        self.buf.try_read_buf(&mut buf);
-                        if(MutBuf::remaining(&buf) == 0) {
-                            println!("DONE1");
-                            // TODO(tailhook) body?
-                            rreq.body = Some(buf.flip());
+                        let clen = x as usize;
+                        let mut buf = Vec::<u8>::with_capacity(clen);
+                        if self.buf.len() >= len + clen {
+                            rreq.body = self.buf[len..len+clen].to_vec();
+                            self.buf = self.buf[len+clen..].to_vec();
                         } else {
-                            self.mode = Mode::ReadContent(rreq, buf);
-                            println!("TODO {} {:?}", x, self.mode);
+                            let buf = self.buf[len..len+clen].to_vec();
+                            self.buf.truncate(0);
+                            self.mode = Mode::ReadContent(rreq, buf, clen);
                             return true;
                         }
                     }
-                    None => {}
+                    None => {
+                        self.buf = self.buf[len..].to_vec();
+                    }
+                }
+                if self.buf.len() > 0 {
+                    error!("Request pipelining is not implemented");
+                    return false;
                 }
                 match self.resolve(&rreq, context) {
                     Ok(mut resp) => {
@@ -414,10 +406,10 @@ impl HttpClient {
                 }
                 return true;
             }
-            Ok(None) => {
+            R::Wait => {
                 return true;
             }
-            Err(e) => {
+            R::Error(e) => {
                 error!("Error reading request {}", e);
                 return false;
             }
@@ -452,7 +444,7 @@ impl<'a> mio::Handler for Handler<'a> {
                 self.http_inputs.insert(tok, HttpClient {
                     token: tok,
                     sock: sock,
-                    buf: RingBuf::new(MAX_HEADER_SIZE),
+                    buf: Vec::new(),
                     mode: Mode::ReadHeaders,
                 }).ok_or(()).err().expect("Duplicate token in http_inputs");
             }

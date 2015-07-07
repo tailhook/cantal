@@ -81,7 +81,7 @@ pub struct Request {
     pub uri: RequestUri,
     pub version: Version,
     pub headers: Headers,
-    pub body: Option<ByteBuf>,
+    pub body: Vec<u8>,
 }
 
 impl Response {
