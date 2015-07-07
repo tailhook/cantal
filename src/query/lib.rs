@@ -93,7 +93,7 @@ impl Metadata {
             let mut line = String::new();
             try!(file.read_line(&mut line));
             if line.len() == 0 { break; }
-            let mut pair = line.trim()[..].splitn(1, ':');
+            let mut pair = line.trim()[..].splitn(2, ':');
             let mut type_iter = pair.next().unwrap().split(' ');
             let typ = try!(type_iter.next()
                 .ok_or(MetadataError::ParseError("bad type name")));
