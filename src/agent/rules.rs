@@ -1,7 +1,9 @@
 use std::ops::{Add, Sub};
 use std::iter::{repeat};
 use std::collections::{HashMap, BTreeMap};
+use std::collections::VecDeque;
 
+use num::traits::ToPrimitive;
 use regex::Regex;
 use rustc_serialize::json::{Json, ToJson};
 use rustc_serialize::{Decodable, Decoder};
@@ -161,17 +163,21 @@ fn take_raw<T:ToJson, I:Iterator<Item=Option<T>>>(items: Vec<I>, limit: u32)
         .collect::<Vec<_>>().to_json()
 }
 
-fn take_rate<T:Sub<T, Output=T>+ToJson, I>(items: Vec<I>, limit: u32)
+fn take_rate<T, I>(ts: &VecDeque<(u64, u32)>, items: Vec<I>, limit: u32)
     -> Json
-    where I: Iterator<Item=Option<T>> + Clone
+    where I: Iterator<Item=Option<T>> + Clone,
+          T: Sub<T, Output=T>+ToPrimitive
 {
     items.into_iter().map(|iter| {
+        let iter = iter.zip(ts);
         let mut pair = iter.clone();
         pair.next();
         iter.zip(pair)
-            .map(|(new, old)| new.and_then(|new| old.map(|old| new - old)))
+            .map(|((new, nts), (old, ots))| new
+                .and_then(|new| old.and_then(|old| (new - old).to_f64()))
+                .map(|r| r / (nts.0 - ots.0) as f64))
             .take(limit as usize)
-            .collect::<Vec<_>>()
+            .collect::<Vec<Option<f64>>>()
     }).collect::<Vec<_>>().to_json()
 }
 fn sum_tip<T, I>(items: Vec<I>, limit: u32, zero: T) -> Json
@@ -205,23 +211,25 @@ fn sum_raw<T, I>(items: Vec<I>, limit: u32, zero: T) -> Json
         .to_json()
 }
 
-fn sum_rate<T, I>(items: Vec<I>, limit: u32, zero: T)
+fn sum_rate<T, I>(ts: &VecDeque<(u64, u32)>, items: Vec<I>, limit: u32)
     -> Json
     where I: Iterator<Item=Option<T>> + Clone,
-          T: Sub<T, Output=T> + Add<T, Output=T> + ToJson + Copy
+          T: Sub<T, Output=T> + ToPrimitive + Copy
 {
     let buf: Vec<_> = items.into_iter().map(|iter| {
+        let iter = iter.zip(ts);
         let mut pair = iter.clone();
         pair.next();
         iter.zip(pair)
-            .map(|(new, old)|
-                new.and_then(|new| old.map(|old| new - old))
-                .unwrap_or(zero))
+            .map(|((new, nts), (old, ots))| new
+                .and_then(|new| old.and_then(|old| (new - old).to_f64()))
+                .map(|r| r / (nts.0 - ots.0) as f64)
+                .unwrap_or(0.))
             .take(limit as usize)
-            .collect::<Vec<_>>()
+            .collect::<Vec<f64>>()
     }).collect();
     let rlen = buf.iter().map(Vec::len).max().unwrap_or(0);
-    let zeros = repeat(zero).take(rlen).collect::<Vec<T>>();
+    let zeros = repeat(0.).take(rlen).collect::<Vec<_>>();
     buf.into_iter()
         .fold(zeros, |mut acc, val| {
             for (i, v) in val.into_iter().enumerate() {
@@ -252,6 +260,7 @@ fn query_fine(rule: &Rule, stats: &Stats) -> Result<Json, Error> {
         use super::history::Histories::*;
         let stream = merge(hkeys.iter()
                .filter_map(|key| stats.history.get_fine_history(key)));
+        let ts = &stats.history.fine_timestamps;
         let json = match rule.aggregation {
             None => match rule.load {
                 Tip => stream.map(|s| match s {
@@ -268,9 +277,9 @@ fn query_fine(rule: &Rule, stats: &Stats) -> Result<Json, Error> {
                 }),
                 Rate => stream.map(|s| match s {
                     Empty => Json::Null,
-                    Counters(x) => take_rate(x, rule.limit),
-                    Integers(x) => take_rate(x, rule.limit),
-                    Floats(x) => take_rate(x, rule.limit),
+                    Counters(x) => take_rate(ts, x, rule.limit),
+                    Integers(x) => take_rate(ts, x, rule.limit),
+                    Floats(x) => take_rate(ts, x, rule.limit),
                 }),
             },
             CasualSum => match rule.load {
@@ -288,9 +297,9 @@ fn query_fine(rule: &Rule, stats: &Stats) -> Result<Json, Error> {
                 }),
                 Rate => stream.map(|s| match s {
                     Empty => Json::Null,
-                    Counters(x) => sum_rate(x, rule.limit, 0),
-                    Integers(x) => sum_rate(x, rule.limit, 0),
-                    Floats(x) => sum_rate(x, rule.limit, 0.),
+                    Counters(x) => sum_rate(ts, x, rule.limit),
+                    Integers(x) => sum_rate(ts, x, rule.limit),
+                    Floats(x) => sum_rate(ts, x, rule.limit),
                 }),
             },
         };

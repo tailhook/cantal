@@ -10,6 +10,7 @@ extern crate nix;
 extern crate mio;
 extern crate time;
 extern crate rand;
+extern crate num;
 
 use std::thread;
 use std::fs::File;
