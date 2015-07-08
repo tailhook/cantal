@@ -12,7 +12,7 @@ css:
       width: 1em
       height: 1em
 
-html render(error, timestamps, mem_chart, data):
+html render(error, timestamps, data, mem_chart, cpu_chart):
   .container
     h1 "System Status"
     if error:
@@ -55,14 +55,50 @@ html render(error, timestamps, mem_chart, data):
                     span.glyphicon.glyphicon-chevron-down
               td
 
+    let cpu_yaxis = {
+      height: 40,
+      bg_color: 'rgb(237,248,233)',
+      skip_color: "white",
+      colors: [
+          [100, 'rgb(186,228,179)'],
+          [200,'rgb(116,196,118)'],
+          [800, 'rgb(49,163,84)'],
+          [1600, 'rgb(0,109,44)'],
+          [6400, "black"]
+          ]
+      }
+    h2 "CPU"
+    if cpu_chart:
+      =compact.render(timestamps, [{
+            'title': 'Cpu',
+            'values': cpu_chart['cpu.usage'],
+            'yaxis': cpu_yaxis
+            }, {
+            'title': 'User',
+            'values': cpu_chart['cpu.user'][0],
+            'yaxis': cpu_yaxis
+            }, {
+            'title': 'System',
+            'values': cpu_chart['cpu.system'][0],
+            'yaxis': cpu_yaxis
+            }, {
+            'title': 'I/O Wait',
+            'values': cpu_chart['cpu.iowait'][0],
+            'yaxis': cpu_yaxis
+            }, {
+            'title': 'IRQ',
+            'values': cpu_chart['cpu.irq'][0],
+            'yaxis': cpu_yaxis
+            }])
+
     let net_yaxis = {
       height: 40,
       bg_color: 'rgb(237,248,233)',
       skip_color: "white",
       colors: [
-          [1024, 'rgb(186,228,179)'],
-          [100*1024,'rgb(116,196,118)'],
-          [1024*1024, 'rgb(49,163,84)'],
+          [100*1024, 'rgb(186,228,179)'],
+          [1024*1024,'rgb(116,196,118)'],
+          [10*1024*1024, 'rgb(49,163,84)'],
           [1024*1024*1024, 'rgb(0,109,44)'],
           [1024*1024*1024*1024, "black"]
           ]
@@ -72,12 +108,10 @@ html render(error, timestamps, mem_chart, data):
       =compact.render(timestamps, [{
             'title': 'Receive',
             'values': data.network['net.interface.rx.bytes'],
-            'last': data.network['net.interface.rx.bytes'][0],
             'yaxis': net_yaxis
             }, {
             'title': 'Transfer',
             'values': data.network['net.interface.tx.bytes'],
-            'last': data.network['net.interface.tx.bytes'][0],
             'yaxis': net_yaxis
             }])
 

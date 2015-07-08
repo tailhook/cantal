@@ -26,7 +26,7 @@ const MEM_ORDER = {
     CommitLimit: 10,
 }
 
-function memchart(metrics) {
+function mem_chart(metrics) {
     metrics['memory.Used'] = [metrics['memory.MemTotal'][0]
                     - metrics['memory.MemFree'][0]
                     - metrics['memory.Buffers'][0]
@@ -48,6 +48,11 @@ function memchart(metrics) {
         }).sort((a, b) => (MEM_ORDER[a.title] || 10000) -
                           (MEM_ORDER[b.title] || 10000))
     }
+}
+
+function cpu_chart(cpu_total, parts) {
+    parts['cpu.usage'] = parts['cpu.idle'][0].map((x, i) => cpu_total[i] - x)
+    return parts
 }
 
 function network(data) {
@@ -106,6 +111,22 @@ export class Status extends Component {
                     'load': 'Tip',
                     'limit': 15,  // about 30 seconds
                     },
+                'cpu_sum': {
+                    'source': 'Fine',
+                    'condition': ['regex-like', 'metric', '^cpu\\.'],
+                    'key': [],
+                    'aggregation': 'CasualSum',
+                    'load': 'Rate',
+                    'limit': 1100,  // about 30 seconds
+                    },
+                'cpu': {
+                    'source': 'Fine',
+                    'condition': ['regex-like', 'metric', '^cpu\\.'],
+                    'key': ['metric'],
+                    'aggregation': 'None',
+                    'load': 'Rate',
+                    'limit': 1100,  // about 30 seconds
+                    },
                 'network': {
                     'source':'Fine',
                     'condition': ['and',
@@ -149,7 +170,9 @@ export class Status extends Component {
                 return {error: data, latency}
             } else {
                 return {
-                    mem_chart: memchart(data.dataset.memory),
+                    mem_chart: mem_chart(data.dataset.memory),
+                    cpu_chart: cpu_chart(data.dataset.cpu_sum,
+                                         data.dataset.cpu),
                     dataset: data.dataset,
                     fine_timestamps: data.fine_timestamps
                                      .map(([v, d]) => from_ms(v + d/2)),
@@ -159,7 +182,7 @@ export class Status extends Component {
     }
     render() {
         const ts = this.fine_timestamps
-        return template.render(this.error, ts, this.mem_chart,
-            this.dataset || {})
+        return template.render(this.error, ts, this.dataset || {},
+            this.mem_chart, this.cpu_chart)
     }
 }
