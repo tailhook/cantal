@@ -21,7 +21,7 @@ const MEM_ORDER = {
     MemFree: 5,
     Dirty: 6,
     Writeback: 7,
-    SwapTotal: 8,
+    SwapUsed: 8,
     Committed_AS: 9,
     CommitLimit: 10,
 }
@@ -31,6 +31,8 @@ function mem_chart(metrics) {
                     - metrics['memory.MemFree'][0]
                     - metrics['memory.Buffers'][0]
                     - metrics['memory.Cached'][0]]
+    metrics['memory.SwapUsed'] = [metrics['memory.SwapTotal'][0]
+                    - metrics['memory.SwapFree'][0]]
     return {
         title: 'Memory',
         unit: 'MiB',
