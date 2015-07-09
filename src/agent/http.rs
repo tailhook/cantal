@@ -101,6 +101,7 @@ pub struct Response {
     body: Cow<'static, [u8]>,
 }
 
+#[derive(Debug)]
 pub struct Request {
     pub method: Method,
     pub uri: RequestUri,

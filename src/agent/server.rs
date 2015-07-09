@@ -7,8 +7,8 @@ use std::collections::HashMap;
 use rustc_serialize::json;
 use rustc_serialize::json::ToJson;
 use mio;
-use mio::{Interest, PollOpt};
-use mio::{EventLoop, Token, ReadHint};
+use mio::{EventSet, PollOpt};
+use mio::{EventLoop, Token};
 use mio::util::Slab;
 
 use super::scan;
@@ -44,12 +44,14 @@ struct ProcessesData<'a> {
     all: &'a Vec<scan::processes::MinimalProcess>,
 }
 
+#[derive(Debug)]
 pub enum Tail {
     Close,
     WebSock,
     Proceed(Vec<u8>),
 }
 
+#[derive(Debug)]
 pub enum Client {
     ReadHeaders { buf: Vec<u8> },
     ReadContent { req: Request, body_size: usize },
@@ -63,16 +65,16 @@ impl Client {
     pub fn new() -> Client {
         Client::ReadHeaders { buf: Vec::new() }
     }
-    pub fn interest(&self) -> Option<Interest> {
+    pub fn interest(&self) -> Option<EventSet> {
         use self::Client::*;
         Some(match self {
-            &ReadHeaders { .. } => Interest::readable(),
-            &ReadContent { .. } => Interest::readable(),
-            &Respond { .. } => Interest::none(),
-            &WriteResponse { .. } => Interest::writable(),
+            &ReadHeaders { .. } => EventSet::readable(),
+            &ReadContent { .. } => EventSet::readable(),
+            &Respond { .. } => EventSet::none(),
+            &WriteResponse { .. } => EventSet::writable(),
             &WebSocket { ref output, .. } if output.len() == 0
-            => Interest::readable(),
-            &WebSocket { .. } => Interest::readable()|Interest::writable(),
+            => EventSet::readable(),
+            &WebSocket { .. } => EventSet::readable()|EventSet::writable(),
             &Close => return None,
         })
     }
@@ -82,7 +84,7 @@ impl Client {
         let mut item = self;
         loop {
             item = item._read(sock, context);
-            if item.interest() != Some(Interest::none()) {
+            if item.interest() != Some(EventSet::none()) {
                 return item;
             }
         }
@@ -313,8 +315,8 @@ impl<'a> mio::Handler for Handler<'a> {
     type Timeout = ();
     type Message = ();
 
-    fn readable(&mut self, eloop: &mut EventLoop<Handler>,
-                tok: Token, _hint: ReadHint)
+    fn ready(&mut self, eloop: &mut EventLoop<Handler>,
+        tok: Token, ev: EventSet)
     {
         let mut context = Context {
             stats: self.stats,
@@ -347,62 +349,17 @@ impl<'a> mio::Handler for Handler<'a> {
                 }
             }
             tok => {
-                trace!("Readable {:?}", tok);
                 if let Some(&mut (ref mut sock, ref mut cliref)) =
                         self.clients.get_mut(tok)
                 {
                     let mut cli = cliref.take().unwrap();
                     let old_int = cli.interest();
-                    cli = cli.do_read(sock, &mut context);
-                    let new_int = cli.interest();
-                    *cliref = Some(cli);
-                    if old_int == new_int {
-                        return
+                    if ev.is_readable() {
+                        cli = cli.do_read(sock, &mut context);
                     }
-                    match new_int {
-                        Some(x) => {
-                            match context.eloop.reregister(sock, tok, x,
-                                PollOpt::level())
-                            {
-                                Ok(_) => return,
-                                Err(e) => {
-                                    error!("Error on reregister: {}; \
-                                            closing connection", e);
-                                    context.eloop.deregister(sock).ok();
-                                }
-                            }
-                        }
-                        None => {
-                            context.eloop.deregister(sock)
-                            .map_err(|e| error!("Error on deregister: {}", e))
-                            .ok();
-                        }
+                    if ev.is_writable() {
+                        cli = cli.do_write(sock, &mut context);
                     }
-                } else {
-                    error!("Unknown token {:?}", tok);
-                    return
-                }
-                // If we have not returned yet: remove socket
-                self.clients.remove(tok);
-            }
-        }
-    }
-    fn writable(&mut self, eloop: &mut EventLoop<Handler>, tok: Token)
-    {
-        let mut context = Context {
-            stats: self.stats,
-            gossip_cmd: &mut self.gossip_cmd,
-            eloop: eloop,
-        };
-        match tok {
-            INPUT => unreachable!(),
-            tok => {
-                if let Some(&mut (ref mut sock, ref mut cliref)) =
-                        self.clients.get_mut(tok)
-                {
-                    let mut cli = cliref.take().unwrap();
-                    let old_int = cli.interest();
-                    cli = cli.do_write(sock, &mut context);
                     let new_int = cli.interest();
                     *cliref = Some(cli);
                     if old_int == new_int {

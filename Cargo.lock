@@ -10,7 +10,7 @@ dependencies = [
  "libc 0.1.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.3.1 (git+git://github.com/rust-lang/log)",
  "mime 0.0.12 (registry+https://github.com/rust-lang/crates.io-index)",
- "mio 0.4.0 (git+git://github.com/carllerche/mio?rev=80daf1b66)",
+ "mio 0.4.0 (git+git://github.com/carllerche/mio?rev=96506f2f8373b1a1fdc802a2af3cd92251d2cd82)",
  "nix 0.3.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "num 0.1.25 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.3.8 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -52,7 +52,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [[package]]
 name = "bytes"
 version = "0.2.10"
-source = "registry+https://github.com/rust-lang/crates.io-index"
+source = "git+https://github.com/carllerche/bytes#d20661676fe7d31b11c2dadd5abcab3105e3d85f"
 
 [[package]]
 name = "cbor"
@@ -202,9 +202,9 @@ dependencies = [
 [[package]]
 name = "mio"
 version = "0.4.0"
-source = "git+git://github.com/carllerche/mio?rev=80daf1b66#80daf1b66d10701517359f8c5588e97959dc569f"
+source = "git+git://github.com/carllerche/mio?rev=96506f2f8373b1a1fdc802a2af3cd92251d2cd82#96506f2f8373b1a1fdc802a2af3cd92251d2cd82"
 dependencies = [
- "bytes 0.2.10 (registry+https://github.com/rust-lang/crates.io-index)",
+ "bytes 0.2.10 (git+https://github.com/carllerche/bytes)",
  "clock_ticks 0.0.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "libc 0.1.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",

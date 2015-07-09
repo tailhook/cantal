@@ -26,7 +26,7 @@ websocket = "0.12"
 
 [dependencies.mio]
 git = "git://github.com/carllerche/mio"
-rev = "80daf1b66"
+rev = "96506f2f8373b1a1fdc802a2af3cd92251d2cd82"
 
 [dependencies.time]
 version = "0.1"

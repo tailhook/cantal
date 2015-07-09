@@ -5,7 +5,7 @@ use std::default::Default;
 use std::collections::{HashMap};
 
 use mio;
-use mio::{EventLoop, Token, ReadHint, Handler};
+use mio::{EventLoop, Token, Handler, EventSet, PollOpt};
 use mio::buf::ByteBuf;
 use mio::{Sender, udp};
 use nix::unistd::gethostname;
@@ -38,7 +38,8 @@ pub fn p2p_loop(stats: &RwLock<Stats>, host: &str, port: u16,
     let server = udp::UdpSocket::bound(&SocketAddr::V4(
         SocketAddrV4::new(host.parse().unwrap(), port))).unwrap();
     let mut eloop = EventLoop::new().unwrap();
-    eloop.register(&server, GOSSIP).unwrap();
+    eloop.register_opt(&server, GOSSIP,
+        EventSet::readable(), PollOpt::level()).unwrap();
     eloop.timeout_ms(Timer::GossipBroadcast, gossip::INTERVAL).unwrap();
     sender.send(eloop.channel()).unwrap();
     let mut ctx = Context {
@@ -77,8 +78,8 @@ impl Handler for Context {
     type Timeout = Timer;
     type Message = Command;
 
-    fn readable(&mut self, _eloop: &mut EventLoop<Context>,
-                tok: Token, _hint: ReadHint)
+    fn ready(&mut self, _eloop: &mut EventLoop<Context>, tok: Token,
+        _ev: EventSet)
     {
         match tok {
             GOSSIP => {
