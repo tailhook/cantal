@@ -3,50 +3,17 @@ RUSTC ?= rustc -C opt-level=3
 PREFIX ?= /usr
 DESTDIR ?=
 
-# ------------------ RUST BINARIES -----------------------
-CANTALLIB = libcantal.rlib
-ARGPARSELIB = rust-argparse/libargparse.rlib
-MSGPACKLIB = rust-msgpack/libmsgpack.rlib
-
 all: bin js
-
 
 bin:
 	cargo build --release
 	cp ./target/release/cantal-agent .
 	cp ./target/release/cantal .
 
-old-bin: libcantal.rlib cantal cantal_agent
-
-test: cantal_test
-	./cantal_test
-
-libcantal.rlib: $(ARGPARSELIB) src/query/lib.rs src/query/*.rs
-	$(RUSTC) src/query/lib.rs -g -o $@ \
-		-L rust-argparse -L .
-
-cantal_agent: $(ARGPARSELIB) $(MSGPACKLIB)
-cantal_agent: libcantal.rlib src/agent/main.rs src/agent/*.rs
-cantal_agent: src/agent/*/*.rs
-	$(RUSTC) src/agent/main.rs -g -o $@ \
-		-L rust-argparse -L rust-msgpack -L .
-
-cantal_test: $(ARGPARSELIB) $(MSGPACKLIB)
-cantal_test: libcantal.rlib src/agent/main.rs src/agent/*.rs
-cantal_test: src/agent/*/*.rs
-	$(RUSTC) src/agent/main.rs -g -o $@ --test \
-		-L rust-argparse -L rust-msgpack -L .
-
-cantal: $(ARGPARSELIB) libcantal.rlib src/cli/main.rs src/cli/*.rs
-	$(RUSTC) src/cli/main.rs -g -o $@ \
-		-L rust-argparse -L .
-
-$(ARGPARSELIB):
-	make -C rust-argparse libargparse.rlib
-
-$(MSGPACKLIB):
-	cd rust-msgpack; cargo build
-	cp rust-msgpack/target/*.rlib $@
+debug-bin:
+	cargo build
+	cp ./target/debug/cantal-agent .
+	cp ./target/debug/cantal .
 
 # ------------------ JAVASCRIPTS -----------------------
 

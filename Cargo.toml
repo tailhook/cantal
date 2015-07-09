@@ -14,12 +14,19 @@ rustc-serialize = "0.3"
 cbor = "0.3"
 libc = "0.1"
 regex = "0.1"
-mio = "0.3"
 argparse = "0.2"
 rand = "0.3"
 nix = "0.3"
+mime = "*"
+httparse = "0.1"
+unicase = "0.1"
 hyper = "0.6"
 num = "0.1"
+websocket = "0.12"
+
+[dependencies.mio]
+git = "git://github.com/carllerche/mio"
+rev = "80daf1b66"
 
 [dependencies.time]
 version = "0.1"

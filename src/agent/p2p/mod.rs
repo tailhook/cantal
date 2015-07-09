@@ -1,11 +1,11 @@
 use std::io::{Read, Write};
-use std::net::SocketAddr;
+use std::net::{SocketAddr, SocketAddrV4};
 use std::sync::{Arc, RwLock, mpsc};
 use std::default::Default;
 use std::collections::{HashMap};
 
 use mio;
-use mio::{EventLoop, Token, NonBlock, ReadHint, Handler};
+use mio::{EventLoop, Token, ReadHint, Handler};
 use mio::buf::ByteBuf;
 use mio::{Sender, udp};
 use nix::unistd::gethostname;
@@ -35,8 +35,8 @@ fn hostname() -> String {
 
 pub fn p2p_loop(stats: &RwLock<Stats>, host: &str, port: u16,
     sender: mpsc::Sender<mio::Sender<Command>>) {
-    let server = udp::bind(&format!("{}:{}", host, port).parse().unwrap()
-                            ).unwrap();
+    let server = udp::UdpSocket::bound(&SocketAddr::V4(
+        SocketAddrV4::new(host.parse().unwrap(), port))).unwrap();
     let mut eloop = EventLoop::new().unwrap();
     eloop.register(&server, GOSSIP).unwrap();
     eloop.timeout_ms(Timer::GossipBroadcast, gossip::INTERVAL).unwrap();
@@ -62,7 +62,7 @@ pub enum Timer {
 }
 
 struct Context {
-    sock: NonBlock<udp::UdpSocket>,
+    sock: udp::UdpSocket,
     stats: Arc<RwLock<GossipStats>>,
     queue: Vec<SocketAddr>,
     hostname: String,

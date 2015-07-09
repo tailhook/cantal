@@ -1,51 +1,65 @@
 use std::fs::File;
 use std::path::PathBuf;
 use std::path::Component::ParentDir;
-use std::io::ErrorKind::{NotFound};
+use std::io::ErrorKind::NotFound as FileNotFound;
 use std::io::Read;
 use std::env::current_exe;
 
-use super::aio::http;
+use hyper::status::StatusCode;
+use hyper::uri::RequestUri::{AbsolutePath};
+use super::http::{Error, BadRequest, NotFound, ServerError};
+use super::http::{Request, Response};
 
 
-pub fn serve(req: &http::Request) -> Result<http::Response, http::Error>
+pub fn serve(req: &Request) -> Result<Response, Box<Error>>
 {
-    let mut uripath = PathBuf::from(&format!(".{}", req.uri()));
-    if req.uri().ends_with("/") {
+    let uri = if let AbsolutePath(ref uri) = req.uri {
+        uri
+    } else {
+        return Err(Box::new(BadRequest("Wrong URI kind")));
+    };
+    let mut uripath = PathBuf::from(&format!(".{}", uri));
+    if uri.ends_with("/") {
         uripath = uripath.join("index.html");
     }
     if uripath.components().any(|x| x == ParentDir) {
-        return Err(http::Error::BadRequest("The dot-dot in uri path"));
+        return Err(Box::new(BadRequest("The dot-dot in uri path")));
     }
     let mut filename = current_exe().unwrap();
     filename.pop();
     filename.push("public");
     filename = filename.join(&uripath);
     let data = try!(File::open(&filename)
-        .map_err(|e| if e.kind() == NotFound {
-                http::Error::NotFound
+        .map_err(|e| if e.kind() == FileNotFound {
+                Box::new(NotFound) as Box<Error>
             } else {
-                error!("Error opening file for uri {:?}: {}", req.uri(), e);
-                http::Error::ServerError("Can't open file")
+                error!("Error opening file for uri {:?}: {}", uri, e);
+                Box::new(ServerError("Can't open file")) as Box<Error>
             })
         .and_then(|mut f| {
             let mut buf = Vec::with_capacity(65536);
             f.read_to_end(&mut buf)
             .map_err(|e| {
-                error!("Error reading file for uri {:?}: {}", req.uri(), e);
-                http::Error::ServerError("Can't read file")
+                error!("Error reading file for uri {:?}: {}", uri, e);
+                Box::new(ServerError("Can't read file")) as Box<Error>
             })
             .map(|_| buf)
         }));
-    // TODO(tailhook) find out mime type
-    let mut builder = http::ResponseBuilder::new(req, http::Status::Ok);
-    if req.uri().ends_with(".js") {
-        builder.add_header(
-            "Content-Type: application/javascript; charset=utf-8");
-    } else if req.uri().ends_with(".css") {
-        builder.add_header(
-            "Content-Type: text/css; charset=utf-8");
+    if uri == "/" {
+        return Ok(Response::static_mime_vec(StatusCode::Ok,
+            mime!(Text/Html; Charset=Utf8),
+            data));
+    } else if uri.ends_with(".js") {
+        return Ok(Response::static_mime_vec(StatusCode::Ok,
+            mime!(Application/Javascript; Charset=Utf8),
+            data));
+    } else if uri.ends_with(".css") {
+        return Ok(Response::static_mime_vec(StatusCode::Ok,
+            mime!(Text/Css; Charset=Utf8),
+            data));
+    } else {
+        return Ok(Response::static_mime_vec(StatusCode::Ok,
+            "application/octed-stream".parse().unwrap(),
+            data));
     }
-    builder.set_body(data);
-    Ok(builder.take())
 }

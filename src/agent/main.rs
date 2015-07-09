@@ -11,6 +11,11 @@ extern crate mio;
 extern crate time;
 extern crate rand;
 extern crate num;
+#[macro_use] extern crate mime;
+extern crate httparse;
+extern crate unicase;
+extern crate hyper;
+extern crate websocket;
 
 use std::thread;
 use std::fs::File;
@@ -22,7 +27,6 @@ use cbor::{Decoder};
 use argparse::{ArgumentParser, Store, ParseOption};
 
 
-mod aio;
 mod util;
 mod server;
 mod stats;
@@ -35,6 +39,8 @@ mod history;
 mod storage;
 mod rules;
 mod p2p;
+mod http;
+mod websock;
 
 
 fn main() {
