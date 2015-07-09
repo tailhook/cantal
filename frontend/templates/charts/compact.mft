@@ -64,18 +64,22 @@ html render(timestamps, items):
             text.tick[y="-8"] "{tick.text}"
     div
       for item of items:
-        .bar
-          =compact.draw(xaxis, item.yaxis, item.values)
-          .title "{item.title}"
-          if mouse_position.x != null and mouse_position.x < width:
-            .value.follow[style={'right': width - mouse_position.x + 'px'}]
-              let px = xaxis.pixels[mouse_position.x]
-              if px:
-                "{item.values[px.index]}"
-              else:
-                "--"
-          else:
-            .value "{item.values[0]}"
+        if item.values:
+          .bar
+            =compact.draw(xaxis, item.yaxis, item.values)
+            .title "{item.title}"
+            if mouse_position.x != null and mouse_position.x < width:
+              .value.follow[style={'right': width - mouse_position.x + 'px'}]
+                let px = xaxis.pixels[mouse_position.x]
+                if px:
+                  "{item.values[px.index]}"
+                else:
+                  "--"
+            else:
+              .value "{item.values[0]}"
+        else:
+          .bar.nodata
+            "-- no data --"
     if mouse_position.x != null and mouse_position.x < width:
       .footer
         .footer-time.follow[style={'right': width - mouse_position.x + 'px'}]
