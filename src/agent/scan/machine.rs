@@ -188,7 +188,7 @@ pub fn read(t: &mut Tip) -> Option<u64> {
 
             // It's not documented but it seems all other monitoring systems
             // use 512 multiplier instead of relying on physical_block_size
-            if let Ok(x) = pieces.next_value::<u32>() {
+            if let Ok(x) = pieces.next_value::<u64>() {
                 t.add(Key::pairs(&[
                                 ("device", device),
                                 ("metric", "disk.read.bytes"),
@@ -210,7 +210,7 @@ pub fn read(t: &mut Tip) -> Option<u64> {
 
             // It's not documented but it seems all other monitoring systems
             // use 512 multiplier instead of relying on physical_block_size
-            if let Ok(x) = pieces.next_value::<u32>() {
+            if let Ok(x) = pieces.next_value::<u64>() {
                 t.add(Key::pairs(&[
                                 ("device", device),
                                 ("metric", "disk.write.bytes"),
