@@ -1,5 +1,6 @@
 use std::io::Error as IoError;
-use std::io::Read;
+use std::ptr::copy;
+use std::io::{Read, Write};
 use std::io::ErrorKind::{Interrupted, WouldBlock};
 use std::cmp::min;
 use std::sync::{Mutex, Condvar};
@@ -98,6 +99,58 @@ impl ReadVec {
             Err(ref e) if e.kind() == Interrupted || e.kind() == WouldBlock
             => ReadVec::Wait,
             Err(e) => ReadVec::Error(e),
+        }
+    }
+}
+
+pub enum WriteVec {
+    Done,
+    More(Vec<u8>),
+    Close,
+    Error(IoError),
+}
+
+impl WriteVec {
+    pub fn write<W: Write>(stream: &mut W, mut buf: Vec<u8>)
+        -> WriteVec
+    {
+        if buf.len() == 0 {
+            debug!("Empty output buffer");
+            return WriteVec::Done;
+        }
+        let res = stream.write(&buf);
+        match res {
+            Ok(0) => WriteVec::Close,
+            Ok(x) => {
+                if buf.len() > x {
+                    buf.consume(x);
+                    WriteVec::More(buf)
+                } else {
+                    WriteVec::Done
+                }
+            }
+            Err(ref e) if e.kind() == Interrupted || e.kind() == WouldBlock
+            => WriteVec::More(buf),
+            Err(e) => WriteVec::Error(e),
+        }
+    }
+}
+
+pub trait Consume {
+    fn consume(&mut self, at: usize);
+}
+
+impl<T:Sized> Consume for Vec<T> {
+    fn consume(&mut self, at: usize) {
+        let len = self.len();
+        if at >= len {
+            self.truncate(0);
+        } else {
+            unsafe {
+                copy(self[at..len].as_ptr(),
+                     self[..len - at].as_mut_ptr(), len - at);
+                self.truncate(len - at);
+            }
         }
     }
 }

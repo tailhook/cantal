@@ -1,4 +1,5 @@
 import {component} from 'util/base'
+import websock from 'util/websock'
 import {Navbar} from 'util/navbar'
 import {Context} from 'util/base'
 
@@ -42,6 +43,7 @@ export class App {
             update()
         }
         append(document.body, app.render.bind(app))
+        websock.start('ws://' + location.host + '/ws')
         window.onhashchange()
     }
 }

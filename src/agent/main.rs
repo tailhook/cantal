@@ -39,6 +39,7 @@ mod storage;
 mod rules;
 mod p2p;
 mod http;
+mod websock;
 
 
 fn main() {
