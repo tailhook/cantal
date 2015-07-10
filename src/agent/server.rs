@@ -33,6 +33,7 @@ const INPUT: Token = Token(0);
 const MAX_HTTP_CLIENTS: usize = 4096;
 const MAX_WEBSOCK_CLIENTS: usize = 4096;
 const MAX_WEBSOCK_MESSAGE: usize = 16384;
+const MAX_OUTPUT_BUFFER: usize = 262144;
 
 type Loop<'x> = &'x mut EventLoop<Handler<'x>>;
 
@@ -458,6 +459,39 @@ impl<'a> Handler<'a> {
         self.websockets.remove(tok);
         return true;
     }
+
+    fn send_all(&mut self, eloop: &mut EventLoop<Handler>, msg: &str) {
+        for tok in (1+MAX_HTTP_CLIENTS .. 1+MAX_HTTP_CLIENTS+MAX_WEBSOCK_CLIENTS) {
+            let tok = Token(tok);
+            if let Some(ref mut wsock) = self.websockets.get_mut(tok) {
+                if wsock.output.len() < MAX_OUTPUT_BUFFER {
+                    let start = wsock.output.len() == 0;
+                    websock::write_text(&mut wsock.output, msg);
+                    if start {
+                        match eloop.reregister(&wsock.sock, tok,
+                            EventSet::readable()|EventSet::writable(),
+                            PollOpt::level())
+                        {
+                            Ok(_) => continue,
+                            Err(e) => {
+                                error!("Error on reregister: {}; \
+                                        closing connection", e);
+                            }
+                        }
+                    } else {
+                        continue;
+                    }
+                }
+                debug!("Websocket buffer overflow");
+                eloop.deregister(&wsock.sock)
+                    .map_err(|e| error!("Error on deregister: {}", e))
+                    .ok();
+            } else {
+                continue;
+            }
+            self.websockets.remove(tok);
+        }
+    }
 }
 
 impl<'a> mio::Handler for Handler<'a> {
@@ -501,8 +535,12 @@ impl<'a> mio::Handler for Handler<'a> {
         }
     }
 
-    fn notify(&mut self, _eloop: &mut EventLoop<Handler>, msg: Message) {
-        println!("Message {:?}", msg);
+    fn notify(&mut self, eloop: &mut EventLoop<Handler>, msg: Message) {
+        match msg {
+            ScanComplete => {
+                self.send_all(eloop, "ScanComplete")
+            }
+        }
     }
 }
 

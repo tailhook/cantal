@@ -1,8 +1,8 @@
-use std::mem::transmute_copy;
+use std::iter::repeat;
 use super::http;
 use super::http::{Request, BadRequest};
 use super::util::Consume;
-use super::server::Context;
+use super::server::{Context};
 
 use unicase::UniCase;
 use byteorder::{BigEndian, ByteOrder};
@@ -84,9 +84,9 @@ pub fn parse_message(buf: &mut Vec<u8>, context: &mut Context) {
         pref = 4;
     } else if ln == 127 {
         if buf.len() < 10 {
-            ln = BigEndian::read_u64(&buf[2..10]) as usize;
             return
         }
+        ln = BigEndian::read_u64(&buf[2..10]) as usize;
         pref = 10;
     }
     if buf.len() < pref + ln + (if mask { 4 } else { 0 }) {
@@ -105,4 +105,25 @@ pub fn parse_message(buf: &mut Vec<u8>, context: &mut Context) {
             ::std::str::from_utf8(msg));
     }
     buf.consume(pref + ln);
+}
+
+pub fn write_text(buf: &mut Vec<u8>, chunk: &str) {
+    let bytes = chunk.as_bytes();
+    buf.push(0b10000001);  // text message
+    if bytes.len() > 65535 {
+        buf.push(127);
+        let start = buf.len();
+        buf.extend(repeat(0).take(8));
+        BigEndian::write_u64(&mut buf[start ..],
+                             bytes.len() as u64);
+    } else if bytes.len() > 125 {
+        buf.push(126);
+        let start = buf.len();
+        buf.extend(repeat(0).take(2));
+        BigEndian::write_u16(&mut buf[start ..],
+                             bytes.len() as u16);
+    } else {
+        buf.push(bytes.len() as u8);
+    }
+    buf.extend(bytes.iter().cloned());
 }
