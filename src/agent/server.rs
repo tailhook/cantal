@@ -440,6 +440,7 @@ impl<'a> Handler<'a> {
                     }
                     R::More => {
                         // TODO(tailhook) try parse message
+                        websock::parse_message(&mut wsock.input, &mut context);
                         return true;
                     }
                     R::Full|R::Close => {} // exit from if and close socket

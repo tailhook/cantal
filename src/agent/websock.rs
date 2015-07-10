@@ -1,8 +1,11 @@
+use std::mem::transmute_copy;
 use super::http;
 use super::http::{Request, BadRequest};
+use super::util::Consume;
 use super::server::Context;
 
 use unicase::UniCase;
+use byteorder::{BigEndian, ByteOrder};
 use hyper::header::{Upgrade, ProtocolName};
 use hyper::header::{Connection};
 use hyper::version::HttpVersion as Version;
@@ -62,4 +65,44 @@ pub fn respond_websock(req: &Request, _context: &mut Context)
     }
 
     Ok(http::Response::accept_websock(key))
+}
+
+pub fn parse_message(buf: &mut Vec<u8>, context: &mut Context) {
+    if buf.len() < 2 {
+        return;
+    }
+    let fin = buf[0] & 0b10000000 != 0;
+    let opcode = buf[0] & 0b00001111;
+    let mask = buf[1] & 0b10000000 != 0;
+    let mut ln = (buf[1] & 0b01111111) as usize;
+    let mut pref = 2;
+    if ln == 126 {
+        if buf.len() < 4 {
+            return;
+        }
+        ln = BigEndian::read_u16(&buf[2..4]) as usize;
+        pref = 4;
+    } else if ln == 127 {
+        if buf.len() < 10 {
+            ln = BigEndian::read_u64(&buf[2..10]) as usize;
+            return
+        }
+        pref = 10;
+    }
+    if buf.len() < pref + ln + (if mask { 4 } else { 0 }) {
+        return;
+    }
+    if mask {
+        let mask = buf[pref..pref+4].to_vec(); // TODO(tailhook) optimize
+        pref += 4;
+        for (m, t) in mask.iter().cycle().zip(buf[pref..pref+ln].iter_mut()) {
+            *t ^= *m;
+        }
+    }
+    {
+        let msg = &buf[pref..pref+ln];
+        println!("Message {}, {}, {}, len: {}, {:?}", fin, mask, opcode, ln,
+            ::std::str::from_utf8(msg));
+    }
+    buf.consume(pref + ln);
 }

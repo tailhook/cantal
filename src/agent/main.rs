@@ -16,6 +16,7 @@ extern crate httparse;
 extern crate unicase;
 extern crate hyper;
 extern crate websocket;
+extern crate byteorder;
 
 use std::thread;
 use std::fs::File;
