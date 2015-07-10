@@ -1,3 +1,4 @@
+use std::io;
 use std::str::from_utf8;
 use std::io::{Read, Write};
 use std::net::{SocketAddr, SocketAddrV4};
@@ -11,14 +12,15 @@ use mio::{EventSet, PollOpt};
 use mio::{EventLoop, Token};
 use mio::util::Slab;
 
+use super::p2p;
 use super::scan;
 use super::http;
 use super::staticfiles;
 use super::websock;
+use super::error::Error;
 use super::stats::{Stats};
 use super::storage::{StorageStats};
 use super::rules::{Query, query};
-use super::p2p::Command;
 use super::http::{NotFound, BadRequest, ServerError, MethodNotAllowed};
 use super::http::Request;
 use super::util::WriteVec as W;
@@ -173,12 +175,12 @@ struct Handler<'a> {
     input: mio::tcp::TcpListener,
     clients: Slab<(mio::tcp::TcpStream, Option<Client>)>,
     stats: &'a RwLock<Stats>,
-    gossip_cmd: mio::Sender<Command>,
+    gossip_cmd: mio::Sender<p2p::Command>,
 }
 
 pub struct Context<'a, 'b: 'a> {
     stats: &'a RwLock<Stats>,
-    gossip_cmd: &'a mut mio::Sender<Command>,
+    gossip_cmd: &'a mut mio::Sender<p2p::Command>,
     eloop: &'a mut EventLoop<Handler<'b>>,
 }
 
@@ -301,7 +303,7 @@ fn do_add_host(req: &Request, context: &mut Context)
    .map_err(|_| BadRequest::err("Request format error")))
    .and_then(|x: Query| x.addr.parse()
    .map_err(|_| BadRequest::err("Can't parse IP address")))
-   .and_then(|x| context.gossip_cmd.send(Command::AddGossipHost(x))
+   .and_then(|x| context.gossip_cmd.send(p2p::Command::AddGossipHost(x))
    .map_err(|e| error!("Error sending to p2p loop: {:?}", e))
    .map_err(|_| ServerError::err("Notify Error")))
    .and_then(|_| {
@@ -311,9 +313,15 @@ fn do_add_host(req: &Request, context: &mut Context)
     })
 }
 
+#[derive(Debug)]
+pub enum Message {
+    ScanComplete,
+    NewHost(SocketAddr),
+}
+
 impl<'a> mio::Handler for Handler<'a> {
     type Timeout = ();
-    type Message = ();
+    type Message = Message;
 
     fn ready(&mut self, eloop: &mut EventLoop<Handler>,
         tok: Token, ev: EventSet)
@@ -393,22 +401,40 @@ impl<'a> mio::Handler for Handler<'a> {
             }
         }
     }
+
+    fn notify(&mut self, _eloop: &mut EventLoop<Handler>, msg: Message) {
+        println!("Message {:?}", msg);
+    }
 }
 
-pub fn run_server(stats: &RwLock<Stats>, host: &str, port: u16,
-    gossip_cmd: mio::Sender<Command>)
-    -> Result<(), String>
+pub struct Init<'a> {
+    input: mio::tcp::TcpListener,
+    eloop: EventLoop<Handler<'a>>,
+    pub channel: mio::Sender<Message>,
+}
+
+pub fn server_init(host: &str, port: u16) -> Result<Init, Error>
 {
-    let server = mio::tcp::TcpListener::bind(&SocketAddr::V4(
-        SocketAddrV4::new(host.parse().unwrap(), port))).unwrap();
-    let mut eloop = EventLoop::new().unwrap();
-    eloop.register(&server, INPUT).unwrap();
-    let mut ctx = Handler {
+    let server = try!(mio::tcp::TcpListener::bind(&SocketAddr::V4(
+        SocketAddrV4::new(try!(host.parse()), port))));
+    let mut eloop = try!(EventLoop::new());
+    try!(eloop.register(&server, INPUT));
+    Ok(Init {
         input: server,
+        channel: eloop.channel(),
+        eloop: eloop,
+    })
+}
+
+pub fn server_loop<'x>(init: Init<'x>,
+    stats: &'x RwLock<Stats>, gossip_cmd: mio::Sender<p2p::Command>)
+    -> Result<(), io::Error>
+{
+    let mut eloop = init.eloop;
+    eloop.run(&mut Handler {
+        input: init.input,
         clients: Slab::new_starting_at(Token(1), MAX_CLIENTS),
         stats: stats,
         gossip_cmd: gossip_cmd,
-    };
-    eloop.run(&mut ctx)
-        .map_err(|e| format!("Error running http loop: {}", e))
+    })
 }

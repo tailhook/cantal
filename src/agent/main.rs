@@ -20,7 +20,9 @@ extern crate websocket;
 use std::thread;
 use std::fs::File;
 use std::path::PathBuf;
-use std::sync::{RwLock,Arc,mpsc};
+use std::sync::{RwLock,Arc};
+use std::process::exit;
+use std::error::Error;
 
 use rustc_serialize::Decodable;
 use cbor::{Decoder};
@@ -41,9 +43,19 @@ mod rules;
 mod p2p;
 mod http;
 mod websock;
-
+mod error;
 
 fn main() {
+    match run() {
+        Ok(()) => {}
+        Err(e) => {
+            error!("{}", e);
+            exit(2);
+        }
+    }
+}
+
+fn run() -> Result<(), Box<Error>> {
     env_logger::init().unwrap();
 
     let mut host = "127.0.0.1".to_string();
@@ -62,6 +74,7 @@ fn main() {
                 "A directory to serialize data to");
         ap.parse_args_or_exit();
     }
+
     // TODO(tailhook) just borrow, when scoped work again
     let stats = Arc::new(RwLock::new(stats::Stats::new()));
     let stats_copy1 = stats.clone();
@@ -70,7 +83,13 @@ fn main() {
     let cell = Arc::new(util::Cell::new());
     let cell_copy1 = cell.clone();
     let cell_copy2 = cell.clone();
-    let host_copy1 = host.clone();
+
+    let p2p_init = try!(p2p::p2p_init(&host, port));
+    let server_init = try!(server::server_init(&host, port));
+
+    let p2p_chan = p2p_init.channel.clone();
+    let server_chan1 = server_init.channel.clone();
+    let server_chan2 = server_init.channel.clone();
 
     let _storage = storage_dir.as_ref().map(|path| {
         let result = File::open(&path.join("current.cbor"))
@@ -86,25 +105,20 @@ fn main() {
         }
         let path = path.clone();
         thread::spawn(move || {
-            storage::storage_loop(&*cell_copy1, &path, &*stats_copy1)
+            storage::storage_loop(&*cell_copy1, &path, &*stats_copy1);
         })
     });
 
     let _scan = thread::spawn(move || {
-        scanner::scan_loop(&*stats_copy2, storage_dir.map(|_| &*cell_copy2))
+        scanner::scan_loop(&*stats_copy2, storage_dir.map(|_| &*cell_copy2),
+            server_chan1)
     });
 
-    let (tx, rx) = mpsc::channel();
     let _p2p = thread::spawn(move || {
-        p2p::p2p_loop(&*stats_copy3, &host_copy1, port, tx)
+        p2p::p2p_loop(p2p_init, &*stats_copy3, server_chan2)
     });
-    let chan = rx.recv().unwrap();
 
-    match server::run_server(&*stats, &host, port, chan) {
-        Ok(()) => {}
-        Err(x) => {
-            error!("Error running server: {}", x);
-            std::process::exit(1);
-        }
-    }
+    try!(server::server_loop(server_init, &*stats, p2p_chan));
+
+    Ok(())
 }

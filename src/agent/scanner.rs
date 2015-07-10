@@ -1,9 +1,11 @@
 use std::sync::{RwLock};
 use std::io::Write;
 
+use mio;
 use libc::usleep;
 use cbor::Encoder as Mencoder;
 
+use super::server;
 use super::stats::Stats;
 use super::scan::Tip;
 use super::scan::machine;
@@ -17,7 +19,9 @@ use super::storage::Buffer;
 const SNAPSHOT_INTERVAL: u64 = 60000;
 
 
-pub fn scan_loop(stats: &RwLock<Stats>, cell: Option<&Cell<Buffer>>) {
+pub fn scan_loop(stats: &RwLock<Stats>, cell: Option<&Cell<Buffer>>,
+    server_msg: mio::Sender<server::Message>)
+{
     let mut last_store = time_ms();
     let mut last_hourly = last_store / 3_600_000;
     let mut process_cache = processes::ReadCache::new();
@@ -66,6 +70,9 @@ pub fn scan_loop(stats: &RwLock<Stats>, cell: Option<&Cell<Buffer>>) {
                 }
             }
         }
+        server_msg.send(server::Message::ScanComplete)
+            .map_err(|_| error!("Error sending ScanComplete msg"))
+            .ok();
 
         unsafe { usleep(((2000 - time_ms() as i64 % 2000)*1000) as u32) };
     }

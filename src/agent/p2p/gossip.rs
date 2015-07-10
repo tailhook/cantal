@@ -8,6 +8,7 @@ use mio::buf::ByteBuf;
 
 use super::Context;
 use super::peer::{Peer, Report};
+use super::super::server::Message::NewHost;
 
 
 pub const INTERVAL: u64 = 1000;
@@ -95,7 +96,12 @@ impl Context {
         match self.sock.send_to(&mut buf.flip(), &addr) {
             Ok(_) => {
                 let peer = peers.entry(addr)
-                    .or_insert_with(|| Peer::new(addr));
+                    .or_insert_with(|| {
+                        self.server_msg.send(NewHost(addr))
+                            .map_err(|_| error!("Error sending NewHost msg"))
+                            .ok();
+                        Peer::new(addr)
+                    });
                 peer.last_probe = Some(get_time());
             }
             Err(e) => {
