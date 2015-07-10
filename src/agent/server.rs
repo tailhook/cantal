@@ -1,4 +1,5 @@
 use std::io;
+use std::mem::replace;
 use std::str::from_utf8;
 use std::io::{Read, Write};
 use std::net::{SocketAddr, SocketAddrV4};
@@ -10,6 +11,7 @@ use rustc_serialize::json::ToJson;
 use mio;
 use mio::{EventSet, PollOpt};
 use mio::{EventLoop, Token};
+use mio::tcp::TcpStream;
 use mio::util::Slab;
 
 use super::p2p;
@@ -28,7 +30,9 @@ use super::util::ReadVec as R;
 
 
 const INPUT: Token = Token(0);
-const MAX_CLIENTS: usize = 4096;
+const MAX_HTTP_CLIENTS: usize = 4096;
+const MAX_WEBSOCK_CLIENTS: usize = 4096;
+const MAX_WEBSOCK_MESSAGE: usize = 16384;
 
 type Loop<'x> = &'x mut EventLoop<Handler<'x>>;
 
@@ -59,37 +63,59 @@ pub enum Client {
     ReadContent { req: Request, body_size: usize },
     Respond { req: Request, tail: Vec<u8> },
     WriteResponse { buf: Vec<u8>, tail: Tail },
-    WebSocket { input: Vec<u8>, output: Vec<u8> },
+    WebSockStart,
     Close,
+}
+
+struct WebSocket {
+    sock: TcpStream,
+    input: Vec<u8>,
+    output: Vec<u8>,
+}
+
+#[derive(Clone, Debug, Copy, PartialEq, Eq)]
+pub enum Interest {
+    Readable,
+    Writable,
+    Continue,
+    SwitchWebsock,
+    Close,
+}
+
+impl Interest {
+    fn event_set(self) -> EventSet {
+        match self {
+            Interest::Readable => EventSet::readable(),
+            Interest::Writable => EventSet::writable(),
+            _ => unreachable!(),
+        }
+    }
 }
 
 impl Client {
     pub fn new() -> Client {
         Client::ReadHeaders { buf: Vec::new() }
     }
-    pub fn interest(&self) -> Option<EventSet> {
+    pub fn interest(&self) -> Interest {
         use self::Client::*;
-        Some(match self {
-            &ReadHeaders { .. } => EventSet::readable(),
-            &ReadContent { .. } => EventSet::readable(),
-            &Respond { .. } => EventSet::none(),
-            &WriteResponse { .. } => EventSet::writable(),
-            &WebSocket { ref output, .. } if output.len() == 0
-            => EventSet::readable(),
-            &WebSocket { .. } => EventSet::readable()|EventSet::writable(),
-            &Close => return None,
-        })
+        use self::Interest as I;
+        match self {
+            &ReadHeaders { .. } => I::Readable,
+            &ReadContent { .. } => I::Readable,
+            &Respond { .. } => I::Continue,
+            &WriteResponse { .. } => I::Writable,
+            &WebSockStart => I::SwitchWebsock,
+            &Close => I::Close,
+        }
     }
     pub fn do_read(self, sock: &mut mio::tcp::TcpStream, context: &mut Context)
         -> Client
     {
-        let mut item = self;
-        loop {
+        let mut item = self._read(sock, context);
+        while item.interest() == Interest::Continue {
             item = item._read(sock, context);
-            if item.interest() != Some(EventSet::none()) {
-                return item;
-            }
         }
+        return item;
     }
 
     pub fn _read(self, sock: &mut mio::tcp::TcpStream, context: &mut Context)
@@ -101,6 +127,7 @@ impl Client {
                 => http::read_headers(buf, sock),
             ReadContent { req, body_size }
                 => http::read_content(req, body_size, sock),
+            // TODO(tailhook) probably move respond out of here
             Respond { req, tail } => {
                 let mut resp = match resolve(&req, context) {
                     Ok(resp) => resp,
@@ -113,18 +140,7 @@ impl Client {
                 }
             }
             WriteResponse { .. } => unreachable!(),
-            WebSocket { mut input, output } => {
-                match R::read(sock, &mut input, 65536) {
-                    R::Full|R::Close => Close,
-                    // TODO(tailhook) parse packets
-                    R::More|R::Wait
-                    => WebSocket { input: input, output: output },
-                    R::Error(e) => {
-                        error!("Error reading from websocket: {}", e);
-                        Close
-                    }
-                }
-            }
+            WebSockStart => WebSockStart,
             Close => Close,
         }
     }
@@ -140,8 +156,7 @@ impl Client {
             WriteResponse { buf, tail } => {
                 match (W::write(sock, buf), tail) {
                     (W::Done, T::Close) => Close,
-                    (W::Done, T::WebSock) => WebSocket { input: vec!(),
-                                                         output: vec!() },
+                    (W::Done, T::WebSock) => WebSockStart,
                     (W::Done, T::Proceed(chunk)) => {
                         http::read_headers(chunk, sock)
                             .do_read(sock, context)
@@ -155,17 +170,7 @@ impl Client {
                     }
                 }
             },
-            WebSocket { input, output } => {
-                match W::write(sock, output) {
-                    W::Done => WebSocket { input: input, output: Vec::new() },
-                    W::More(buf) => WebSocket { input: input, output: buf },
-                    W::Close => Close,
-                    W::Error(e) => {
-                        error!("Error writing response: {}", e);
-                        Close
-                    }
-                }
-            }
+            WebSockStart => WebSockStart,
             Close => Close,
         }
     }
@@ -174,6 +179,7 @@ impl Client {
 struct Handler<'a> {
     input: mio::tcp::TcpListener,
     clients: Slab<(mio::tcp::TcpStream, Option<Client>)>,
+    websockets: Slab<WebSocket>,
     stats: &'a RwLock<Stats>,
     gossip_cmd: mio::Sender<p2p::Command>,
 }
@@ -318,6 +324,140 @@ pub enum Message {
     ScanComplete,
     NewHost(SocketAddr),
 }
+impl<'a> Handler<'a> {
+    fn try_http(&mut self, tok: Token, ev: EventSet,
+        eloop: &mut EventLoop<Handler>)
+        -> bool
+    {
+        use self::Interest::*;
+        let mut context = Context {
+            stats: self.stats,
+            gossip_cmd: &mut self.gossip_cmd,
+            eloop: eloop,
+        };
+        let new_int = if let Some(&mut (ref mut sock, ref mut cliref)) =
+                self.clients.get_mut(tok)
+        {
+            let mut cli = cliref.take().unwrap();
+            let old_int = cli.interest();
+            if ev.is_readable() {
+                cli = cli.do_read(sock, &mut context);
+            }
+            if ev.is_writable() {
+                cli = cli.do_write(sock, &mut context);
+            }
+            let new_int = cli.interest();
+            *cliref = Some(cli);
+            if old_int == new_int {
+                return true;
+            }
+            match new_int {
+                Readable|Writable => {
+                    match context.eloop.reregister(sock, tok,
+                        new_int.event_set(), PollOpt::level())
+                    {
+                        Ok(_) => return true,
+                        Err(e) => {
+                            error!("Error on reregister: {}; \
+                                    closing connection", e);
+                        }
+                    }
+                }
+                Continue => unreachable!(),
+                SwitchWebsock|Close => {
+                    context.eloop.deregister(sock)
+                    .map_err(|e| error!("Error on deregister: {}", e))
+                    .ok();
+                }
+            }
+            new_int
+        } else {
+            return false;
+        };
+        // If we have not returned yet: remove socket
+        if new_int == Close {
+            self.clients.remove(tok);
+        } else if new_int == SwitchWebsock {
+            let (sock, _) = self.clients.remove(tok).unwrap();
+            let ntok = self.websockets.insert(WebSocket {
+                sock: sock,
+                input: Vec::new(),
+                output: Vec::new(),
+                })
+                .map_err(|_| error!("Too many websock clients"));
+            if let Ok(cli_token) = ntok {
+                if let Err(e) = context.eloop.register_opt(
+                    &self.websockets.get(cli_token).unwrap().sock,
+                    cli_token, EventSet::readable(), PollOpt::level())
+                {
+                    error!("Error registering accepted connection: {}", e);
+                    self.websockets.remove(cli_token);
+                }
+            }
+        }
+        return true;
+    }
+    fn try_websock(&mut self, tok: Token, ev: EventSet,
+        eloop: &mut EventLoop<Handler>)
+        -> bool
+    {
+        use self::Interest::*;
+        let mut context = Context {
+            stats: self.stats,
+            gossip_cmd: &mut self.gossip_cmd,
+            eloop: eloop,
+        };
+        if let Some(ref mut wsock) = self.websockets.get_mut(tok) {
+            if ev.is_writable() {
+                let buf = replace(&mut wsock.output, Vec::new());
+                match W::write(&mut wsock.sock, buf) {
+                    W::Done => {
+                        match context.eloop.reregister(&wsock.sock, tok,
+                            EventSet::readable(), PollOpt::level())
+                        {
+                            Ok(_) => return true,
+                            Err(e) => {
+                                error!("Error on reregister: {}; \
+                                        closing connection", e);
+                            }
+                        }
+                    }
+                    W::More(buf) => {
+                        wsock.output = buf;
+                    }
+                    W::Close => {}
+                    W::Error(err) => {
+                        debug!("Error writing to websock: {}", err);
+                    }
+                }
+            }
+            if ev.is_readable() {
+                match R::read(&mut wsock.sock, &mut wsock.input,
+                              MAX_WEBSOCK_MESSAGE)
+                {
+                    R::Wait => {
+                        return true;
+                    }
+                    R::More => {
+                        // TODO(tailhook) try parse message
+                        return true;
+                    }
+                    R::Full|R::Close => {} // exit from if and close socket
+                    R::Error(err) => {
+                        debug!("Error reading from websock: {}", err);
+                    }
+                }
+            }
+            context.eloop.deregister(&wsock.sock)
+                .map_err(|e| error!("Error on deregister: {}", e))
+                .ok();
+        } else {
+            return false
+        }
+        self.websockets.remove(tok);
+        return true;
+    }
+}
 
 impl<'a> mio::Handler for Handler<'a> {
     type Timeout = ();
@@ -326,11 +466,6 @@ impl<'a> mio::Handler for Handler<'a> {
     fn ready(&mut self, eloop: &mut EventLoop<Handler>,
         tok: Token, ev: EventSet)
     {
-        let mut context = Context {
-            stats: self.stats,
-            gossip_cmd: &mut self.gossip_cmd,
-            eloop: eloop,
-        };
         match tok {
             INPUT => {
                 let sock = match self.input.accept() {
@@ -343,13 +478,13 @@ impl<'a> mio::Handler for Handler<'a> {
                 };
                 let cli = Client::new();
                 debug!("Accepted {:?}", sock.peer_addr());
-                let cli_intr = cli.interest().unwrap();
+                let cli_intr = cli.interest();
                 let ntok = self.clients.insert((sock, Some(cli)))
                     .map_err(|_| error!("Too many clients"));
                 if let Ok(cli_token) = ntok {
-                    if let Err(e) = context.eloop.register_opt(
+                    if let Err(e) = eloop.register_opt(
                         &self.clients.get(cli_token).unwrap().0,
-                        cli_token, cli_intr, PollOpt::level())
+                        cli_token, cli_intr.event_set(), PollOpt::level())
                     {
                         error!("Error registering accepted connection: {}", e);
                         self.clients.remove(cli_token);
@@ -357,47 +492,10 @@ impl<'a> mio::Handler for Handler<'a> {
                 }
             }
             tok => {
-                if let Some(&mut (ref mut sock, ref mut cliref)) =
-                        self.clients.get_mut(tok)
-                {
-                    let mut cli = cliref.take().unwrap();
-                    let old_int = cli.interest();
-                    if ev.is_readable() {
-                        cli = cli.do_read(sock, &mut context);
-                    }
-                    if ev.is_writable() {
-                        cli = cli.do_write(sock, &mut context);
-                    }
-                    let new_int = cli.interest();
-                    *cliref = Some(cli);
-                    if old_int == new_int {
-                        return
-                    }
-                    match new_int {
-                        Some(x) => {
-                            match context.eloop.reregister(sock, tok, x,
-                                PollOpt::level())
-                            {
-                                Ok(_) => return,
-                                Err(e) => {
-                                    error!("Error on reregister: {}; \
-                                            closing connection", e);
-                                    context.eloop.deregister(sock).ok();
-                                }
-                            }
-                        }
-                        None => {
-                            context.eloop.deregister(sock)
-                            .map_err(|e| error!("Error on deregister: {}", e))
-                            .ok();
-                        }
-                    }
-                } else {
-                    error!("Unknown token {:?}", tok);
-                    return
+                if !self.try_http(tok, ev, eloop) &&
+                   !self.try_websock(tok, ev, eloop) {
+                    error!("Wrong token {:?}", tok);
                 }
-                // If we have not returned yet: remove socket
-                self.clients.remove(tok);
             }
         }
     }
@@ -433,7 +531,10 @@ pub fn server_loop<'x>(init: Init<'x>,
     let mut eloop = init.eloop;
     eloop.run(&mut Handler {
         input: init.input,
-        clients: Slab::new_starting_at(Token(1), MAX_CLIENTS),
+        clients: Slab::new_starting_at(Token(1),
+                                       MAX_HTTP_CLIENTS),
+        websockets: Slab::new_starting_at(Token(1+MAX_HTTP_CLIENTS),
+                                        MAX_WEBSOCK_CLIENTS),
         stats: stats,
         gossip_cmd: gossip_cmd,
     })
