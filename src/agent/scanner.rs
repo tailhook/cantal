@@ -43,6 +43,7 @@ pub fn scan_loop(stats: &RwLock<Stats>, cell: Option<&Cell<Buffer>>,
                 tip.map.len(), processes.len(), scan_duration);
 
             stats.history.push(start, scan_duration, tip);
+            stats.last_scan = start;
             stats.boot_time = boot_time.or(stats.boot_time);
             stats.processes = processes;
 

@@ -537,8 +537,13 @@ impl<'a> mio::Handler for Handler<'a> {
 
     fn notify(&mut self, eloop: &mut EventLoop<Handler>, msg: Message) {
         match msg {
-            ScanComplete => {
-                self.send_all(eloop, "ScanComplete")
+            Message::ScanComplete => {
+                let beacon = websock::beacon(self.stats);
+                self.send_all(eloop, &beacon);
+            }
+            Message::NewHost(addr) => {
+                let new_peer = websock::new_peer(addr);
+                self.send_all(eloop, &new_peer);
             }
         }
     }

@@ -1,8 +1,6 @@
 use std::iter::repeat;
-use super::http;
-use super::http::{Request, BadRequest};
-use super::util::Consume;
-use super::server::{Context};
+use std::sync::RwLock;
+use std::net::SocketAddr;
 
 use unicase::UniCase;
 use byteorder::{BigEndian, ByteOrder};
@@ -11,6 +9,31 @@ use hyper::header::{Connection};
 use hyper::version::HttpVersion as Version;
 use hyper::header::ConnectionOption::ConnectionHeader;
 use websocket::header::{WebSocketVersion, WebSocketKey};
+use rustc_serialize::json;
+
+use super::http;
+use super::http::{Request, BadRequest};
+use super::util::Consume;
+use super::server::{Context};
+use super::stats::Stats;
+
+
+#[derive(RustcEncodable, RustcDecodable)]
+struct Beacon {
+    scan_time: u64,
+    scan_duration: u32,
+    processes: usize,
+    values: usize,
+    peers: usize,
+    fine_history_length: usize,
+    history_age: u64,
+}
+
+#[derive(RustcEncodable, RustcDecodable)]
+enum Message {
+    Beacon(Beacon),
+    NewPeer(String),
+}
 
 
 pub fn respond_websock(req: &Request, _context: &mut Context)
@@ -126,4 +149,23 @@ pub fn write_text(buf: &mut Vec<u8>, chunk: &str) {
         buf.push(bytes.len() as u8);
     }
     buf.extend(bytes.iter().cloned());
+}
+
+pub fn beacon(stats: &RwLock<Stats>) -> String {
+    let st = stats.read().unwrap();
+    let gossip = st.gossip.read().unwrap();
+    json::encode(&Message::Beacon(Beacon {
+        scan_time: st.last_scan,
+        scan_duration: st.scan_duration,
+        processes: st.processes.len(),
+        values: st.history.tip.len() + st.history.fine.len() +
+                st.history.coarse.len(),
+        peers: gossip.peers.len(),
+        fine_history_length: st.history.fine_timestamps.len(),
+        history_age: st.history.age,
+    })).unwrap()
+}
+
+pub fn new_peer(peer: SocketAddr) -> String {
+    json::encode(&Message::NewPeer(format!("{}", peer))).unwrap()
 }

@@ -45,7 +45,7 @@ pub enum Interval {
 
 #[derive(Debug, RustcEncodable, RustcDecodable)]
 pub struct History {
-    age: u64,
+    pub age: u64,
 
     // Values that are kept as fine-grained as possible (2-second interval)
     pub fine_timestamps: VecDeque<(u64, u32)>,

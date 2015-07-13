@@ -16,6 +16,7 @@ use super::p2p::GossipStats;
 pub struct Stats {
 
     pub startup_time: u64,
+    pub last_scan: u64,
     pub scan_duration: u32,
     pub boot_time: Option<u64>,
 
@@ -29,6 +30,7 @@ impl Stats {
     pub fn new() -> Stats {
         return Stats {
             startup_time: time_ms(),
+            last_scan: 0,
             scan_duration: 0,
             boot_time: None,
             storage: Default::default(),
