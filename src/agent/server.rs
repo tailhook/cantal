@@ -18,6 +18,7 @@ use super::p2p;
 use super::http;
 use super::staticfiles;
 use super::respond;
+use super::remote;
 use super::websock;
 use super::error::Error;
 use super::stats::{Stats};
@@ -162,7 +163,7 @@ impl Client {
     }
 }
 
-struct Handler<'a> {
+pub struct Handler<'a> {
     input: mio::tcp::TcpListener,
     clients: Slab<(mio::tcp::TcpStream, Option<Client>)>,
     websockets: Slab<WebSocket>,
@@ -173,7 +174,7 @@ struct Handler<'a> {
 pub struct Context<'a, 'b: 'a> {
     pub stats: &'a RwLock<Stats>,
     pub gossip_cmd: &'a mut mio::Sender<p2p::Command>,
-    eloop: &'a mut EventLoop<Handler<'b>>,
+    pub eloop: &'a mut EventLoop<Handler<'b>>,
 }
 
 fn resolve(req: &Request, context: &mut Context)
@@ -205,6 +206,8 @@ fn resolve(req: &Request, context: &mut Context)
         => respond::serve_query(req, context),
         (&Post, &P(ref x)) if &x[..] == "/add_host.json"
         => do_add_host(req, context),
+        (&Post, &P(ref x)) if &x[..] == "/start_remote.json"
+        => do_start_remote(req, context),
         (&Get, _) => Err(Box::new(NotFound) as Box<http::Error>),
         _ => Err(Box::new(MethodNotAllowed) as Box<http::Error>),
     }
@@ -232,6 +235,20 @@ fn do_add_host(req: &Request, context: &mut Context)
             (String::from("ok"), true)
         ].into_iter().collect::<HashMap<_, _>>().to_json()))
     })
+}
+
+fn do_start_remote(req: &Request, context: &mut Context)
+    -> Result<http::Response, Box<http::Error>>
+{
+    remote::start(context);
+    Ok(http::Response::json(&vec![
+        (String::from("ok"), true)
+    ].into_iter().collect::<HashMap<_, _>>().to_json()))
+}
+
+#[derive(Debug)]
+pub enum Timer {
+    ReconnectPeer(Token),
 }
 
 #[derive(Debug)]
@@ -409,7 +426,7 @@ impl<'a> Handler<'a> {
 }
 
 impl<'a> mio::Handler for Handler<'a> {
-    type Timeout = ();
+    type Timeout = Timer;
     type Message = Message;
 
     fn ready(&mut self, eloop: &mut EventLoop<Handler>,
@@ -456,8 +473,29 @@ impl<'a> mio::Handler for Handler<'a> {
                 self.send_all(eloop, &beacon);
             }
             Message::NewHost(addr) => {
+                {
+                    let mut context = Context {
+                        stats: self.stats,
+                        gossip_cmd: &mut self.gossip_cmd,
+                        eloop: eloop,
+                    };
+                    remote::add_peer(addr, &mut context);
+                }
                 let new_peer = websock::new_peer(addr);
                 self.send_all(eloop, &new_peer);
+            }
+        }
+    }
+
+    fn timeout(&mut self, eloop: &mut EventLoop<Handler>, timeout: Timer) {
+        let mut context = Context {
+            stats: self.stats,
+            gossip_cmd: &mut self.gossip_cmd,
+            eloop: eloop,
+        };
+        match timeout {
+            Timer::ReconnectPeer(tok) => {
+                remote::reconnect_peer(tok, &mut context);
             }
         }
     }

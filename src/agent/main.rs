@@ -45,6 +45,7 @@ mod p2p;
 mod http;
 mod websock;
 mod respond;
+mod remote;
 mod error;
 
 fn main() {

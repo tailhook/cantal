@@ -11,6 +11,7 @@ use super::scan;
 use super::history::History;
 use super::storage::StorageStats;
 use super::p2p::GossipStats;
+use super::remote::Peers;
 
 
 pub struct Stats {
@@ -24,6 +25,8 @@ pub struct Stats {
     pub history: History,
     pub processes: Vec<scan::processes::MinimalProcess>,
     pub gossip: Arc<RwLock<GossipStats>>,
+
+    pub peers: Option<Peers>,
 }
 
 impl Stats {
@@ -37,6 +40,7 @@ impl Stats {
             gossip: Arc::new(RwLock::new(Default::default())),
             history: History::new(),
             processes: Default::default(),
+            peers: None,
         };
     }
 }
