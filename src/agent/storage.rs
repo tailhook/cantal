@@ -1,5 +1,6 @@
 use std::sync::{RwLock};
-use std::fs::{File, rename, soft_link, remove_file, read_dir};
+use std::fs::{File, rename, remove_file, read_dir};
+use std::os::unix::fs::symlink;
 use std::io::Write;
 use std::str::FromStr;
 use std::path::Path;
@@ -39,7 +40,7 @@ pub fn storage_loop(cell: &Cell<Buffer>, path: &Path, stats: &RwLock<Stats>) {
         .and_then(|()| {
             if let Some(ref filename) = buf.snapshot {
                 let filename = path.join(filename).with_extension("cbor");
-                try!(soft_link(&filename, &tmplink));
+                try!(symlink(&filename, &tmplink));
                 try!(rename(&tmp, &filename));
                 rename(&tmplink, &current)
             } else {
