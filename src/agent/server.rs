@@ -15,14 +15,12 @@ use mio::tcp::TcpStream;
 use mio::util::Slab;
 
 use super::p2p;
-use super::scan;
 use super::http;
 use super::staticfiles;
+use super::respond;
 use super::websock;
 use super::error::Error;
 use super::stats::{Stats};
-use super::storage::{StorageStats};
-use super::rules::{Query, query};
 use super::http::{NotFound, BadRequest, ServerError, MethodNotAllowed};
 use super::http::Request;
 use super::util::WriteVec as W;
@@ -37,19 +35,6 @@ const MAX_OUTPUT_BUFFER: usize = 262144;
 
 type Loop<'x> = &'x mut EventLoop<Handler<'x>>;
 
-#[derive(RustcEncodable)]
-struct StatusData {
-    pub startup_time: u64,
-    pub scan_duration: u32,
-    pub storage: StorageStats,
-    pub boot_time: Option<u64>,
-}
-
-#[derive(RustcEncodable)]
-struct ProcessesData<'a> {
-    boot_time: Option<u64>,
-    all: &'a Vec<scan::processes::MinimalProcess>,
-}
 
 #[derive(Debug)]
 pub enum Tail {
@@ -186,8 +171,8 @@ struct Handler<'a> {
 }
 
 pub struct Context<'a, 'b: 'a> {
-    stats: &'a RwLock<Stats>,
-    gossip_cmd: &'a mut mio::Sender<p2p::Command>,
+    pub stats: &'a RwLock<Stats>,
+    pub gossip_cmd: &'a mut mio::Sender<p2p::Command>,
     eloop: &'a mut EventLoop<Handler<'b>>,
 }
 
@@ -209,91 +194,20 @@ fn resolve(req: &Request, context: &mut Context)
         (&Get, &P(ref x)) if &x[..] == "/ws"
         => websock::respond_websock(req, context),
         (&Get, &P(ref x)) if &x[..] == "/status.json"
-        => serve_status(req, context),
+        => respond::serve_status(req, context),
         (&Get, &P(ref x)) if &x[..] == "/all_processes.json"
-        => serve_processes(req, context),
+        => respond::serve_processes(req, context),
         (&Get, &P(ref x)) if &x[..] == "/all_metrics.json"
-        => serve_metrics(req, context),
+        => respond::serve_metrics(req, context),
         (&Get, &P(ref x)) if &x[..] == "/all_peers.json"
-        => serve_peers(req, context),
+        => respond::serve_peers(req, context),
         (&Post, &P(ref x)) if &x[..] == "/query.json"
-        => serve_query(req, context),
+        => respond::serve_query(req, context),
         (&Post, &P(ref x)) if &x[..] == "/add_host.json"
         => do_add_host(req, context),
         (&Get, _) => Err(Box::new(NotFound) as Box<http::Error>),
         _ => Err(Box::new(MethodNotAllowed) as Box<http::Error>),
     }
-}
-
-fn serve_status(_req: &Request, context: &mut Context)
-    -> Result<http::Response, Box<http::Error>>
-{
-    let stats = context.stats.read().unwrap();
-    Ok(http::Response::json(&StatusData {
-            startup_time: stats.startup_time,
-            scan_duration: stats.scan_duration,
-            storage: stats.storage,
-            boot_time: stats.boot_time,
-        }))
-}
-
-fn serve_processes(_req: &Request, context: &mut Context)
-    -> Result<http::Response, Box<http::Error>>
-{
-    let stats = context.stats.read().unwrap();
-    Ok(http::Response::json(&ProcessesData {
-            boot_time: stats.boot_time,
-            all: &stats.processes,
-        }))
-}
-
-fn serve_metrics(_req: &Request, context: &mut Context)
-    -> Result<http::Response, Box<http::Error>>
-{
-    let stats = context.stats.read().unwrap();
-    Ok(http::Response::json(
-            &stats.history.tip.keys()
-            .chain(stats.history.fine.keys())
-            .chain(stats.history.coarse.keys())
-            .collect::<Vec<_>>()
-            .to_json()
-        ))
-}
-
-fn serve_peers(_req: &Request, context: &mut Context)
-    -> Result<http::Response, Box<http::Error>>
-{
-    let stats = context.stats.read().unwrap();
-    let resp = http::Response::json(
-        &json::Json::Object(vec![
-            (String::from("peers"), json::Json::Array(
-                stats.gossip.read().unwrap().peers.values()
-                .map(ToJson::to_json)
-                .collect())),
-        ].into_iter().collect()
-       ));
-    Ok(resp)
-}
-
-fn serve_query(req: &Request, context: &mut Context)
-    -> Result<http::Response, Box<http::Error>>
-{
-    let stats = context.stats.read().unwrap();
-    let h = &stats.history;
-    from_utf8(&req.body)
-       .map_err(|_| BadRequest::err("Bad utf-8 encoding"))
-       .and_then(|s| json::decode::<Query>(s)
-       .map_err(|_| BadRequest::err("Failed to decode query")))
-       .and_then(|r| {
-           Ok(http::Response::json(&vec![
-            (String::from("dataset"), try!(query(&r, &*stats))),
-            (String::from("tip_timestamp"), h.tip_timestamp.to_json()),
-            (String::from("fine_timestamps"), h.fine_timestamps
-                .iter().cloned().collect::<Vec<_>>().to_json()),
-            (String::from("coarse_timestamps"), h.coarse_timestamps
-                .iter().cloned().collect::<Vec<_>>().to_json()),
-           ].into_iter().collect::<HashMap<_,_>>().to_json()))
-        })
 }
 
 fn do_add_host(req: &Request, context: &mut Context)
