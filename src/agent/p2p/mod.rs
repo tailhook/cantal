@@ -16,13 +16,13 @@ use super::error::Error;
 use super::stats::Stats;
 use self::peer::{Peer};
 use super::server;
+use super::deps::{Dependencies, LockedDeps};
 
 mod peer;
 mod gossip;
 
 
 const GOSSIP: Token = Token(0);
-
 
 
 fn hostname() -> String {
@@ -37,7 +37,7 @@ fn hostname() -> String {
 }
 
 
-pub fn p2p_init(host: &str, port: u16)
+pub fn p2p_init(deps: &mut Dependencies, host: &str, port: u16)
     -> Result<Init, Error>
 {
     let server = try!(udp::UdpSocket::bound(&SocketAddr::V4(
@@ -46,26 +46,26 @@ pub fn p2p_init(host: &str, port: u16)
     try!(eloop.register_opt(&server, GOSSIP,
         EventSet::readable(), PollOpt::level()));
     try!(eloop.timeout_ms(Timer::GossipBroadcast, gossip::INTERVAL));
+
+    deps.insert(eloop.channel());
+    deps.insert(Arc::new(RwLock::new(GossipStats::default())));
+
     Ok(Init {
         sock: server,
         hostname: hostname(),
-        channel: eloop.channel(),
         eloop: eloop,
     })
 }
 
-pub fn p2p_loop(init: Init, stats: &RwLock<Stats>,
-    server_msg: Sender<server::Message>)
+pub fn p2p_loop(init: Init, deps: Dependencies)
     -> Result<(), io::Error>
 {
     let mut eloop = init.eloop;
-    let stats = stats.read().unwrap().gossip.clone();
     eloop.run(&mut Context {
-        stats: stats,
         queue: Default::default(),
         sock: init.sock,
         hostname: init.hostname,
-        server_msg: server_msg,
+        deps: deps,
     })
 }
 
@@ -84,15 +84,13 @@ pub struct Init {
     sock: udp::UdpSocket,
     hostname: String,
     eloop: EventLoop<Context>,
-    pub channel: Sender<Command>,
 }
 
 struct Context {
     sock: udp::UdpSocket,
-    stats: Arc<RwLock<GossipStats>>,
     queue: Vec<SocketAddr>,
     hostname: String,
-    server_msg: Sender<server::Message>,
+    deps: Dependencies,
 }
 
 #[derive(Default)]
@@ -135,8 +133,8 @@ impl Handler for Context {
         trace!("Command {:?}", msg);
         match msg {
             AddGossipHost(ip) => {
-                let ref mut peers = &mut self.stats.write().unwrap().peers;
-                self.send_gossip(ip, peers);
+                let ref mut stats = self.deps.write::<GossipStats>();
+                self.send_gossip(ip, &mut stats.peers);
             }
         }
     }

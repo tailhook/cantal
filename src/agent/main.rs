@@ -30,6 +30,8 @@ use rustc_serialize::Decodable;
 use cbor::{Decoder};
 use argparse::{ArgumentParser, Store, ParseOption};
 
+use deps::{Dependencies, LockedDeps};
+
 
 mod util;
 mod server;
@@ -46,9 +48,11 @@ mod p2p;
 mod http;
 mod websock;
 mod respond;
-mod remote;
+//mod remote;
 mod error;
 mod ioloop;
+mod deps;
+
 
 fn main() {
     match run() {
@@ -80,23 +84,16 @@ fn run() -> Result<(), Box<Error>> {
         ap.parse_args_or_exit();
     }
 
-    // TODO(tailhook) just borrow, when scoped work again
-    let stats = Arc::new(RwLock::new(stats::Stats::new()));
-    let stats_copy1 = stats.clone();
-    let stats_copy2 = stats.clone();
-    let stats_copy3 = stats.clone();
-    let cell = Arc::new(util::Cell::new());
-    let cell_copy1 = cell.clone();
-    let cell_copy2 = cell.clone();
+    let mut deps = Dependencies::new();
+    deps.insert(Arc::new(RwLock::new(stats::Stats::new())));
 
-    let p2p_init = try!(p2p::p2p_init(&host, port));
-    let server_init = try!(server::server_init(&host, port));
+    let p2p_init = try!(p2p::p2p_init(&mut deps, &host, port));
+    let server_init = try!(server::server_init(&mut deps, &host, port));
 
-    let p2p_chan = p2p_init.channel.clone();
-    let server_chan1 = server_init.channel.clone();
-    let server_chan2 = server_init.channel.clone();
+    deps.insert(Arc::new(util::Cell::<storage::Buffer>::new()));
 
     let _storage = storage_dir.as_ref().map(|path| {
+        let mut mydeps = deps.clone();
         let result = File::open(&path.join("current.cbor"))
             .map_err(|e| error!("Error reading old data: {}. Ignoring...", e))
             .and_then(|f| Decoder::from_reader(f).decode().next()
@@ -106,24 +103,25 @@ fn run() -> Result<(), Box<Error>> {
                     "Error parsing old data {:?}. Ignoring...", e)
                 )));
         if let Ok(history) = result {
-            stats.write().unwrap().history = history;
+            mydeps.write::<stats::Stats>().history = history;
         }
         let path = path.clone();
         thread::spawn(move || {
-            storage::storage_loop(&*cell_copy1, &path, &*stats_copy1);
+            storage::storage_loop(mydeps, &path);
         })
     });
 
+    let mydeps = deps.clone();
     let _scan = thread::spawn(move || {
-        scanner::scan_loop(&*stats_copy2, storage_dir.map(|_| &*cell_copy2),
-            server_chan1)
+        scanner::scan_loop(mydeps);
     });
 
+    let mydeps = deps.clone();
     let _p2p = thread::spawn(move || {
-        p2p::p2p_loop(p2p_init, &*stats_copy3, server_chan2)
+        p2p::p2p_loop(p2p_init, mydeps);
     });
 
-    try!(server::server_loop(server_init, &*stats, p2p_chan));
+    try!(server::server_loop(server_init, deps));
 
     Ok(())
 }

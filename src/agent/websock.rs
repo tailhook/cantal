@@ -12,6 +12,7 @@ use websocket::header::{WebSocketVersion, WebSocketKey};
 use rustc_serialize::json;
 
 use super::http;
+use super::p2p::GossipStats;
 use super::http::{Request, BadRequest};
 use super::util::Consume;
 use super::server::{Context};
@@ -151,9 +152,7 @@ pub fn write_text(buf: &mut Vec<u8>, chunk: &str) {
     buf.extend(bytes.iter().cloned());
 }
 
-pub fn beacon(stats: &RwLock<Stats>) -> String {
-    let st = stats.read().unwrap();
-    let gossip = st.gossip.read().unwrap();
+pub fn beacon(st: &Stats, gossip: &GossipStats) -> String {
     json::encode(&Message::Beacon(Beacon {
         scan_time: st.last_scan,
         scan_duration: st.scan_duration,

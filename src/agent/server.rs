@@ -3,12 +3,13 @@ use std::mem::replace;
 use std::str::from_utf8;
 use std::io::{Read, Write};
 use std::net::{SocketAddr, SocketAddrV4};
-use std::sync::RwLock;
+use std::sync::{RwLock, Arc};
 use std::collections::HashMap;
 
 use rustc_serialize::json;
 use rustc_serialize::json::ToJson;
 use mio;
+use mio::Sender;
 use mio::{EventSet, PollOpt};
 use mio::{EventLoop, Token};
 use mio::tcp::TcpStream;
@@ -18,7 +19,7 @@ use super::p2p;
 use super::http;
 use super::staticfiles;
 use super::respond;
-use super::remote;
+//use super::remote;
 use super::websock;
 use super::error::Error;
 use super::stats::{Stats};
@@ -26,6 +27,7 @@ use super::http::{NotFound, BadRequest, ServerError, MethodNotAllowed};
 use super::http::Request;
 use super::util::WriteVec as W;
 use super::util::ReadVec as R;
+use super::deps::{Dependencies, LockedDeps};
 
 
 const INPUT: Token = Token(0);
@@ -33,8 +35,6 @@ const MAX_HTTP_CLIENTS: usize = 4096;
 const MAX_WEBSOCK_CLIENTS: usize = 4096;
 const MAX_WEBSOCK_MESSAGE: usize = 16384;
 const MAX_OUTPUT_BUFFER: usize = 262144;
-
-type Loop<'x> = &'x mut EventLoop<Handler<'x>>;
 
 
 #[derive(Debug)]
@@ -163,18 +163,16 @@ impl Client {
     }
 }
 
-pub struct Handler<'a> {
+pub struct Handler {
     input: mio::tcp::TcpListener,
     clients: Slab<(mio::tcp::TcpStream, Option<Client>)>,
     websockets: Slab<WebSocket>,
-    stats: &'a RwLock<Stats>,
-    gossip_cmd: mio::Sender<p2p::Command>,
+    deps: Dependencies,
 }
 
 pub struct Context<'a, 'b: 'a> {
-    pub stats: &'a RwLock<Stats>,
-    pub gossip_cmd: &'a mut mio::Sender<p2p::Command>,
-    pub eloop: &'a mut EventLoop<Handler<'b>>,
+    pub deps: &'b Dependencies,
+    pub eloop: &'a mut EventLoop<Handler>,
 }
 
 fn resolve(req: &Request, context: &mut Context)
@@ -206,8 +204,8 @@ fn resolve(req: &Request, context: &mut Context)
         => respond::serve_query(req, context),
         (&Post, &P(ref x)) if &x[..] == "/add_host.json"
         => do_add_host(req, context),
-        (&Post, &P(ref x)) if &x[..] == "/start_remote.json"
-        => do_start_remote(req, context),
+        //(&Post, &P(ref x)) if &x[..] == "/start_remote.json"
+        //=> do_start_remote(req, context),
         (&Get, _) => Err(Box::new(NotFound) as Box<http::Error>),
         _ => Err(Box::new(MethodNotAllowed) as Box<http::Error>),
     }
@@ -227,7 +225,8 @@ fn do_add_host(req: &Request, context: &mut Context)
    .map_err(|_| BadRequest::err("Request format error")))
    .and_then(|x: Query| x.addr.parse()
    .map_err(|_| BadRequest::err("Can't parse IP address")))
-   .and_then(|x| context.gossip_cmd.send(p2p::Command::AddGossipHost(x))
+   .and_then(|x| context.deps.get::<Sender<_>>()
+                        .unwrap().send(p2p::Command::AddGossipHost(x))
    .map_err(|e| error!("Error sending to p2p loop: {:?}", e))
    .map_err(|_| ServerError::err("Notify Error")))
    .and_then(|_| {
@@ -237,6 +236,7 @@ fn do_add_host(req: &Request, context: &mut Context)
     })
 }
 
+/*
 fn do_start_remote(req: &Request, context: &mut Context)
     -> Result<http::Response, Box<http::Error>>
 {
@@ -245,6 +245,7 @@ fn do_start_remote(req: &Request, context: &mut Context)
         (String::from("ok"), true)
     ].into_iter().collect::<HashMap<_, _>>().to_json()))
 }
+*/
 
 #[derive(Debug)]
 pub enum Timer {
@@ -256,15 +257,14 @@ pub enum Message {
     ScanComplete,
     NewHost(SocketAddr),
 }
-impl<'a> Handler<'a> {
+impl Handler {
     fn try_http(&mut self, tok: Token, ev: EventSet,
         eloop: &mut EventLoop<Handler>)
         -> bool
     {
         use self::Interest::*;
         let mut context = Context {
-            stats: self.stats,
-            gossip_cmd: &mut self.gossip_cmd,
+            deps: &self.deps,
             eloop: eloop,
         };
         let new_int = if let Some(&mut (ref mut sock, ref mut cliref)) =
@@ -335,8 +335,7 @@ impl<'a> Handler<'a> {
     {
         use self::Interest::*;
         let mut context = Context {
-            stats: self.stats,
-            gossip_cmd: &mut self.gossip_cmd,
+            deps: &self.deps,
             eloop: eloop,
         };
         if let Some(ref mut wsock) = self.websockets.get_mut(tok) {
@@ -425,7 +424,7 @@ impl<'a> Handler<'a> {
     }
 }
 
-impl<'a> mio::Handler for Handler<'a> {
+impl mio::Handler for Handler {
     type Timeout = Timer;
     type Message = Message;
 
@@ -469,18 +468,19 @@ impl<'a> mio::Handler for Handler<'a> {
     fn notify(&mut self, eloop: &mut EventLoop<Handler>, msg: Message) {
         match msg {
             Message::ScanComplete => {
-                let beacon = websock::beacon(self.stats);
+                let beacon = websock::beacon(
+                    &*self.deps.read(),
+                    &*self.deps.read());
                 self.send_all(eloop, &beacon);
             }
             Message::NewHost(addr) => {
-                {
+                /*{
                     let mut context = Context {
-                        stats: self.stats,
-                        gossip_cmd: &mut self.gossip_cmd,
+                        deps: &self.deps,
                         eloop: eloop,
                     };
                     remote::add_peer(addr, &mut context);
-                }
+                }*/
                 let new_peer = websock::new_peer(addr);
                 self.send_all(eloop, &new_peer);
             }
@@ -489,39 +489,37 @@ impl<'a> mio::Handler for Handler<'a> {
 
     fn timeout(&mut self, eloop: &mut EventLoop<Handler>, timeout: Timer) {
         let mut context = Context {
-            stats: self.stats,
-            gossip_cmd: &mut self.gossip_cmd,
+            deps: &self.deps,
             eloop: eloop,
         };
         match timeout {
             Timer::ReconnectPeer(tok) => {
-                remote::reconnect_peer(tok, &mut context);
+                //remote::reconnect_peer(tok, &mut context);
             }
         }
     }
 }
 
-pub struct Init<'a> {
+pub struct Init {
     input: mio::tcp::TcpListener,
-    eloop: EventLoop<Handler<'a>>,
-    pub channel: mio::Sender<Message>,
+    eloop: EventLoop<Handler>,
 }
 
-pub fn server_init(host: &str, port: u16) -> Result<Init, Error>
+pub fn server_init(deps: &mut Dependencies, host: &str, port: u16)
+    -> Result<Init, Error>
 {
     let server = try!(mio::tcp::TcpListener::bind(&SocketAddr::V4(
         SocketAddrV4::new(try!(host.parse()), port))));
     let mut eloop = try!(EventLoop::new());
     try!(eloop.register(&server, INPUT));
+    deps.insert(eloop.channel());
     Ok(Init {
         input: server,
-        channel: eloop.channel(),
         eloop: eloop,
     })
 }
 
-pub fn server_loop<'x>(init: Init<'x>,
-    stats: &'x RwLock<Stats>, gossip_cmd: mio::Sender<p2p::Command>)
+pub fn server_loop(init: Init, deps: Dependencies)
     -> Result<(), io::Error>
 {
     let mut eloop = init.eloop;
@@ -531,7 +529,6 @@ pub fn server_loop<'x>(init: Init<'x>,
                                        MAX_HTTP_CLIENTS),
         websockets: Slab::new_starting_at(Token(1+MAX_HTTP_CLIENTS),
                                         MAX_WEBSOCK_CLIENTS),
-        stats: stats,
-        gossip_cmd: gossip_cmd,
+        deps: deps,
     })
 }

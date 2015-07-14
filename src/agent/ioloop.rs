@@ -1,9 +1,9 @@
-use std::any::Any;
 use std::collections::HashMap;
 
 use mio::{Token, Timeout, EventSet};
-use anymap::any::CloneAny;
-use anymap::Map;
+
+use super::deps::Dependencies;
+
 
 trait Consumer {
     fn ready(self) -> Option<(EventSet, Option<u64>, Self)>;
@@ -19,6 +19,6 @@ struct Cell {
 
 
 struct Handler {
-    dependencies: Map<CloneAny+Sync+Send>,
+    dependencies: Dependencies,
     connections: HashMap<Token, Cell>,
 }

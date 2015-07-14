@@ -10,6 +10,9 @@ use super::storage::{StorageStats};
 use super::rules::{Query, query};
 use super::http::{Request, BadRequest};
 use super::server::Context;
+use super::stats::Stats;
+use super::p2p::GossipStats;
+use super::deps::LockedDeps;
 
 
 #[derive(RustcEncodable)]
@@ -29,7 +32,7 @@ struct ProcessesData<'a> {
 pub fn serve_status(_req: &Request, context: &mut Context)
     -> Result<http::Response, Box<http::Error>>
 {
-    let stats = context.stats.read().unwrap();
+    let stats: &Stats = &*context.deps.read();
     Ok(http::Response::json(&StatusData {
             startup_time: stats.startup_time,
             scan_duration: stats.scan_duration,
@@ -41,7 +44,7 @@ pub fn serve_status(_req: &Request, context: &mut Context)
 pub fn serve_processes(_req: &Request, context: &mut Context)
     -> Result<http::Response, Box<http::Error>>
 {
-    let stats = context.stats.read().unwrap();
+    let stats: &Stats = &*context.deps.read();
     Ok(http::Response::json(&ProcessesData {
             boot_time: stats.boot_time,
             all: &stats.processes,
@@ -51,7 +54,7 @@ pub fn serve_processes(_req: &Request, context: &mut Context)
 pub fn serve_metrics(_req: &Request, context: &mut Context)
     -> Result<http::Response, Box<http::Error>>
 {
-    let stats = context.stats.read().unwrap();
+    let stats: &Stats = &*context.deps.read();
     Ok(http::Response::json(
             &stats.history.tip.keys()
             .chain(stats.history.fine.keys())
@@ -64,11 +67,11 @@ pub fn serve_metrics(_req: &Request, context: &mut Context)
 pub fn serve_peers(_req: &Request, context: &mut Context)
     -> Result<http::Response, Box<http::Error>>
 {
-    let stats = context.stats.read().unwrap();
+    let gossip: &GossipStats = &*context.deps.read();
     let resp = http::Response::json(
         &json::Json::Object(vec![
             (String::from("peers"), json::Json::Array(
-                stats.gossip.read().unwrap().peers.values()
+                gossip.peers.values()
                 .map(ToJson::to_json)
                 .collect())),
         ].into_iter().collect()
@@ -79,7 +82,7 @@ pub fn serve_peers(_req: &Request, context: &mut Context)
 pub fn serve_query(req: &Request, context: &mut Context)
     -> Result<http::Response, Box<http::Error>>
 {
-    let stats = context.stats.read().unwrap();
+    let stats: &Stats = &*context.deps.read();
     let h = &stats.history;
     from_utf8(&req.body)
        .map_err(|_| BadRequest::err("Bad utf-8 encoding"))

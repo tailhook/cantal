@@ -1,6 +1,7 @@
 use std::net::{SocketAddr};
 use std::collections::HashMap;
 
+use mio::Sender;
 use time::{Timespec, Duration, get_time};
 use rand::{thread_rng, Rng};
 use cbor::Encoder;
@@ -9,6 +10,8 @@ use mio::buf::ByteBuf;
 use super::Context;
 use super::peer::{Peer, Report};
 use super::super::server::Message::NewHost;
+use super::GossipStats;
+use super::super::deps::{Dependencies, LockedDeps};
 
 
 pub const INTERVAL: u64 = 1000;
@@ -54,7 +57,7 @@ fn after(tm: Option<Timespec>, target_time: Timespec) -> bool {
 impl Context {
     pub fn gossip_broadcast(&mut self) {
         let cut_time = get_time() - Duration::milliseconds(MIN_PROBE as i64);
-        let mut stats = self.stats.write().unwrap();
+        let mut stats = self.deps.write::<GossipStats>();
         if self.queue.len() == 0 {
             if stats.peers.len() == 0 {
                 return // nothing to do
@@ -97,7 +100,8 @@ impl Context {
             Ok(_) => {
                 let peer = peers.entry(addr)
                     .or_insert_with(|| {
-                        self.server_msg.send(NewHost(addr))
+                        self.deps.get::<Sender<_>>().unwrap()
+                            .send(NewHost(addr))
                             .map_err(|_| error!("Error sending NewHost msg"))
                             .ok();
                         Peer::new(addr)
@@ -112,7 +116,7 @@ impl Context {
 
     pub fn consume_gossip(&self, packet: Packet, addr: SocketAddr) {
         let tm = get_time();
-        let mut stats = self.stats.write().unwrap();
+        let mut stats = self.deps.write::<GossipStats>();
         match packet {
             Packet::Ping { me: info, now, .. } => {
                 {

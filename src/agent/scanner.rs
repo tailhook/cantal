@@ -1,4 +1,4 @@
-use std::sync::{RwLock};
+use std::sync::{Arc, RwLock};
 use std::io::Write;
 
 use mio;
@@ -14,14 +14,17 @@ use super::scan::values;
 use super::scan::time_ms;
 use super::util::Cell;
 use super::storage::Buffer;
+use super::deps::{Dependencies, LockedDeps};
 
 
 const SNAPSHOT_INTERVAL: u64 = 60000;
 
 
-pub fn scan_loop(stats: &RwLock<Stats>, cell: Option<&Cell<Buffer>>,
-    server_msg: mio::Sender<server::Message>)
+pub fn scan_loop(deps: Dependencies)
 {
+    let stats: &RwLock<Stats> = &*deps.copy();
+    let cell = deps.get::<Arc<Cell<Buffer>>>().map(|x| &*x);
+    let server_msg = deps.get::<mio::Sender<server::Message>>().unwrap();
     let mut last_store = time_ms();
     let mut last_hourly = last_store / 3_600_000;
     let mut process_cache = processes::ReadCache::new();

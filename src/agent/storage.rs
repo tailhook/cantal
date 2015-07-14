@@ -10,6 +10,7 @@ use regex::Regex;
 use super::util::Cell;
 use super::stats::Stats;
 use super::scan::time_ms;
+use super::deps::{Dependencies, LockedDeps};
 
 
 pub struct Buffer {
@@ -27,7 +28,9 @@ pub struct StorageStats {
 }
 
 
-pub fn storage_loop(cell: &Cell<Buffer>, path: &Path, stats: &RwLock<Stats>) {
+pub fn storage_loop(deps: Dependencies, path: &Path) {
+    let cell: &Cell<Buffer> = &*deps.copy();
+    let stats: &RwLock<Stats> = &*deps.copy();
     let tmp = path.join("current.tmp");
     let tmplink = path.join("current.tmp.link");
     let current = path.join("current.cbor");

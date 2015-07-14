@@ -46,8 +46,7 @@ pub fn start(ctx: &mut Context) {
         if stats.peers.is_some() {
             return;
         }
-        let gossip = stats.gossip.clone();
-        let vec = gossip.read().unwrap().peers.keys().cloned().collect();
+        let vec = ctx.read::<GossipStats>().peers.keys().cloned().collect();
         vec
     };
     let mut data = PeerData {
