@@ -24,6 +24,7 @@ hyper = "0.6"
 num = "0.1"
 websocket = "0.12"
 byteorder = "0.3"
+anymap = "0.11"
 
 [dependencies.mio]
 git = "git://github.com/carllerche/mio"

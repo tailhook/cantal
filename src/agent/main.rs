@@ -17,6 +17,7 @@ extern crate unicase;
 extern crate hyper;
 extern crate websocket;
 extern crate byteorder;
+extern crate anymap;
 
 use std::thread;
 use std::fs::File;
@@ -47,6 +48,7 @@ mod websock;
 mod respond;
 mod remote;
 mod error;
+mod ioloop;
 
 fn main() {
     match run() {
