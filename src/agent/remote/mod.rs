@@ -92,15 +92,36 @@ pub fn reconnect_peer(tok: Token, ctx: &mut Context) {
                 Connection::WebSock(_) => return,
                 Connection::Timeout(_) => {}
             }
+            let range = Range::new(5, 150);
+            let mut rng = thread_rng();
             if let Ok(conn) = WebSocket::connect(peer.addr) {
-                peer.connection = Connection::WebSock(conn);
+                match conn.register(tok, ctx.eloop) {
+                    Ok(_) => {
+                        peer.connection = Connection::WebSock(conn);
+                    } else {
+                        peer.connection = Connection::Timeout(
+                            ctx.eloop.timeout_ms(ReconnectPeer(tok),
+                                range.ind_sample(&mut rng)).unwrap());
+                    }
+                }
             } else {
-                let range = Range::new(5, 150);
-                let mut rng = thread_rng();
                 peer.connection = Connection::Timeout(
                     ctx.eloop.timeout_ms(ReconnectPeer(tok),
                         range.ind_sample(&mut rng)).unwrap());
             }
         }
     }
+}
+
+fn try_io(&mut self, tok: Token, ev: EventSet, ctx: &mut Context)
+        -> bool
+{
+    if let Some(dataref) = ctx.stats.read().unwrap().peers.clone() {
+        let mut data = dataref.write().unwrap();
+        if let Some(ref mut peer) = data.peers.get_mut(tok) {
+            if ev.is_readable()
+            return true;
+        }
+    }
+    return false;
 }
