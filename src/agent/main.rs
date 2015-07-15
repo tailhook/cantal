@@ -50,7 +50,6 @@ mod websock;
 mod respond;
 mod remote;
 mod error;
-//mod ioloop;
 mod deps;
 
 
