@@ -54,21 +54,21 @@ Design Decisions
 Here is short roundup of all the important design decisions. Some of them
 are described in detail in the following sections.
 
-(1) Agent has embedded web server. So you can point your browser to::
+Agent has embedded web server. So you can point your browser to::
 
-  http://node.domain.in.local.network:22682
+    http://node.domain.in.local.network:22682
 
-And see all the statistics on the node.
+..and see all the statistics on the node.
 
-(2) Agent stores history locally. So we don't loose stats in case of
+Agent stores history locally. So we don't loose stats in case of
 network failure
 
-(3) Agent has peer to peer gossip-like discovery with UDP. So we don't rely on
+Agent has peer to peer gossip-like discovery with UDP. So we don't rely on
 any other discovery mechanism when time comes to gather metrics over cluster.
 Note: we do use UDP only for discovery, so we don't loose statistics when
 network is lossy.
 
-(4) You can ask **any instance** of agent to get metrics for whole cluster. This
+You can ask **any instance** of agent to get metrics for whole cluster. This
 is how we allow to get data over whole cluster with a single HTTP request. But
 we do it *lazily*, so that we don't have full mesh of connections. I.e. when
 first client asks, we connect to every node by TCP and subcribe for connections.
@@ -76,6 +76,35 @@ first client asks, we connect to every node by TCP and subcribe for connections.
 
 Discovery
 =========
+
+We have gossip-like peer to peer discovery. You need to add a peer address at
+any node and every node will know it.
+
+.. image:: udp_discovery.svg
+   :width: 512px
+
+We use UDP for peer discovery. It works by sending ping packets between
+nodes. Each packet contains some critical info about current node and info
+about few randomly selected known peers.
+
+.. image:: udp_packet.svg
+   :width: 512px
+
+Each node sends 5 ping packets with 10 neighbour nodes each second. Each
+ping packet receives pong packet with other 10 nodes. Overall it's not very
+large number of packets, and packets are distributed uniformly across the
+nodes. This allows to discover even large network with thousand of nodes in
+few dozens of seconds.
+
+In the future we plan to discover physical topology using UDP packets. In turn
+this allows to display graph and provide diagnostics for different kinds of
+network partitions (including assymmetric partitions, bridge nodes, etc.)
+
+Note that we use UDP exclusively for peer discovery. This allows us to *avoid*
+having a *full mesh* of TCP connections. But we don't use UDP for transferring
+metrics, so we don't lose statistics when network suddenly becomes lossy.
+Not being able to reach some nodes via UDP in lossy network is definitely the
+expected outcome and will help diagnose problems too.
 
 
 Aggregated Metrics
