@@ -19,7 +19,7 @@ use super::p2p;
 use super::http;
 use super::staticfiles;
 use super::respond;
-//use super::remote;
+use super::remote;
 use super::websock;
 use super::error::Error;
 use super::stats::{Stats};
@@ -171,7 +171,7 @@ pub struct Handler {
 }
 
 pub struct Context<'a, 'b: 'a> {
-    pub deps: &'b Dependencies,
+    pub deps: &'b mut Dependencies,
     pub eloop: &'a mut EventLoop<Handler>,
 }
 
@@ -204,8 +204,9 @@ fn resolve(req: &Request, context: &mut Context)
         => respond::serve_query(req, context),
         (&Post, &P(ref x)) if &x[..] == "/add_host.json"
         => do_add_host(req, context),
-        //(&Post, &P(ref x)) if &x[..] == "/start_remote.json"
-        //=> do_start_remote(req, context),
+        // TODO(tailhook) this should be post
+        (_, &P(ref x)) if &x[..] == "/start_remote.json"
+        => do_start_remote(req, context),
         (&Get, _) => Err(Box::new(NotFound) as Box<http::Error>),
         _ => Err(Box::new(MethodNotAllowed) as Box<http::Error>),
     }
@@ -236,7 +237,6 @@ fn do_add_host(req: &Request, context: &mut Context)
     })
 }
 
-/*
 fn do_start_remote(req: &Request, context: &mut Context)
     -> Result<http::Response, Box<http::Error>>
 {
@@ -245,7 +245,6 @@ fn do_start_remote(req: &Request, context: &mut Context)
         (String::from("ok"), true)
     ].into_iter().collect::<HashMap<_, _>>().to_json()))
 }
-*/
 
 #[derive(Debug)]
 pub enum Timer {
@@ -264,7 +263,7 @@ impl Handler {
     {
         use self::Interest::*;
         let mut context = Context {
-            deps: &self.deps,
+            deps: &mut self.deps,
             eloop: eloop,
         };
         let new_int = if let Some(&mut (ref mut sock, ref mut cliref)) =
@@ -335,7 +334,7 @@ impl Handler {
     {
         use self::Interest::*;
         let mut context = Context {
-            deps: &self.deps,
+            deps: &mut self.deps,
             eloop: eloop,
         };
         if let Some(ref mut wsock) = self.websockets.get_mut(tok) {
@@ -371,7 +370,12 @@ impl Handler {
                     }
                     R::More => {
                         // TODO(tailhook) try parse message
-                        websock::parse_message(&mut wsock.input, &mut context);
+                        websock::parse_message(&mut wsock.input, &mut context,
+                            |opcode, msg, ctx| {
+                                println!("Message {:?} {:?}", opcode,
+                                    ::std::str::from_utf8(msg));
+
+                            });
                         return true;
                     }
                     R::Full|R::Close => {} // exit from if and close socket
@@ -388,6 +392,16 @@ impl Handler {
         }
         self.websockets.remove(tok);
         return true;
+    }
+    fn try_remote(&mut self, tok: Token, ev: EventSet,
+        eloop: &mut EventLoop<Handler>)
+        -> bool
+    {
+        let mut context = Context {
+            deps: &mut self.deps,
+            eloop: eloop,
+        };
+        remote::try_io(tok, ev, &mut context)
     }
 
     fn send_all(&mut self, eloop: &mut EventLoop<Handler>, msg: &str) {
@@ -458,7 +472,8 @@ impl mio::Handler for Handler {
             }
             tok => {
                 if !self.try_http(tok, ev, eloop) &&
-                   !self.try_websock(tok, ev, eloop) {
+                   !self.try_websock(tok, ev, eloop) &&
+                   !self.try_remote(tok, ev, eloop) {
                     error!("Wrong token {:?}", tok);
                 }
             }
@@ -468,19 +483,17 @@ impl mio::Handler for Handler {
     fn notify(&mut self, eloop: &mut EventLoop<Handler>, msg: Message) {
         match msg {
             Message::ScanComplete => {
-                let beacon = websock::beacon(
-                    &*self.deps.read(),
-                    &*self.deps.read());
+                let beacon = websock::beacon(&self.deps);
                 self.send_all(eloop, &beacon);
             }
             Message::NewHost(addr) => {
-                /*{
+                {
                     let mut context = Context {
-                        deps: &self.deps,
+                        deps: &mut self.deps,
                         eloop: eloop,
                     };
                     remote::add_peer(addr, &mut context);
-                }*/
+                }
                 let new_peer = websock::new_peer(addr);
                 self.send_all(eloop, &new_peer);
             }
@@ -489,12 +502,12 @@ impl mio::Handler for Handler {
 
     fn timeout(&mut self, eloop: &mut EventLoop<Handler>, timeout: Timer) {
         let mut context = Context {
-            deps: &self.deps,
+            deps: &mut self.deps,
             eloop: eloop,
         };
         match timeout {
             Timer::ReconnectPeer(tok) => {
-                //remote::reconnect_peer(tok, &mut context);
+               remote::reconnect_peer(tok, &mut context);
             }
         }
     }

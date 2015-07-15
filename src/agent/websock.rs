@@ -1,5 +1,5 @@
 use std::iter::repeat;
-use std::sync::RwLock;
+use std::sync::{Arc, RwLock};
 use std::net::SocketAddr;
 
 use unicase::UniCase;
@@ -12,15 +12,21 @@ use websocket::header::{WebSocketVersion, WebSocketKey};
 use rustc_serialize::json;
 
 use super::http;
+use super::scan::time_ms;
+use super::remote::Peers;
 use super::p2p::GossipStats;
 use super::http::{Request, BadRequest};
 use super::util::Consume;
 use super::server::{Context};
 use super::stats::Stats;
+use super::deps::{Dependencies, LockedDeps};
 
 
 #[derive(RustcEncodable, RustcDecodable)]
 struct Beacon {
+    current_time: u64,
+    startup_time: u64,
+    boot_time: Option<u64>,
     scan_time: u64,
     scan_duration: u32,
     processes: usize,
@@ -28,12 +34,30 @@ struct Beacon {
     peers: usize,
     fine_history_length: usize,
     history_age: u64,
+    remote_total: Option<usize>,
+    remote_connected: Option<usize>,
 }
 
 #[derive(RustcEncodable, RustcDecodable)]
 enum Message {
     Beacon(Beacon),
     NewPeer(String),
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+enum Opcode {
+    Text,
+    Binary,
+}
+
+impl Opcode {
+    fn from(src: u8) -> Option<Opcode> {
+        match src {
+            1 => Some(Opcode::Text),
+            2 => Some(Opcode::Binary),
+            x => None,
+        }
+    }
 }
 
 
@@ -91,7 +115,9 @@ pub fn respond_websock(req: &Request, _context: &mut Context)
     Ok(http::Response::accept_websock(key))
 }
 
-pub fn parse_message(buf: &mut Vec<u8>, context: &mut Context) {
+pub fn parse_message<F>(buf: &mut Vec<u8>, context: &mut Context, cb: F)
+    where F: FnOnce(Opcode, &[u8], &mut Context)
+{
     if buf.len() < 2 {
         return;
     }
@@ -124,9 +150,16 @@ pub fn parse_message(buf: &mut Vec<u8>, context: &mut Context) {
         }
     }
     {
-        let msg = &buf[pref..pref+ln];
-        println!("Message {}, {}, {}, len: {}, {:?}", fin, mask, opcode, ln,
-            ::std::str::from_utf8(msg));
+        if !fin {
+            warn!("Partial frames are not supported");
+        } else {
+            match Opcode::from(opcode) {
+                None => {
+                    warn!("Invalid opcode {:?}", opcode);
+                }
+                Some(op) => cb(op, &buf[pref..pref+ln], context),
+            }
+        }
     }
     buf.consume(pref + ln);
 }
@@ -152,16 +185,51 @@ pub fn write_text(buf: &mut Vec<u8>, chunk: &str) {
     buf.extend(bytes.iter().cloned());
 }
 
-pub fn beacon(st: &Stats, gossip: &GossipStats) -> String {
+pub fn beacon(deps: &Dependencies) -> String {
+    // Lock one by one, to avoid deadlocks
+    let (startup_time,
+         boot_time,
+         scan_time,
+         scan_duration,
+         processes,
+         values,
+         fine_history_length,
+         history_age) = {
+            let st = deps.read::<Stats>();
+            (   st.startup_time,
+                st.boot_time.map(|x| x*1000),
+                st.last_scan,
+                st.scan_duration,
+                st.processes.len(),
+                st.history.tip.len() + st.history.fine.len() +
+                       st.history.coarse.len(),
+                st.history.fine_timestamps.len(),
+                st.history.age)
+    };
+    let gossip_peers = {
+        let gossip = deps.read::<GossipStats>();
+        gossip.peers.len()
+    };
+    let (remote_total, remote_connected) =
+        if let Some(ref pr) = deps.get::<Arc<RwLock<Peers>>>() {
+            let peers = pr.read().unwrap();
+            (Some(peers.addresses.len()), Some(peers.connected))
+        } else {
+            (None, None)
+        };
     json::encode(&Message::Beacon(Beacon {
-        scan_time: st.last_scan,
-        scan_duration: st.scan_duration,
-        processes: st.processes.len(),
-        values: st.history.tip.len() + st.history.fine.len() +
-                st.history.coarse.len(),
-        peers: gossip.peers.len(),
-        fine_history_length: st.history.fine_timestamps.len(),
-        history_age: st.history.age,
+        current_time: time_ms(),
+        startup_time: startup_time,
+        boot_time: boot_time,
+        scan_time: scan_time,
+        scan_duration: scan_duration,
+        processes: processes,
+        values: values,
+        fine_history_length: fine_history_length,
+        history_age: history_age,
+        peers: gossip_peers,
+        remote_total: remote_total,
+        remote_connected: remote_connected,
     })).unwrap()
 }
 

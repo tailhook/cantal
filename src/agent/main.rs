@@ -48,9 +48,9 @@ mod p2p;
 mod http;
 mod websock;
 mod respond;
-//mod remote;
+mod remote;
 mod error;
-mod ioloop;
+//mod ioloop;
 mod deps;
 
 
@@ -93,7 +93,7 @@ fn run() -> Result<(), Box<Error>> {
     deps.insert(Arc::new(util::Cell::<storage::Buffer>::new()));
 
     let _storage = storage_dir.as_ref().map(|path| {
-        let mut mydeps = deps.clone();
+        let mydeps = deps.clone();
         let result = File::open(&path.join("current.cbor"))
             .map_err(|e| error!("Error reading old data: {}. Ignoring...", e))
             .and_then(|f| Decoder::from_reader(f).decode().next()
@@ -118,7 +118,9 @@ fn run() -> Result<(), Box<Error>> {
 
     let mydeps = deps.clone();
     let _p2p = thread::spawn(move || {
-        p2p::p2p_loop(p2p_init, mydeps);
+        p2p::p2p_loop(p2p_init, mydeps)
+            .map_err(|e| error!("Error in p2p loop: {}", e))
+            .ok();
     });
 
     try!(server::server_loop(server_init, deps));

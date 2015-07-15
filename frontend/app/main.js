@@ -1,6 +1,5 @@
 import {component} from 'util/base'
 import websock from 'util/websock'
-import {Navbar} from 'util/navbar'
 import {Context} from 'util/base'
 
 import {Processes} from 'pages/processes'
@@ -10,6 +9,7 @@ import {Totals} from 'pages/totals'
 import {Metrics} from 'pages/metrics'
 import {Peers} from 'pages/peers'
 import {update, append} from 'util/render'
+import navbar from 'templates/navbar.mft'
 
 
 export class App {
@@ -17,7 +17,7 @@ export class App {
     }
     render() {
         return {tag: 'div', children: [
-            component(Navbar),
+            navbar.render(this.page && this.page.constructor.name.toLowerCase()),
             this.page ? component(this.page) : "",
             ]}
     }

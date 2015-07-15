@@ -6,48 +6,42 @@ use mio::{Token, Timeout, EventSet, Sender, Evented};
 use super::deps::Dependencies;
 
 
-enum Notify {
-    DestroySocket(Box<Evented+Send>),
+trait HandleConn {
+    fn ready(&mut self, &mut EventLoop<Handler>, tok: Token,
+        ev: EventSet, deps: Dependencies) -> bool;
 }
 
-struct SocketRef<T:Evented+Send+'static>(Option<T>, Sender<Notify>);
-
-impl<T:Evented+Send+'static> Drop for SocketRef<T> {
-    fn drop(&mut self) {
-        self.1.send(Notify::DestroySocket(
-            Box::new(self.0.take().unwrap()) as Box<Evented+Send>));
-    }
+enum HttpTest {
+    KeepAlive,
+    Headers(Vec<u8>),
+    Body(Vec<u8>),
+    Response(Vec<u8>, Vec<u8>),
 }
 
-trait Acceptor {
-    fn accept(&self, TcpStream) -> Option<Streamer>;
-}
+enum Websock
 
-trait Streamer {
-    fn write_buf<'x>(&'x mut self) -> Option<&mut Vec<u8>>;
-    fn read_buf<'x>(&'x mut self) -> Option<&mut Vec<u8>>;
-    fn process_data(self) -> Option<Self>;
-}
-
-enum Sink {
-    Accept(Box<Acceptor>),
-    Stream(Box<Streamer>),
-}
-
-
-struct Cell {
-    event_set: EventSet,
-    timeout: Option<(u64, Timeout)>,
-    consumer: Box<Consumer>,
+impl HandleConn for HttpTest {
+    fn
 }
 
 
 struct Handler {
     dependencies: Dependencies,
-    connections: HashMap<Token, Cell>,
+    connections: HashMap<Token, Box<HandleConn>>,
 }
 
 
 impl mio::Handler for Handler {
-    fn ready(
+    type Timeout = ();
+    type Notify = ();
+
+    fn ready(&mut self, event_loop: &mut EventLoop<Handler>,
+        token: Token, events: EventSet) {
+        if let Some(ref mut conn) = self.connections.get_mut(token) {
+            if conn.ready(event_loop, token, events, self.deps) {
+                return;
+            }
+        }
+        self.connections.remove(token);
+    }
 }

@@ -2,6 +2,7 @@ import {format_uptime, till_now_ms, from_ms} from 'util/time'
 import {component} from 'util/base'
 import {Sparkline} from 'util/sparkline'
 import {DonutChart} from 'util/donut'
+import websock from 'util/websock'
 
 css:
   .pointer
@@ -10,38 +11,27 @@ css:
 html icon(name):
   span.glyphicon[class="glyphicon-{name}"]
 
-html render_self(stats, latency):
+html render_self(beacon, connected):
   span.pointer[title="Uptime of the cantal agent itself"]
     " up "
-    =format_uptime(till_now_ms(from_ms(stats.startup_time)))
+    =format_uptime(till_now_ms(from_ms(beacon.startup_time)))
   " "
   span.pointer[title="Latency of requests to the cantal"]
-    "{latency:d}ms"
+    "{beacon.latency:d}ms"
   " "
   span.pointer[title="Time it takes for cantal to read all stats once"]
-    "{stats.scan_duration:d}ms"
+    "{beacon.scan_duration:d}ms"
 
 html render_machine(data):
-  span.pointer[title="Minute Load Average"]
-    "{data.load_avg_1min:.2f}"
-  " / "
-  span.pointer[title="5 Minutes Load Average"]
-    "{data.load_avg_5min:.2f}"
-  " / "
-  span.pointer[title="15 Minutes Load Average"]
-    "{data.load_avg_15min:.2f}"
-  " / "
   span.pointer[title="Uptime of the box running cantal"]
     "up "
-    =format_uptime(till_now_ms(from_ms(data.boot_time*1000)))
+    =format_uptime(till_now_ms(from_ms(data.boot_time)))
   " "
-  #+component(Sparkline, this.cpu_chart)
-  #span= " "
-  #+component(DonutChart, this.memory_chart, {width: 32, height: 32})
 
-html render(data, latency, error, current_page):
+html render(current_page):
   div.navbar.navbar-default
     div.container-fluid
+      let beacon = websock.last_beacon
       div.navbar-header
         a.navbar-brand[href="#/"]
           "Cantal"
@@ -50,22 +40,36 @@ html render(data, latency, error, current_page):
           li.active?(current_page == 'processes')
             a[href="#/processes"]
               "Processes"
+              if beacon:
+                " [{beacon.processes}]"
           li.active?(current_page == 'metrics')
             a[href="#/metrics"]
               "Metrics"
+              if beacon:
+                " [{beacon.values}]"
           li.active?(current_page == 'peers')
             a[href="#/peers"]
               "Peers"
-        form.navbar-form.navbar-right.bg-danger?(error)
+              if beacon:
+                " [{beacon.peers}]"
+          li.active?(current_page == 'remote')
+            a[href="#/remote"]
+              "Remote"
+              if beacon:
+                if beacon.remote_total == null:
+                  " [off]"
+                else:
+                  " [{beacon.remote_connected}/{beacon.remote_total}]"
+        form.navbar-form.navbar-right.bg-danger?(!websock.connected)
           "("
           =icon('hdd')
           " "
-          if data:
-            =render_machine(data)
+          if beacon:
+            =render_machine(beacon)
           ") ("
           =icon('scale')
-          if data:
-            =render_self(data, latency)
+          if beacon:
+            =render_self(beacon, websock.connected)
           ") "
           a.btn.btn-default[href="#/status"]
             "Status"
