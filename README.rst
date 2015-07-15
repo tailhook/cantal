@@ -2,7 +2,7 @@
 Cantal
 ======
 
-:Status: proof of concept
+:Status: alpha
 
 Cantal is an expermimental heartbeating, monitoring and statistics solution.
 Main design goals:
@@ -15,7 +15,7 @@ Cantal consists of:
 
 * A protocol to submit monitoring data to local agent (to be documented)
 * The reference implementation of the library for python3
-* Command-line tool to view data (todo)
-* Local agent to collect/aggregate/forward data (todo)
+* Command-line tool to view data
+* Local agent to collect/aggregate/forward data
 * A protocol for forwarding data to aggregator (todo)
 
