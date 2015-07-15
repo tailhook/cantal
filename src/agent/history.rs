@@ -349,7 +349,7 @@ impl History {
             .next().unwrap_or((1000000, &(0, 0)))
             .0;
 
-        let target_age = self.age - idx as u64;
+        let target_age = self.age.saturating_sub(idx as u64);
         self.fine = replace(&mut self.fine, HashMap::new()).into_iter()
             .filter_map(|(key, mut val)| {
                 if val.truncate(target_age) {
@@ -376,7 +376,7 @@ impl History {
             .next().unwrap_or((1000000, &(0, 0)))
             .0;
 
-        let target_age = self.age - idx as u64;
+        let target_age = self.age.saturating_sub(idx as u64);
         self.coarse = replace(&mut self.coarse, HashMap::new()).into_iter()
             .filter_map(|(key, mut val)| {
                 if val.truncate(target_age) {
