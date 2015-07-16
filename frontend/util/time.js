@@ -39,3 +39,17 @@ export function format_uptime(ms) {
         return `${(ms/86400000)|0}d${((ms/3600000) % 24)|0}h`
     }
 }
+
+export function format_diff(ms) {
+    if(ms < 1000) {
+        return `${ms}ms`;
+    } else if(ms < 90000) {
+        return `${(ms/1000)|0}s`
+    } else if(ms < 5400000) {
+        return `${(ms/60000)|0}m${((ms/1000) % 60)|0}s`
+    } else if(ms < 86400000) {
+        return `${(ms/3600000)|0}h${((ms/60000) % 60)|0}m`
+    } else {
+        return `${(ms/86400000)|0}d${((ms/3600000) % 24)|0}h`
+    }
+}

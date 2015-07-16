@@ -8,6 +8,7 @@ import {Values} from 'pages/values'
 import {Totals} from 'pages/totals'
 import {Metrics} from 'pages/metrics'
 import {Peers} from 'pages/peers'
+import {Remote} from 'pages/remote'
 import {update, append} from 'util/render'
 import navbar from 'templates/navbar.mft'
 
@@ -39,6 +40,8 @@ export class App {
                 app.page = Metrics;
             } else if(window.location.hash == '#/peers') {
                 app.page = Peers;
+            } else if(window.location.hash == '#/remote') {
+                app.page = Remote;
             }
             update()
         }

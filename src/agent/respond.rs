@@ -12,7 +12,9 @@ use super::http::{Request, BadRequest};
 use super::server::Context;
 use super::stats::Stats;
 use super::p2p::GossipStats;
+use super::remote::{Peers, PeerHolder};
 use super::deps::LockedDeps;
+use super::websock::Beacon;
 
 
 #[derive(RustcEncodable)]
@@ -76,6 +78,46 @@ pub fn serve_peers(_req: &Request, context: &mut Context)
                 .collect())),
         ].into_iter().collect()
        ));
+    Ok(resp)
+}
+
+pub fn serve_remote_stats(_req: &Request, context: &mut Context)
+    -> Result<http::Response, Box<http::Error>>
+{
+    #[derive(RustcEncodable)]
+    struct Peers {
+        enabled: bool,
+        peers: Vec<PeerInfo>,
+    }
+    #[derive(RustcEncodable)]
+    struct PeerInfo {
+        addr: String,
+        connected: bool,
+        last_beacon_time: Option<u64>,
+        last_beacon: Option<Beacon>,
+    }
+    let response = if let Some(hld) = context.deps.get::<PeerHolder>() {
+        let peers = hld.read().unwrap();
+        let mut result = Vec::new();
+        for p in peers.peers.iter() {
+            result.push(PeerInfo {
+                addr: p.addr.to_string(),
+                connected: p.connected(),
+                last_beacon_time: p.last_beacon.as_ref().map(|x| x.0),
+                last_beacon: p.last_beacon.as_ref().map(|x| x.1.clone()),
+            })
+        }
+        Peers {
+            enabled: true,
+            peers: result,
+        }
+    } else {
+        Peers {
+            enabled: false,
+            peers: Vec::new(),
+        }
+    };
+    let resp = http::Response::json(&response);
     Ok(resp)
 }
 

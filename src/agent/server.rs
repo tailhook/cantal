@@ -200,12 +200,14 @@ fn resolve(req: &Request, context: &mut Context)
         => respond::serve_metrics(req, context),
         (&Get, &P(ref x)) if &x[..] == "/all_peers.json"
         => respond::serve_peers(req, context),
+        (&Get, &P(ref x)) if &x[..] == "/remote_stats.json"
+        => respond::serve_remote_stats(req, context),
         (&Post, &P(ref x)) if &x[..] == "/query.json"
         => respond::serve_query(req, context),
         (&Post, &P(ref x)) if &x[..] == "/add_host.json"
         => do_add_host(req, context),
         // TODO(tailhook) this should be post
-        (_, &P(ref x)) if &x[..] == "/start_remote.json"
+        (&Post, &P(ref x)) if &x[..] == "/start_remote.json"
         => do_start_remote(req, context),
         (&Get, _) => Err(Box::new(NotFound) as Box<http::Error>),
         _ => Err(Box::new(MethodNotAllowed) as Box<http::Error>),

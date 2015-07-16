@@ -6,11 +6,15 @@ use std::collections::HashMap;
 use mio::{Token, Timeout, EventSet};
 use mio::tcp::TcpStream;
 use mio::util::Slab;
-use time::SteadyTime;
+use time::{SteadyTime};
 use rand::thread_rng;
 use rand::distributions::{IndependentSample, Range};
 
 use super::server::Context;
+use super::scan::time_ms;
+use super::websock::Beacon;
+use super::websock::InputMessage as OutputMessage;
+use super::websock::OutputMessage as InputMessage;
 use super::deps::{Dependencies, LockedDeps};
 use super::server::Timer::ReconnectPeer;
 use super::p2p::GossipStats;
@@ -30,7 +34,7 @@ pub struct Peers {
     start_time: SteadyTime,
     pub connected: usize,
     pub addresses: HashMap<SocketAddr, Token>,
-    peers: Slab<Peer>,
+    pub peers: Slab<Peer>,
 }
 
 enum Connection {
@@ -39,8 +43,18 @@ enum Connection {
 }
 
 pub struct Peer {
-    addr: SocketAddr,
+    pub addr: SocketAddr,
     connection: Connection,
+    pub last_beacon: Option<(u64, Beacon)>,
+}
+
+impl Peer {
+    pub fn connected(&self) -> bool {
+        match self.connection {
+            Connection::WebSock(ref w) if !w.handshake => true,
+            _ => false,
+        }
+    }
 }
 
 pub fn start(ctx: &mut Context) {
@@ -61,6 +75,7 @@ pub fn start(ctx: &mut Context) {
     for addr in peers {
         if let Some(tok) = data.peers.insert_with(|tok| Peer {
             addr: addr,
+            last_beacon: None,
             connection: Connection::Timeout(
                 ctx.eloop.timeout_ms(ReconnectPeer(tok),
                                      range.ind_sample(&mut rng)).unwrap()),
@@ -87,6 +102,7 @@ pub fn add_peer(addr: SocketAddr, ctx: &mut Context) {
     let ref mut eloop = ctx.eloop;
     if let Some(tok) = data.peers.insert_with(|tok| Peer {
         addr: addr,
+        last_beacon: None,
         connection: Connection::Timeout(
             eloop.timeout_ms(ReconnectPeer(tok),
                 range.ind_sample(&mut rng)).unwrap()),
@@ -131,21 +147,37 @@ pub fn try_io(tok: Token, ev: EventSet, ctx: &mut Context) -> bool
     let mut dataguard = dataref.write().unwrap();
     let ref mut data = dataguard.deref_mut();
     if let Some(ref mut peer) = data.peers.get_mut(tok) {
-        let result = {
+        let to_close = {
             let ref mut sock = match peer.connection {
                 Connection::WebSock(ref mut sock) => sock,
                 Connection::Timeout(_) => unreachable!(),
             };
             let old = sock.handshake;
-            let res = sock.events(ev, tok, ctx);
-            if old && res && !sock.handshake {
+            let mut to_close;
+            if let Some(messages) = sock.events(ev, tok, ctx) {
+                for msg in messages {
+                    match msg {
+                        InputMessage::Beacon(b) => {
+                            peer.last_beacon = Some((time_ms(), b));
+                        }
+                        InputMessage::NewPeer(p) => {
+                            // TODO(tailhook) process it
+                            debug!("New peer from websock {:?}", p);
+                        }
+                    }
+                }
+                to_close = false;
+            } else {
+                to_close = true;
+            }
+            if old &&  !to_close && !sock.handshake {
                 data.connected += 1;
-            } else if !old && !res {
+            } else if !old && to_close {
                 data.connected -= 1;
             }
-            res
+            to_close
         };
-        if !result {
+        if to_close {
             let range = Range::new(5, 150);
             let mut rng = thread_rng();
             peer.connection = Connection::Timeout(

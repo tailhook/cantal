@@ -1,0 +1,112 @@
+import {Toggle, Store, Value} from 'util/stores'
+import {format_diff, till_now_ms, from_ms} from 'util/time'
+
+css:
+  pre.short
+    height: 1em
+    overflow: hide
+  .beacon
+    display: inline-block
+    margin-right: 8px
+  .corner
+    position: absolute
+    right: 8px
+    top: 8px
+  .relative
+    position: relative
+
+
+html render(enabled, peers, error, ctr):
+  .container
+    if enabled:
+      .row
+        .col-xs-12
+          h1
+            "All peers "
+            if peers:
+              "({peers.length}) "
+      .row
+        p.col-xs-12
+          if peers:
+            if peers.length > 0:
+              table.table.table-bordered.table-hover
+                thead
+                  tr
+                    th "IP"
+                    th "Connected"
+                    th "Last Beacon"
+                    th "Beacon"
+                    th "Latency"
+                tbody
+                  for p of peers:
+                    tr
+                      td "{p.addr}"
+                      td "{p.connected}"
+                      td.text-muted?(p.last_beacon_time == null)
+                        if p.last_beacon_time:
+                          =format_diff(till_now_ms(
+                                         from_ms(p.last_beacon_time)))
+                        else:
+                          "never"
+                      td.text-muted?(p.last_beacon == null).relative
+                        store toggle = new Toggle()
+                        if p.last_beacon:
+                          if toggle.visible:
+                            pre
+                              =JSON.stringify(p.last_beacon, null, '  ')
+                          else:
+                            .beacon
+                              "Values: {p.last_beacon.values}, "
+                              "peers: {p.last_beacon.peers}"
+                        else:
+                          "∅"
+                        button.btn.btn-default.corner?(toggle.visible)
+                          link click = toggle.toggle
+                          if toggle.visible:
+                            span.glyphicon.glyphicon-chevron-up
+                          else:
+                            span.glyphicon.glyphicon-chevron-down
+                      td.text-muted?(p.last_beacon == null)
+                        if p.last_beacon:
+                          =String(p.last_beacon_time -
+                                  p.last_beacon.current_time)
+                          "ms"
+                        else:
+                          "∅"
+            else:
+              .panel.panel-warning
+                .panel-heading
+                  "No known peers ☹"
+                .panel-body "
+                  You must add first peer by yourself in the Peers tab
+                  (or some other node might find you too)
+                  "
+    elif enabled == undefined:
+      .row
+        .col-xs-12
+          "Loading ..."
+    else:
+      .row
+        .col-xs-12
+          h1
+            "Remote Stats Are Disabled"
+      .row
+        .col-xs-12
+          .panel.panel-warning
+            .panel-heading
+              "Enable remote metrics"
+            .panel-body
+              p "
+                You may enable remote metrics. But be aware that it means this
+                node will use a little bit more resources
+                "
+              p
+                " But more importantly, if you enable remote metrics on all (or
+                  too many nodes) you will get "
+                b "full mesh"
+                " of connections and a lot of traffic. So chose chose nodes
+                  wisely."
+              p
+                button.btn.btn-danger
+                  link click = ctr.enable_remote
+                  "Enable"

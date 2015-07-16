@@ -22,20 +22,20 @@ use super::stats::Stats;
 use super::deps::{Dependencies, LockedDeps};
 
 
-#[derive(RustcEncodable, RustcDecodable, Debug)]
-struct Beacon {
-    current_time: u64,
-    startup_time: u64,
-    boot_time: Option<u64>,
-    scan_time: u64,
-    scan_duration: u32,
-    processes: usize,
-    values: usize,
-    peers: usize,
-    fine_history_length: usize,
-    history_age: u64,
-    remote_total: Option<usize>,
-    remote_connected: Option<usize>,
+#[derive(RustcEncodable, RustcDecodable, Debug, Clone)]
+pub struct Beacon {
+    pub current_time: u64,
+    pub startup_time: u64,
+    pub boot_time: Option<u64>,
+    pub scan_time: u64,
+    pub scan_duration: u32,
+    pub processes: usize,
+    pub values: usize,
+    pub peers: usize,
+    pub fine_history_length: usize,
+    pub history_age: u64,
+    pub remote_total: Option<usize>,
+    pub remote_connected: Option<usize>,
 }
 
 #[derive(RustcEncodable, RustcDecodable, Debug)]

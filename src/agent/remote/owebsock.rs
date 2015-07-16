@@ -53,7 +53,7 @@ impl WebSocket {
             EventSet::writable(), PollOpt::level())
     }
     pub fn events(&mut self, ev: EventSet, tok: Token, ctx: &mut Context)
-        -> bool
+        -> Option<Vec<InputMessage>>
     {
         if ev.is_writable() {
             let buf = replace(&mut self.output, Vec::new());
@@ -62,7 +62,7 @@ impl WebSocket {
                     match ctx.eloop.reregister(&self.sock, tok,
                         EventSet::readable(), PollOpt::level())
                     {
-                        Ok(_) => return true,
+                        Ok(_) => return Some(Vec::new()),
                         Err(e) => {
                             error!("Error on reregister: {}; \
                                     closing connection", e);
@@ -83,7 +83,7 @@ impl WebSocket {
             match R::read(&mut self.sock, &mut self.input,
                           MAX_WEBSOCK_MESSAGE)
             {
-                R::Wait => { return true; }
+                R::Wait => { return Some(Vec::new()); }
                 R::More => {
                     if self.handshake {
                         let consumed = {
@@ -95,7 +95,7 @@ impl WebSocket {
                                     len
                                 }
                                 Ok(httparse::Status::Partial) => {
-                                    return true;
+                                    return Some(Vec::new());
                                 }
                                 Err(err) => {
                                     debug!("Error while reading request: {:?}",
@@ -105,13 +105,14 @@ impl WebSocket {
                                             "Can't deregister sock: {}",
                                             err))
                                         .ok();
-                                    return false;
+                                    return None;
                                 }
                             }
                         };
                         self.input.consume(consumed);
                         self.handshake = false;
                     }
+                    let mut messages: Vec<InputMessage> = vec!();
                     loop {
                         let msg: Option<InputMessage>;
                         msg = websock::parse_message(&mut self.input, ctx,
@@ -130,12 +131,12 @@ impl WebSocket {
                                 }
                             });
                         if let Some(msg) = msg {
-                            println!("Remote message {:?}", msg);
+                            messages.push(msg);
                         } else {
                             break;
                         }
                     }
-                    return true;
+                    return Some(messages);
                 }
                 R::Full|R::Close => {}
                 R::Error(err) => {
@@ -145,9 +146,9 @@ impl WebSocket {
             ctx.eloop.deregister(&self.sock)
                 .map_err(|err| error!("Can't deregister sock: {}", err))
                 .ok();
-            return false;
+            return None;
         }
-        return true;
+        return Some(Vec::new());
     }
 }
 
