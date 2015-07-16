@@ -311,16 +311,23 @@ impl Handler {
             self.clients.remove(tok);
         } else if new_int == SwitchWebsock {
             let (sock, _) = self.clients.remove(tok).unwrap();
+
+            // Send beacon at start
+            let mut buf = Vec::new();
+            let beacon = websock::beacon(&context.deps);
+            websock::write_text(&mut buf, &beacon);
+
             let ntok = self.websockets.insert(WebSocket {
                 sock: sock,
                 input: Vec::new(),
-                output: Vec::new(),
+                output: buf,
                 })
                 .map_err(|_| error!("Too many websock clients"));
             if let Ok(cli_token) = ntok {
                 if let Err(e) = context.eloop.register_opt(
                     &self.websockets.get(cli_token).unwrap().sock,
-                    cli_token, EventSet::readable(), PollOpt::level())
+                    cli_token, EventSet::readable()|EventSet::writable(),
+                    PollOpt::level())
                 {
                     error!("Error registering accepted connection: {}", e);
                     self.websockets.remove(cli_token);
