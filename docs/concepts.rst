@@ -110,3 +110,56 @@ expected outcome and will help diagnose problems too.
 Aggregated Metrics
 ==================
 
+To have efficient cluster management we consider imporant two points:
+
+1. Resource manager don't have to gather from each node, they must be *pushed*
+   as fast as possible
+2. We don't want to constrain failover and/or lower the availability of the
+   resource manager. I.e. cantal's data should be virtually always available
+   for resource manager.
+
+When we talk about *resource manager* (RM) we talk about any software which
+consumes metrics and implements some resource allocation decisions. Obviously
+resource management is out of scope of the cantal itself.
+
+
+So to get metrics RM connects to any cantal agent and requests statistics for
+all it's peers.
+
+.. image:: resource_manager1.svg
+   :height: 512
+
+On first request for some monitoring data Cantal Agent does the following:
+
+1. Enables remote peer publish-subscribe subsystem
+2. Connects to every known peer via bidirectional protocol (WebSockets in the
+   current implementation)
+3. Subscribes on each node for the subset of data requested by client
+4. Fetches chunk of history for these metrics from every node
+
+.. note:: UDP-based peer tracking and dicovery works always. So every agent
+   does know all it's peers. We just activate TCP-based reliable
+   publish-subscribe for metrics at request.
+
+Other client might ask another node and that node will seamlessly provide the
+stats and historical data.
+
+.. image:: resource_manager2.svg
+   :height: 512
+
+The only practical limitation of it is the that running a full-mesh of TCP
+connections is quite inefficient. So you should poll a single node while it's
+still available and switch to another one only when it's not.
+
+.. warn:: It's hard to overstate that you should not poll every node in turn
+   otherwise you will have a full mesh of connections and every node will send
+   updates to each other every two seconds.
+
+Viewing web interface for **local metrics** and polling for them is perfectly
+OK on any and every node.
+
+In perfect world we expect that resource manager will poll an agent on
+localhost, and has failover resource manager node with own cantal agent.
+
+.. image:: resource_manager_failover.svg
+   :height: 512
