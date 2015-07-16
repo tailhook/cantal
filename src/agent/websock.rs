@@ -22,7 +22,7 @@ use super::stats::Stats;
 use super::deps::{Dependencies, LockedDeps};
 
 
-#[derive(RustcEncodable, RustcDecodable)]
+#[derive(RustcEncodable, RustcDecodable, Debug)]
 struct Beacon {
     current_time: u64,
     startup_time: u64,
@@ -38,20 +38,25 @@ struct Beacon {
     remote_connected: Option<usize>,
 }
 
-#[derive(RustcEncodable, RustcDecodable)]
-enum Message {
+#[derive(RustcEncodable, RustcDecodable, Debug)]
+pub enum OutputMessage {
     Beacon(Beacon),
     NewPeer(String),
 }
 
+#[derive(RustcEncodable, RustcDecodable, Debug)]
+pub enum InputMessage {
+    Subscribe,
+}
+
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
-enum Opcode {
+pub enum Opcode {
     Text,
     Binary,
 }
 
 impl Opcode {
-    fn from(src: u8) -> Option<Opcode> {
+    pub fn from(src: u8) -> Option<Opcode> {
         match src {
             1 => Some(Opcode::Text),
             2 => Some(Opcode::Binary),
@@ -115,32 +120,34 @@ pub fn respond_websock(req: &Request, _context: &mut Context)
     Ok(http::Response::accept_websock(key))
 }
 
-pub fn parse_message<F>(buf: &mut Vec<u8>, context: &mut Context, cb: F)
-    where F: FnOnce(Opcode, &[u8], &mut Context)
+pub fn parse_message<F, T>(buf: &mut Vec<u8>, context: &mut Context, cb: F)
+    -> Option<T>
+    where F: FnOnce(Opcode, &[u8], &mut Context) -> Option<T>
 {
     if buf.len() < 2 {
-        return;
+        return None;
     }
     let fin = buf[0] & 0b10000000 != 0;
     let opcode = buf[0] & 0b00001111;
     let mask = buf[1] & 0b10000000 != 0;
     let mut ln = (buf[1] & 0b01111111) as usize;
     let mut pref = 2;
+    let mut result = None;
     if ln == 126 {
         if buf.len() < 4 {
-            return;
+            return None;
         }
         ln = BigEndian::read_u16(&buf[2..4]) as usize;
         pref = 4;
     } else if ln == 127 {
         if buf.len() < 10 {
-            return
+            return None;
         }
         ln = BigEndian::read_u64(&buf[2..10]) as usize;
         pref = 10;
     }
     if buf.len() < pref + ln + (if mask { 4 } else { 0 }) {
-        return;
+        return None;
     }
     if mask {
         let mask = buf[pref..pref+4].to_vec(); // TODO(tailhook) optimize
@@ -153,15 +160,17 @@ pub fn parse_message<F>(buf: &mut Vec<u8>, context: &mut Context, cb: F)
         if !fin {
             warn!("Partial frames are not supported");
         } else {
-            match Opcode::from(opcode) {
+            result = match Opcode::from(opcode) {
                 None => {
                     warn!("Invalid opcode {:?}", opcode);
+                    None
                 }
                 Some(op) => cb(op, &buf[pref..pref+ln], context),
             }
         }
     }
     buf.consume(pref + ln);
+    result
 }
 
 pub fn write_text(buf: &mut Vec<u8>, chunk: &str) {
@@ -217,7 +226,7 @@ pub fn beacon(deps: &Dependencies) -> String {
         } else {
             (None, None)
         };
-    json::encode(&Message::Beacon(Beacon {
+    json::encode(&OutputMessage::Beacon(Beacon {
         current_time: time_ms(),
         startup_time: startup_time,
         boot_time: boot_time,
@@ -234,5 +243,5 @@ pub fn beacon(deps: &Dependencies) -> String {
 }
 
 pub fn new_peer(peer: SocketAddr) -> String {
-    json::encode(&Message::NewPeer(format!("{}", peer))).unwrap()
+    json::encode(&OutputMessage::NewPeer(format!("{}", peer))).unwrap()
 }

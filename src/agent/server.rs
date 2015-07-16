@@ -256,6 +256,7 @@ pub enum Message {
     ScanComplete,
     NewHost(SocketAddr),
 }
+
 impl Handler {
     fn try_http(&mut self, tok: Token, ev: EventSet,
         eloop: &mut EventLoop<Handler>)
@@ -370,12 +371,30 @@ impl Handler {
                     }
                     R::More => {
                         // TODO(tailhook) try parse message
-                        websock::parse_message(&mut wsock.input, &mut context,
-                            |opcode, msg, ctx| {
-                                println!("Message {:?} {:?}", opcode,
-                                    ::std::str::from_utf8(msg));
-
-                            });
+                        loop {
+                            let msg: Option<websock::InputMessage>;
+                            msg = websock::parse_message(&mut wsock.input,
+                                &mut context,
+                                |opcode, msg, ctx| {
+                                    if opcode == websock::Opcode::Text {
+                                        from_utf8(msg)
+                                            .map_err(|e| error!(
+                                                "Error decoding utf8 {:?}", e))
+                                        .ok().and_then(|m|
+                                            json::decode(m)
+                                            .map_err(|e| error!(
+                                                "Error decoding msg {:?}", e))
+                                            .ok())
+                                    } else {
+                                        None
+                                    }
+                                });
+                            if let Some(msg) = msg {
+                                println!("Message {:?}", msg);
+                            } else {
+                                break;
+                            }
+                        }
                         return true;
                     }
                     R::Full|R::Close => {} // exit from if and close socket

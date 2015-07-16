@@ -1,10 +1,12 @@
 use std::io;
+use std::str::from_utf8;
 use std::mem::replace;
 use std::net::SocketAddr;
 
 use httparse;
 use mio::{EventLoop, Token, PollOpt, EventSet};
 use mio::tcp::TcpStream;
+use rustc_serialize::json;
 
 use super::super::server::Handler;
 use super::super::server::Context;
@@ -12,6 +14,8 @@ use super::super::websock;
 use super::super::util::WriteVec as W;
 use super::super::util::ReadVec as R;
 use super::super::util::Consume;
+use super::super::websock::InputMessage as OutputMessage;
+use super::super::websock::OutputMessage as InputMessage;
 
 
 const MAX_WEBSOCK_MESSAGE: usize = 1 << 20;
@@ -108,12 +112,29 @@ impl WebSocket {
                         self.input.consume(consumed);
                         self.handshake = false;
                     }
-                    websock::parse_message(&mut self.input, ctx,
-                        |opcode, msg, ctx| {
-                            println!("Remote message {:?} {:?}", opcode,
-                                ::std::str::from_utf8(msg));
-
-                        });
+                    loop {
+                        let msg: Option<InputMessage>;
+                        msg = websock::parse_message(&mut self.input, ctx,
+                            |opcode, msg, ctx| {
+                                if opcode == websock::Opcode::Text {
+                                    from_utf8(msg)
+                                        .map_err(|e| error!(
+                                            "Error decoding utf8 {:?}", e))
+                                    .ok().and_then(|m|
+                                        json::decode(m)
+                                        .map_err(|e| error!(
+                                            "Error decoding msg {:?}", e))
+                                        .ok())
+                                } else {
+                                    None
+                                }
+                            });
+                        if let Some(msg) = msg {
+                            println!("Remote message {:?}", msg);
+                        } else {
+                            break;
+                        }
+                    }
                     return true;
                 }
                 R::Full|R::Close => {}
