@@ -151,12 +151,12 @@ The only practical limitation of it is the that running a full-mesh of TCP
 connections is quite inefficient. So you should poll a single node while it's
 still available and switch to another one only when it's not.
 
-.. warn:: It's hard to overstate that you should not poll every node in turn
+.. warning:: It's hard to overstate that you should not poll every node in turn
    otherwise you will have a full mesh of connections and every node will send
    updates to each other every two seconds.
 
-Viewing web interface for **local metrics** and polling for them is perfectly
-OK on any and every node.
+   Viewing web interface for **local metrics** and polling for them is
+   perfectly OK on any and every node.
 
 In perfect world we expect that resource manager will poll an agent on
 localhost, and has failover resource manager node with own cantal agent.

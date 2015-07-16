@@ -98,7 +98,7 @@ html render(enabled, peers, error, ctr):
             .panel-body
               p "
                 You may enable remote metrics. But be aware that it means this
-                node will use a little bit more resources
+                node will use a little bit more resources.
                 "
               p
                 " But more importantly, if you enable remote metrics on all (or
@@ -106,6 +106,12 @@ html render(enabled, peers, error, ctr):
                 b "full mesh"
                 " of connections and a lot of traffic. So chose chose nodes
                   wisely."
+              p
+                " You might want to "
+                b "find a node"
+                " which has remote stats enabled
+                  instead of enabling them here.
+                "
               p
                 button.btn.btn-danger
                   link click = ctr.enable_remote
