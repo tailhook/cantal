@@ -2,6 +2,7 @@ use std::iter::repeat;
 use std::sync::{Arc, RwLock};
 use std::net::SocketAddr;
 
+use cbor::Cbor;
 use unicase::UniCase;
 use byteorder::{BigEndian, ByteOrder};
 use hyper::header::{Upgrade, ProtocolName};
@@ -20,6 +21,7 @@ use super::util::Consume;
 use super::server::{Context};
 use super::stats::Stats;
 use super::deps::{Dependencies, LockedDeps};
+use super::rules;
 
 
 #[derive(RustcEncodable, RustcDecodable, Debug, Clone)]
@@ -42,11 +44,13 @@ pub struct Beacon {
 pub enum OutputMessage {
     Beacon(Beacon),
     NewPeer(String),
+    Stats(rules::StatsUpdate),
 }
 
 #[derive(RustcEncodable, RustcDecodable, Debug)]
 pub enum InputMessage {
-    Subscribe,
+    Subscribe(String, rules::Subscription),
+    Unsubscribe(String),
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]

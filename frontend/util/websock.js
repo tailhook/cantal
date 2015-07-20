@@ -47,5 +47,11 @@ function disconnected(ev) {
     setTimeout(connect, 1000)
 }
 
+export function send(variant, ...args) {
+    web_socket.send(JSON.stringify({"variant": variant, "fields": args}))
+}
+
+
 export default exports
+window.WEBSOCK_DEBUG_INTERFACE = exports
 

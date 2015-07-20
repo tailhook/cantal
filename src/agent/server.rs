@@ -21,6 +21,7 @@ use super::staticfiles;
 use super::respond;
 use super::remote;
 use super::websock;
+use super::rules;
 use super::error::Error;
 use super::stats::{Stats};
 use super::http::{NotFound, BadRequest, ServerError, MethodNotAllowed};
@@ -28,6 +29,7 @@ use super::http::Request;
 use super::util::WriteVec as W;
 use super::util::ReadVec as R;
 use super::deps::{Dependencies, LockedDeps};
+use super::websock::{InputMessage, OutputMessage};
 
 
 const INPUT: Token = Token(0);
@@ -58,6 +60,7 @@ struct WebSocket {
     sock: TcpStream,
     input: Vec<u8>,
     output: Vec<u8>,
+    subscriptions: HashMap<String, rules::Subscription>,
 }
 
 #[derive(Clone, Debug, Copy, PartialEq, Eq)]
@@ -324,6 +327,7 @@ impl Handler {
                 sock: sock,
                 input: Vec::new(),
                 output: buf,
+                subscriptions: HashMap::new(),
                 })
                 .map_err(|_| error!("Too many websock clients"));
             if let Ok(cli_token) = ntok {
@@ -400,7 +404,19 @@ impl Handler {
                                     }
                                 });
                             if let Some(msg) = msg {
-                                println!("Message {:?}", msg);
+                                debug!("Websock input {:?}", msg);
+                                match msg {
+                                    InputMessage::Subscribe(idx, sub) => {
+                                        wsock.subscriptions.insert(idx, sub)
+                                        .map(|_| debug!("Replaced"));
+                                    }
+                                    InputMessage::Unsubscribe(idx) => {
+                                        if wsock.subscriptions.remove(&idx)
+                                           .is_none() {
+                                            debug!("No such index");
+                                        }
+                                    }
+                                }
                             } else {
                                 break;
                             }
@@ -514,6 +530,48 @@ impl mio::Handler for Handler {
             Message::ScanComplete => {
                 let beacon = websock::beacon(&self.deps);
                 self.send_all(eloop, &beacon);
+
+                // TODO(tailhook) refactor me PLEASE!!!
+                let stats = self.deps.read();
+                for tok in (1+MAX_HTTP_CLIENTS .. 1+MAX_HTTP_CLIENTS+MAX_WEBSOCK_CLIENTS) {
+                    let tok = Token(tok);
+                    if let Some(ref mut wsock) = self.websockets.get_mut(tok) {
+                        if wsock.subscriptions.len() <= 0 {
+                            continue;
+                        }
+                        if wsock.output.len() < MAX_OUTPUT_BUFFER {
+                            let start = wsock.output.len() == 0;
+                            let val = rules::subscr_filter(
+                                &wsock.subscriptions, &*stats);
+                            let msg = json::encode(
+                                &OutputMessage::Stats(val)
+                                ).unwrap();
+
+                            websock::write_text(&mut wsock.output, &msg);
+                            if start {
+                                match eloop.reregister(&wsock.sock, tok,
+                                    EventSet::readable()|EventSet::writable(),
+                                    PollOpt::level())
+                                {
+                                    Ok(_) => continue,
+                                    Err(e) => {
+                                        error!("Error on reregister: {}; \
+                                                closing connection", e);
+                                    }
+                                }
+                            } else {
+                                continue;
+                            }
+                        }
+                        debug!("Websocket buffer overflow");
+                        eloop.deregister(&wsock.sock)
+                            .map_err(|e| error!("Error on deregister: {}", e))
+                            .ok();
+                    } else {
+                        continue;
+                    }
+                    self.websockets.remove(tok);
+                }
             }
             Message::NewHost(addr) => {
                 {

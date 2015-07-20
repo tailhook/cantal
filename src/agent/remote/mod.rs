@@ -192,6 +192,9 @@ pub fn try_io(tok: Token, ev: EventSet, ctx: &mut Context) -> bool
                             // TODO(tailhook) process it
                             debug!("New peer from websock {:?}", p);
                         }
+                        InputMessage::Stats(x) => {
+                            debug!("New stats from peer {:?}", x);
+                        }
                     }
                 }
                 to_close = false;
