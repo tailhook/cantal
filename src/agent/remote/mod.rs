@@ -1,3 +1,4 @@
+use std::mem::replace;
 use std::net::{Ipv4Addr, SocketAddr};
 use std::ops::DerefMut;
 use std::sync::{Arc, RwLock};
@@ -16,7 +17,7 @@ use super::websock::Beacon;
 use super::websock::InputMessage as OutputMessage;
 use super::websock::OutputMessage as InputMessage;
 use super::deps::{Dependencies, LockedDeps};
-use super::server::Timer::ReconnectPeer;
+use super::server::Timer::{ReconnectPeer, ResetPeer};
 use super::p2p::GossipStats;
 use self::owebsock::WebSocket;
 
@@ -25,6 +26,8 @@ mod owebsock;
 
 const SLAB_START: usize = 1000000000;
 const MAX_OUTPUT_CONNECTIONS: usize = 4096;
+const HANDSHAKE_TIMEOUT: u64 = 30000;
+const MESSAGE_TIMEOUT: u64 = 15000;
 
 
 pub type PeerHolder = Arc<RwLock<Peers>>;
@@ -121,12 +124,14 @@ pub fn reconnect_peer(tok: Token, ctx: &mut Context) {
             Connection::WebSock(_) => unreachable!(),
             Connection::Sleep => {}
         }
-        let range = Range::new(5, 150);
+        let range = Range::new(1000, 2000);
         let mut rng = thread_rng();
         if let Ok(conn) = WebSocket::connect(peer.addr) {
             match conn.register(tok, ctx.eloop) {
                 Ok(_) => {
                     peer.connection = Connection::WebSock(conn);
+                    peer.timeout = ctx.eloop.timeout_ms(ResetPeer(tok),
+                        HANDSHAKE_TIMEOUT).unwrap();
                 }
                 _ => {
                     peer.connection = Connection::Sleep;
@@ -139,6 +144,23 @@ pub fn reconnect_peer(tok: Token, ctx: &mut Context) {
             peer.timeout = ctx.eloop.timeout_ms(ReconnectPeer(tok),
                 range.ind_sample(&mut rng)).unwrap();
         }
+    }
+}
+
+pub fn reset_peer(tok: Token, ctx: &mut Context) {
+    let mut data = ctx.deps.write::<Peers>();
+    if let Some(ref mut peer) = data.peers.get_mut(tok) {
+        let sock = match replace(&mut peer.connection, Connection::Sleep) {
+            Connection::WebSock(sock) => sock,
+            Connection::Sleep => unreachable!(),
+        };
+        sock.deregister(ctx.eloop)
+            .map_err(|e| error!("Error on deregister: {}", e))
+            .ok();
+        let range = Range::new(1000, 2000);
+        let mut rng = thread_rng();
+        peer.timeout = ctx.eloop.timeout_ms(ReconnectPeer(tok),
+            range.ind_sample(&mut rng)).unwrap();
     }
 }
 
@@ -156,6 +178,11 @@ pub fn try_io(tok: Token, ev: EventSet, ctx: &mut Context) -> bool
             let old = sock.handshake;
             let mut to_close;
             if let Some(messages) = sock.events(ev, tok, ctx) {
+                if messages.len() > 0 {
+                    assert!(ctx.eloop.clear_timeout(peer.timeout));
+                    peer.timeout = ctx.eloop.timeout_ms(ResetPeer(tok),
+                        MESSAGE_TIMEOUT).unwrap();
+                }
                 for msg in messages {
                     match msg {
                         InputMessage::Beacon(b) => {
@@ -173,6 +200,9 @@ pub fn try_io(tok: Token, ev: EventSet, ctx: &mut Context) -> bool
             }
             if old &&  !to_close && !sock.handshake {
                 data.connected += 1;
+                assert!(ctx.eloop.clear_timeout(peer.timeout));
+                peer.timeout = ctx.eloop.timeout_ms(ResetPeer(tok),
+                    MESSAGE_TIMEOUT).unwrap();
             } else if !old && to_close {
                 data.connected -= 1;
             }
@@ -182,6 +212,7 @@ pub fn try_io(tok: Token, ev: EventSet, ctx: &mut Context) -> bool
             let range = Range::new(5, 150);
             let mut rng = thread_rng();
             peer.connection = Connection::Sleep;
+            assert!(ctx.eloop.clear_timeout(peer.timeout));
             peer.timeout = ctx.eloop.timeout_ms(ReconnectPeer(tok),
                     range.ind_sample(&mut rng)).unwrap();
         }

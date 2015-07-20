@@ -52,6 +52,11 @@ impl WebSocket {
         eloop.register_opt(&self.sock, tok,
             EventSet::writable(), PollOpt::level())
     }
+    pub fn deregister(&self, eloop: &mut EventLoop<Handler>)
+        -> Result<(), io::Error>
+    {
+        eloop.deregister(&self.sock)
+    }
     pub fn events(&mut self, ev: EventSet, tok: Token, ctx: &mut Context)
         -> Option<Vec<InputMessage>>
     {

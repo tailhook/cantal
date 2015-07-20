@@ -251,6 +251,7 @@ fn do_start_remote(req: &Request, context: &mut Context)
 #[derive(Debug)]
 pub enum Timer {
     ReconnectPeer(Token),
+    ResetPeer(Token),
 }
 
 #[derive(Debug)]
@@ -536,6 +537,9 @@ impl mio::Handler for Handler {
         match timeout {
             Timer::ReconnectPeer(tok) => {
                remote::reconnect_peer(tok, &mut context);
+            }
+            Timer::ResetPeer(tok) => {
+               remote::reset_peer(tok, &mut context);
             }
         }
     }
