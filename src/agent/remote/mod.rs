@@ -39,12 +39,13 @@ pub struct Peers {
 
 enum Connection {
     WebSock(WebSocket),
-    Timeout(Timeout),
+    Sleep,
 }
 
 pub struct Peer {
     pub addr: SocketAddr,
     connection: Connection,
+    timeout: Timeout,
     pub last_beacon: Option<(u64, Beacon)>,
 }
 
@@ -76,9 +77,9 @@ pub fn start(ctx: &mut Context) {
         if let Some(tok) = data.peers.insert_with(|tok| Peer {
             addr: addr,
             last_beacon: None,
-            connection: Connection::Timeout(
-                ctx.eloop.timeout_ms(ReconnectPeer(tok),
-                                     range.ind_sample(&mut rng)).unwrap()),
+            connection: Connection::Sleep,
+            timeout: ctx.eloop.timeout_ms(ReconnectPeer(tok),
+                range.ind_sample(&mut rng)).unwrap(),
         }) {
             data.addresses.insert(addr, tok);
         } else {
@@ -103,9 +104,9 @@ pub fn add_peer(addr: SocketAddr, ctx: &mut Context) {
     if let Some(tok) = data.peers.insert_with(|tok| Peer {
         addr: addr,
         last_beacon: None,
-        connection: Connection::Timeout(
-            eloop.timeout_ms(ReconnectPeer(tok),
-                range.ind_sample(&mut rng)).unwrap()),
+        connection: Connection::Sleep,
+        timeout: eloop.timeout_ms(ReconnectPeer(tok),
+            range.ind_sample(&mut rng)).unwrap(),
     }) {
         data.addresses.insert(addr, tok);
     } else {
@@ -118,7 +119,7 @@ pub fn reconnect_peer(tok: Token, ctx: &mut Context) {
     if let Some(ref mut peer) = data.peers.get_mut(tok) {
         match peer.connection {
             Connection::WebSock(_) => unreachable!(),
-            Connection::Timeout(_) => {}
+            Connection::Sleep => {}
         }
         let range = Range::new(5, 150);
         let mut rng = thread_rng();
@@ -128,15 +129,15 @@ pub fn reconnect_peer(tok: Token, ctx: &mut Context) {
                     peer.connection = Connection::WebSock(conn);
                 }
                 _ => {
-                    peer.connection = Connection::Timeout(
-                        ctx.eloop.timeout_ms(ReconnectPeer(tok),
-                            range.ind_sample(&mut rng)).unwrap());
+                    peer.connection = Connection::Sleep;
+                    peer.timeout = ctx.eloop.timeout_ms(ReconnectPeer(tok),
+                        range.ind_sample(&mut rng)).unwrap();
                 }
             }
         } else {
-            peer.connection = Connection::Timeout(
-                ctx.eloop.timeout_ms(ReconnectPeer(tok),
-                    range.ind_sample(&mut rng)).unwrap());
+            peer.connection = Connection::Sleep;
+            peer.timeout = ctx.eloop.timeout_ms(ReconnectPeer(tok),
+                range.ind_sample(&mut rng)).unwrap();
         }
     }
 }
@@ -150,7 +151,7 @@ pub fn try_io(tok: Token, ev: EventSet, ctx: &mut Context) -> bool
         let to_close = {
             let ref mut sock = match peer.connection {
                 Connection::WebSock(ref mut sock) => sock,
-                Connection::Timeout(_) => unreachable!(),
+                Connection::Sleep => unreachable!(),
             };
             let old = sock.handshake;
             let mut to_close;
@@ -180,9 +181,9 @@ pub fn try_io(tok: Token, ev: EventSet, ctx: &mut Context) -> bool
         if to_close {
             let range = Range::new(5, 150);
             let mut rng = thread_rng();
-            peer.connection = Connection::Timeout(
-                ctx.eloop.timeout_ms(ReconnectPeer(tok),
-                    range.ind_sample(&mut rng)).unwrap());
+            peer.connection = Connection::Sleep;
+            peer.timeout = ctx.eloop.timeout_ms(ReconnectPeer(tok),
+                    range.ind_sample(&mut rng)).unwrap();
         }
         return true;
     } else {

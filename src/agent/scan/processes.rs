@@ -65,7 +65,6 @@ fn read_process(cache: &mut ReadCache, pid: Pid)
         .map_err(|e| debug!("Can't decode stat file: {}", e)));
     let mut words = words(&stat_line);
 
-
     return Ok(MinimalProcess {
         pid: pid,
         name: name,
