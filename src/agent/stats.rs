@@ -84,6 +84,9 @@ impl Key {
         let &Key(ref map) = self;
         return map.get(key).map(|x| &x[..]);
     }
+    pub fn get_map(&self) -> BTreeMap<String, String> {
+        self.0.clone()
+    }
 }
 
 // This is needed because rust implementation of Cbor allows only string

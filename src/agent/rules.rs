@@ -11,7 +11,7 @@ use rustc_serialize::{Decodable, Decoder, Encodable, Encoder};
 
 use super::http;
 use super::stats::{Stats, Key};
-use super::history::{merge};
+use super::history::{merge, HistoryChunk};
 
 
 #[derive(RustcDecodable, RustcEncodable, Debug)]
@@ -120,6 +120,25 @@ impl Encodable for Condition {
             Ok(())
         })
     }
+}
+
+#[derive(RustcDecodable, RustcEncodable, Debug, Clone)]
+pub struct RawRule {
+    pub source: Source,
+    pub condition: Condition,
+    pub key: Vec<String>,
+}
+
+#[derive(RustcDecodable, RustcEncodable, Debug, Clone)]
+pub struct RawQuery {
+    pub rules: Vec<RawRule>,
+    pub limit: usize,
+}
+
+#[derive(RustcDecodable, RustcEncodable, Debug, Clone)]
+pub struct RawResult {
+    pub fine_metrics: Vec<(BTreeMap<String, String>, HistoryChunk)>,
+    pub fine_timestamps: Vec<(u64, u32)>,
 }
 
 #[derive(RustcDecodable, Debug, Clone)]
@@ -321,6 +340,31 @@ pub fn query(query: &Query, stats: &Stats) -> Result<Json, Error> {
         }
     }
     return Ok(Json::Object(items));
+}
+
+pub fn query_raw(query: &RawQuery, stats: &Stats) -> RawResult {
+    let mut fine_metrics = Vec::new();
+    for rule in query.rules.iter() {
+        match rule.source {
+            Source::Tip => unimplemented!(),
+            Source::Fine => {
+                for (ref key, ref value) in stats.history.fine.iter() {
+                    if !match_cond(key, &rule.condition) {
+                        continue;
+                    }
+                    fine_metrics.push((key.get_map(),
+                        stats.history.get_fine_history(key)
+                            .unwrap().take(query.limit)));
+                }
+            }
+            Source::Coarse => unimplemented!(),
+        }
+    }
+    RawResult {
+        fine_metrics: fine_metrics,
+        fine_timestamps: stats.history.fine_timestamps.iter()
+            .take(query.limit).cloned().collect(),
+    }
 }
 
 fn query_subscr(rule: &Subscription, stats: &Stats) -> Vec<(Vec<String>, f64)>

@@ -29,6 +29,13 @@ pub enum ValueHistory<'a> {
     Float(FloatHistory<'a>),
 }
 
+#[derive(Debug, Clone, RustcEncodable, RustcDecodable)]
+pub enum HistoryChunk {
+    Counter(Vec<Option<u64>>),
+    Integer(Vec<Option<i64>>),
+    Float(Vec<Option<f64>>),
+}
+
 pub enum Histories<'a> {
     Empty,
     Counters(Vec<CounterHistory<'a>>),
@@ -85,6 +92,18 @@ impl Source for TipValue {
             => Value::Float(val, age, VecDeque::new()),
             TipValue::State(ts, val)
             => Value::State((ts, val), age),
+        }
+    }
+}
+
+impl<'a> ValueHistory<'a> {
+    pub fn take(self, n: usize) -> HistoryChunk {
+        use self::ValueHistory as S;
+        use self::HistoryChunk as D;
+        match self {
+            S::Counter(x) => D::Counter(x.take(n).collect()),
+            S::Integer(x) => D::Integer(x.take(n).collect()),
+            S::Float(x) => D::Float(x.take(n).collect()),
         }
     }
 }
