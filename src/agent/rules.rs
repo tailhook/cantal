@@ -42,13 +42,6 @@ pub enum Aggregation {
     CasualSum,  // does ignore absent data points, treating them as zero
 }
 
-#[derive(RustcEncodable, RustcDecodable, Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Load {
-    Raw,
-    Rate,
-    Tip,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Condition {
     Eq(String, String),
@@ -135,7 +128,6 @@ pub struct Rule {
     pub condition: Condition,
     pub key: Vec<String>,
     pub aggregation: Aggregation,
-    pub load: Load,
     pub limit: u32,
 }
 
@@ -201,14 +193,6 @@ fn json_tree<'x, I>(iter: I) -> Json
     return Json::Object(res);
 }
 
-fn take_tip<T:ToJson, I:Iterator<Item=Option<T>>>(items: Vec<I>, limit: u32)
-    -> Json
-{
-    items.into_iter()
-        .map(|x| x.take(limit as usize).find(Option::is_some).and_then(|x| x))
-        .collect::<Vec<_>>().to_json()
-}
-
 fn take_raw<T:ToJson, I:Iterator<Item=Option<T>>>(items: Vec<I>, limit: u32)
     -> Json
 {
@@ -233,15 +217,6 @@ fn take_rate<T, I>(ts: &VecDeque<(u64, u32)>, items: Vec<I>, limit: u32)
             .take(limit as usize)
             .collect::<Vec<Option<f64>>>()
     }).collect::<Vec<_>>().to_json()
-}
-fn sum_tip<T, I>(items: Vec<I>, limit: u32, zero: T) -> Json
-    where T: Add<T, Output=T> + ToJson,
-          I: Iterator<Item=Option<T>>
-{
-    items.into_iter()
-        .filter_map(|x| x.take(limit as usize)
-                         .find(Option::is_some).and_then(|x| x))
-        .fold(zero, |acc, val| acc + val).to_json()
 }
 
 fn sum_raw<T, I>(items: Vec<I>, limit: u32, zero: T) -> Json
@@ -296,7 +271,6 @@ fn sum_rate<T, I>(ts: &VecDeque<(u64, u32)>, items: Vec<I>, limit: u32)
 
 fn query_fine(rule: &Rule, stats: &Stats) -> Result<Json, Error> {
     use self::Aggregation::*;
-    use self::Load::*;
     use std::collections::hash_map::Entry::{Occupied, Vacant};
     let mut keys = HashMap::<_, Vec<_>>::new();
     for (ref key, _) in stats.history.fine.iter() {
@@ -316,46 +290,18 @@ fn query_fine(rule: &Rule, stats: &Stats) -> Result<Json, Error> {
                .filter_map(|key| stats.history.get_fine_history(key)));
         let ts = &stats.history.fine_timestamps;
         let json = match rule.aggregation {
-            None => match rule.load {
-                Tip => stream.map(|s| match s {
-                    Empty => Json::Null,
-                    Counters(x) => take_tip(x, rule.limit),
-                    Integers(x) => take_tip(x, rule.limit),
-                    Floats(x) => take_tip(x, rule.limit),
-                }),
-                Raw => stream.map(|s| match s {
-                    Empty => Json::Null,
-                    Counters(x) => take_raw(x, rule.limit),
-                    Integers(x) => take_raw(x, rule.limit),
-                    Floats(x) => take_raw(x, rule.limit),
-                }),
-                Rate => stream.map(|s| match s {
-                    Empty => Json::Null,
-                    Counters(x) => take_rate(ts, x, rule.limit),
-                    Integers(x) => take_rate(ts, x, rule.limit),
-                    Floats(x) => take_rate(ts, x, rule.limit),
-                }),
-            },
-            CasualSum => match rule.load {
-                Tip => stream.map(|s| match s {
-                    Empty => Json::Null,
-                    Counters(x) => sum_tip(x, rule.limit, 0),
-                    Integers(x) => sum_tip(x, rule.limit, 0),
-                    Floats(x) => sum_tip(x, rule.limit, 0.),
-                }),
-                Raw => stream.map(|s| match s {
-                    Empty => Json::Null,
-                    Counters(x) => sum_raw(x, rule.limit, 0),
-                    Integers(x) => sum_raw(x, rule.limit, 0),
-                    Floats(x) => sum_raw(x, rule.limit, 0.),
-                }),
-                Rate => stream.map(|s| match s {
-                    Empty => Json::Null,
-                    Counters(x) => sum_rate(ts, x, rule.limit),
-                    Integers(x) => sum_rate(ts, x, rule.limit),
-                    Floats(x) => sum_rate(ts, x, rule.limit),
-                }),
-            },
+            None => stream.map(|s| match s {
+                Empty => Json::Null,
+                Counters(x) => take_rate(ts, x, rule.limit),
+                Integers(x) => take_raw(x, rule.limit),
+                Floats(x) => take_raw(x, rule.limit),
+            }),
+            CasualSum => stream.map(|s| match s {
+                Empty => Json::Null,
+                Counters(x) => sum_rate(ts, x, rule.limit),
+                Integers(x) => sum_raw(x, rule.limit, 0),
+                Floats(x) => sum_raw(x, rule.limit, 0.),
+            }),
         };
         (key, json.unwrap_or(Json::Null))
     })))
@@ -380,7 +326,6 @@ pub fn query(query: &Query, stats: &Stats) -> Result<Json, Error> {
 fn query_subscr(rule: &Subscription, stats: &Stats) -> Vec<(Vec<String>, f64)>
 {
     use self::Aggregation::*;
-    use self::Load::*;
     use std::collections::hash_map::Entry::{Occupied, Vacant};
     let mut keys = HashMap::<_, Vec<_>>::new();
     for (ref key, _) in stats.history.fine.iter() {

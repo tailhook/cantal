@@ -27,18 +27,18 @@ const MEM_ORDER = {
 }
 
 function mem_chart(metrics) {
-    metrics['memory.Used'] = [metrics['memory.MemTotal'][0]
-                    - metrics['memory.MemFree'][0]
-                    - metrics['memory.Buffers'][0]
-                    - metrics['memory.Cached'][0]]
-    metrics['memory.SwapUsed'] = [metrics['memory.SwapTotal'][0]
-                    - metrics['memory.SwapFree'][0]]
+    metrics['memory.Used'] = [[metrics['memory.MemTotal'][0][0]
+                    - metrics['memory.MemFree'][0][0]
+                    - metrics['memory.Buffers'][0][0]
+                    - metrics['memory.Cached'][0][0]]]
+    metrics['memory.SwapUsed'] = [[metrics['memory.SwapTotal'][0][0]
+                    - metrics['memory.SwapFree'][0][0]]]
     return {
         title: 'Memory',
         unit: 'MiB',
-        total: metrics['memory.MemTotal'][0],
+        total: metrics['memory.MemTotal'][0][0],
         items: Object.keys(metrics).map(metricname => {
-            var value = metrics[metricname][0];
+            var value = metrics[metricname][0][0];
             let key = metricname.substr('memory.'.length);
             return {
                 color: MEM_COLORS[key],
@@ -110,7 +110,6 @@ export class Status extends Component {
                     'condition': ['regex-like', 'metric', '^memory\\.'],
                     'key': ['metric'],
                     'aggregation': 'None',
-                    'load': 'Tip',
                     'limit': 15,  // about 30 seconds
                     },
                 'cpu_sum': {
@@ -118,16 +117,14 @@ export class Status extends Component {
                     'condition': ['regex-like', 'metric', '^cpu\\.'],
                     'key': [],
                     'aggregation': 'CasualSum',
-                    'load': 'Rate',
-                    'limit': 1100,  // about 30 seconds
+                    'limit': 1100,
                     },
                 'cpu': {
                     'source': 'Fine',
                     'condition': ['regex-like', 'metric', '^cpu\\.'],
                     'key': ['metric'],
                     'aggregation': 'None',
-                    'load': 'Rate',
-                    'limit': 1100,  // about 30 seconds
+                    'limit': 1100,
                     },
                 'network': {
                     'source':'Fine',
@@ -139,7 +136,6 @@ export class Status extends Component {
                             ['regex-like', 'interface', '^tun|^vboxnet']]]],
                     'key': ['metric'],
                     'aggregation': 'CasualSum',
-                    'load': 'Rate',
                     'limit': 1100,
                     },
                 'disk': {
@@ -151,7 +147,6 @@ export class Status extends Component {
                          "^sd[a-z]$"]],
                     'key': ['metric'],
                     'aggregation': 'CasualSum',
-                    'load': 'Rate',
                     'limit': 1100,
                     },
                 'disk_in_progress': {
@@ -163,7 +158,6 @@ export class Status extends Component {
                          "^sd[a-z]$"]],
                     'key': ['metric'],
                     'aggregation': 'CasualSum',
-                    'load': 'Raw',
                     'limit': 1100,
                     },
             }})}))
