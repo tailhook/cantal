@@ -303,14 +303,14 @@ impl Handler {
                         Err(e) => {
                             error!("Error on reregister: {}; \
                                     closing connection", e);
+                            panic!("Error on reregister: {}; \
+                                    closing connection", e);
                         }
                     }
                 }
                 Continue => unreachable!(),
                 SwitchWebsock|Close => {
-                    context.eloop.deregister(sock)
-                    .map_err(|e| error!("Error on deregister: {}", e))
-                    .ok();
+                    context.eloop.remove(sock);
                 }
             }
             new_int
@@ -336,14 +336,9 @@ impl Handler {
                 })
                 .map_err(|_| error!("Too many websock clients"));
             if let Ok(cli_token) = ntok {
-                if let Err(e) = context.eloop.register_opt(
+                context.eloop.add(
                     &self.websockets.get(cli_token).unwrap().sock,
-                    cli_token, EventSet::readable()|EventSet::writable(),
-                    PollOpt::level())
-                {
-                    error!("Error registering accepted connection: {}", e);
-                    self.websockets.remove(cli_token);
-                }
+                    cli_token, true, true);
             }
         }
         return true;
@@ -362,15 +357,8 @@ impl Handler {
                 let buf = replace(&mut wsock.output, Vec::new());
                 match W::write(&mut wsock.sock, buf) {
                     W::Done => {
-                        match context.eloop.reregister(&wsock.sock, tok,
-                            EventSet::readable(), PollOpt::level())
-                        {
-                            Ok(_) => return true,
-                            Err(e) => {
-                                error!("Error on reregister: {}; \
-                                        closing connection", e);
-                            }
-                        }
+                        context.eloop.modify(&wsock.sock, tok, true, false);
+                        return true;
                     }
                     W::More(buf) => {
                         wsock.output = buf;
@@ -447,9 +435,7 @@ impl Handler {
                     }
                 }
             }
-            context.eloop.deregister(&wsock.sock)
-                .map_err(|e| error!("Error on deregister: {}", e))
-                .ok();
+            context.eloop.remove(&wsock.sock);
         } else {
             return false
         }
@@ -475,24 +461,12 @@ impl Handler {
                     let start = wsock.output.len() == 0;
                     websock::write_text(&mut wsock.output, msg);
                     if start {
-                        match eloop.reregister(&wsock.sock, tok,
-                            EventSet::readable()|EventSet::writable(),
-                            PollOpt::level())
-                        {
-                            Ok(_) => continue,
-                            Err(e) => {
-                                error!("Error on reregister: {}; \
-                                        closing connection", e);
-                            }
-                        }
-                    } else {
-                        continue;
+                        eloop.modify(&wsock.sock, tok, true, true);
                     }
+                    continue;
                 }
                 debug!("Websocket buffer overflow");
-                eloop.deregister(&wsock.sock)
-                    .map_err(|e| error!("Error on deregister: {}", e))
-                    .ok();
+                eloop.remove(&wsock.sock);
             } else {
                 continue;
             }
@@ -567,24 +541,12 @@ impl mio::Handler for Handler {
 
                             websock::write_text(&mut wsock.output, &msg);
                             if start {
-                                match eloop.reregister(&wsock.sock, tok,
-                                    EventSet::readable()|EventSet::writable(),
-                                    PollOpt::level())
-                                {
-                                    Ok(_) => continue,
-                                    Err(e) => {
-                                        error!("Error on reregister: {}; \
-                                                closing connection", e);
-                                    }
-                                }
-                            } else {
-                                continue;
+                                eloop.modify(&wsock.sock, tok, true, true);
                             }
+                            continue;
                         }
                         debug!("Websocket buffer overflow");
-                        eloop.deregister(&wsock.sock)
-                            .map_err(|e| error!("Error on deregister: {}", e))
-                            .ok();
+                        eloop.remove(&wsock.sock);
                     } else {
                         continue;
                     }
