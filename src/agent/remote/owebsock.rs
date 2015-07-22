@@ -22,10 +22,10 @@ const MAX_WEBSOCK_MESSAGE: usize = 1 << 20;
 
 
 pub struct WebSocket {
-    sock: TcpStream,
+    pub sock: TcpStream,
     pub handshake: bool,
-    input: Vec<u8>,
-    output: Vec<u8>,
+    pub input: Vec<u8>,
+    pub output: Vec<u8>,
 }
 
 
@@ -51,11 +51,6 @@ impl WebSocket {
     {
         eloop.register_opt(&self.sock, tok,
             EventSet::writable(), PollOpt::level())
-    }
-    pub fn deregister(&self, eloop: &mut EventLoop<Handler>)
-        -> Result<(), io::Error>
-    {
-        eloop.deregister(&self.sock)
     }
     pub fn events(&mut self, ev: EventSet, tok: Token, ctx: &mut Context)
         -> Option<Vec<InputMessage>>

@@ -11,6 +11,7 @@ use rustc_serialize::{Decodable, Decoder, Encodable, Encoder};
 
 use super::http;
 use super::stats::{Stats, Key};
+use super::history::{History};
 use super::history::{merge, HistoryChunk};
 
 
@@ -356,7 +357,7 @@ pub fn query(query: &Query, stats: &Stats) -> Result<Json, Error> {
 }
 
 pub fn query_raw<'x, I:Iterator<Item=&'x RawRule>>(
-    rules: I, limit: usize, stats: &Stats)
+    rules: I, limit: usize, history: &History)
     -> RawResult
 {
     let mut fine_metrics = Vec::new();
@@ -364,12 +365,12 @@ pub fn query_raw<'x, I:Iterator<Item=&'x RawRule>>(
         match rule.source {
             Source::Tip => unimplemented!(),
             Source::Fine => {
-                for key in stats.history.fine.keys() {
+                for key in history.fine.keys() {
                     if !match_cond(key, &rule.condition) {
                         continue;
                     }
                     fine_metrics.push((key.get_map(),
-                        stats.history.get_fine_history(key)
+                        history.get_fine_history(key)
                             .unwrap().take(limit)));
                 }
             }
@@ -378,7 +379,7 @@ pub fn query_raw<'x, I:Iterator<Item=&'x RawRule>>(
     }
     RawResult {
         fine_metrics: fine_metrics,
-        fine_timestamps: stats.history.fine_timestamps.iter()
+        fine_timestamps: history.fine_timestamps.iter()
             .take(limit).cloned().collect(),
     }
 }

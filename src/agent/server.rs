@@ -21,6 +21,8 @@ use super::respond;
 use super::remote;
 use super::websock;
 use super::rules;
+use super::ioutil::Poll;
+use super::stats::Stats;
 use super::error::Error;
 use super::http::{NotFound, BadRequest, ServerError, MethodNotAllowed};
 use super::http::Request;
@@ -34,7 +36,7 @@ const INPUT: Token = Token(0);
 const MAX_HTTP_CLIENTS: usize = 4096;
 const MAX_WEBSOCK_CLIENTS: usize = 4096;
 const MAX_WEBSOCK_MESSAGE: usize = 16384;
-const MAX_OUTPUT_BUFFER: usize = 262144;
+pub const MAX_OUTPUT_BUFFER: usize = 1_073_741_824;
 
 
 #[derive(Debug)]
@@ -207,6 +209,8 @@ fn resolve(req: &Request, context: &mut Context)
         => respond::serve_query(req, context),
         (&Post, &P(ref x)) if &x[..] == "/query_raw.json"
         => respond::serve_query_raw(req, context),
+        (&Post, &P(ref x)) if &x[..] == "/remote/query_raw.json"
+        => remote::serve_query_raw(req, context),
         (&Post, &P(ref x)) if &x[..] == "/add_host.json"
         => do_add_host(req, context),
         // TODO(tailhook) this should be post
@@ -245,7 +249,7 @@ fn do_add_host(req: &Request, context: &mut Context)
 fn do_start_remote(_req: &Request, context: &mut Context)
     -> Result<http::Response, Box<http::Error>>
 {
-    remote::start(context);
+    remote::ensure_started(context);
     Ok(http::Response::json(&vec![
         (String::from("ok"), true)
     ].into_iter().collect::<HashMap<_, _>>().to_json()))
@@ -255,6 +259,7 @@ fn do_start_remote(_req: &Request, context: &mut Context)
 pub enum Timer {
     ReconnectPeer(Token),
     ResetPeer(Token),
+    RemoteCollectGarbage,
 }
 
 #[derive(Debug)]
@@ -406,7 +411,24 @@ impl Handler {
                             if let Some(msg) = msg {
                                 debug!("Websock input {:?}", msg);
                                 match msg {
-                                    InputMessage::Subscribe(sub) => {
+                                    InputMessage::Subscribe(sub, depth) => {
+                                        if depth != 0 {
+                                            let val = rules::query_raw(
+                                                vec![&sub].into_iter(), depth,
+                                                &context.deps.read::<Stats>()
+                                                    .history);
+                                            let msg = json::encode(
+                                                &OutputMessage::Stats(val)
+                                                ).unwrap();
+                                            let start = wsock.output.len() == 0;
+                                            websock::write_text(
+                                                &mut wsock.output, &msg);
+                                            if start {
+                                                context.eloop.modify(
+                                                    &wsock.sock, tok,
+                                                    true, true);
+                                            }
+                                        }
                                         wsock.subscriptions.insert(sub);
                                     }
                                     InputMessage::Unsubscribe(sub) => {
@@ -528,7 +550,7 @@ impl mio::Handler for Handler {
                 self.send_all(eloop, &beacon);
 
                 // TODO(tailhook) refactor me PLEASE!!!
-                let stats = self.deps.read();
+                let stats = self.deps.read::<Stats>();
                 for tok in (1+MAX_HTTP_CLIENTS .. 1+MAX_HTTP_CLIENTS+MAX_WEBSOCK_CLIENTS) {
                     let tok = Token(tok);
                     if let Some(ref mut wsock) = self.websockets.get_mut(tok) {
@@ -538,7 +560,7 @@ impl mio::Handler for Handler {
                         if wsock.output.len() < MAX_OUTPUT_BUFFER {
                             let start = wsock.output.len() == 0;
                             let val = rules::query_raw(
-                                wsock.subscriptions.iter(), 1, &*stats);
+                                wsock.subscriptions.iter(), 1, &stats.history);
                             let msg = json::encode(
                                 &OutputMessage::Stats(val)
                                 ).unwrap();
@@ -594,6 +616,9 @@ impl mio::Handler for Handler {
             }
             Timer::ResetPeer(tok) => {
                remote::reset_peer(tok, &mut context);
+            }
+            Timer::RemoteCollectGarbage => {
+               remote::garbage_collector(&mut context);
             }
         }
     }

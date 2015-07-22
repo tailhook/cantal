@@ -28,7 +28,6 @@ anymap = "0.11"
 
 [dependencies.mio]
 git = "git://github.com/carllerche/mio"
-rev = "96506f2f8373b1a1fdc802a2af3cd92251d2cd82"
 
 [dependencies.time]
 version = "0.1"

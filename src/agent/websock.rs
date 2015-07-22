@@ -48,7 +48,7 @@ pub enum OutputMessage {
 
 #[derive(RustcEncodable, RustcDecodable, Debug)]
 pub enum InputMessage {
-    Subscribe(rules::RawRule),
+    Subscribe(rules::RawRule, usize),
     Unsubscribe(rules::RawRule),
 }
 
