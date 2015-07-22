@@ -59,4 +59,4 @@ html render(enabled, peers, error, ctr):
     else:
       .row
         .col-xs-12
-          =disabled.render()
+          =disabled.render(ctr.enable_remote)

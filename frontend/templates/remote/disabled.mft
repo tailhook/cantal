@@ -1,4 +1,4 @@
-html render():
+html render(enable_remote):
   h1
     "Remote Stats Are Disabled"
   .panel.panel-warning
@@ -23,5 +23,5 @@ html render():
         "
       p
         button.btn.btn-danger
-          link click = ctr.enable_remote
+          link click = enable_remote
           "Enable"
