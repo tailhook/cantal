@@ -1,0 +1,12 @@
+css:
+  .peer
+    float: left
+    display: inline-block
+    min-width: 256px
+    min-height: 256px
+
+html render(peers):
+  div
+    for peer of peers:
+      .peer.well
+        .title "{peer.addr}"

@@ -1,0 +1,48 @@
+import {Toggle, Store, Value} from 'util/stores'
+import {format_diff, till_now_ms, from_ms} from 'util/time'
+
+html render(peers):
+  table.table.table-bordered.table-hover
+    thead
+      tr
+        th "IP"
+        th "Connected"
+        th "Last Beacon"
+        th "Beacon"
+        th "Latency"
+    tbody
+      for p of peers:
+        tr
+          td "{p.addr}"
+          td "{p.connected}"
+          td.text-muted?(p.last_beacon_time == null)
+            if p.last_beacon_time:
+              =format_diff(till_now_ms(
+                             from_ms(p.last_beacon_time)))
+            else:
+              "never"
+          td.text-muted?(p.last_beacon == null).relative
+            store toggle = new Toggle()
+            if p.last_beacon:
+              if toggle.visible:
+                pre
+                  =JSON.stringify(p.last_beacon, null, '  ')
+              else:
+                .beacon
+                  "Values: {p.last_beacon.values}, "
+                  "peers: {p.last_beacon.peers}"
+            else:
+              "∅"
+            button.btn.btn-default.corner?(toggle.visible)
+              link click = toggle.toggle
+              if toggle.visible:
+                span.glyphicon.glyphicon-chevron-up
+              else:
+                span.glyphicon.glyphicon-chevron-down
+          td.text-muted?(p.last_beacon == null)
+            if p.last_beacon:
+              =String(p.last_beacon_time -
+                      p.last_beacon.current_time)
+              "ms"
+            else:
+              "∅"

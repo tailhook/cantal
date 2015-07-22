@@ -10,6 +10,7 @@ import {Metrics} from 'pages/metrics'
 import {Peers} from 'pages/peers'
 import {Remote} from 'pages/remote'
 import {update, append} from 'util/render'
+import routing from 'util/routing'
 import navbar from 'templates/navbar.mft'
 
 
@@ -18,36 +19,42 @@ export class App {
     }
     render() {
         return {tag: 'div', children: [
-            navbar.render(this.page && this.page.constructor.name.toLowerCase()),
+            navbar.render(this.page && this.page.name.toLowerCase()),
             this.page ? component(this.page) : "",
             ]}
     }
+    change_page(page) {
+        if(this.page) {
+            this.page = null
+        }
+        if(page == 'processes') {
+            this.page = Processes;
+        } else if(page == 'status') {
+            this.page = Status;
+        } else if(page == 'values') {
+            this.page = Values;
+        } else if(page == 'totals') {
+            this.page = Totals;
+        } else if(page == 'metrics') {
+            this.page = Metrics;
+        } else if(page == 'peers') {
+            this.page = Peers;
+        } else if(page == 'remote') {
+            this.page = Remote;
+        }
+        update()
+    }
     static start() {
         var app = new App();
-        window.onhashchange = function() {
-            if(app.page) {
-                app.page = null
-            }
-            if(window.location.hash == '#/processes') {
-                app.page = Processes;
-            } else if(window.location.hash == '#/status') {
-                app.page = Status;
-            } else if(window.location.hash == '#/values') {
-                app.page = Values;
-            } else if(window.location.hash == '#/totals') {
-                app.page = Totals;
-            } else if(window.location.hash == '#/metrics') {
-                app.page = Metrics;
-            } else if(window.location.hash == '#/peers') {
-                app.page = Peers;
-            } else if(window.location.hash == '#/remote') {
-                app.page = Remote;
-            }
-            update()
-        }
-        append(document.body, app.render.bind(app))
+
+        let router = routing.start()
+        router.page_stream.handle(app.change_page.bind(app));
+        app.change_page(router.page)
+
         websock.start('ws://' + location.host + '/ws')
-        window.onhashchange()
+
+        append(document.body, app.render.bind(app))
+
     }
 }
 

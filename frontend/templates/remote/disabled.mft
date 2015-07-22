@@ -1,0 +1,27 @@
+html render():
+  h1
+    "Remote Stats Are Disabled"
+  .panel.panel-warning
+    .panel-heading
+      "Enable remote metrics"
+    .panel-body
+      p "
+        You may enable remote metrics. But be aware that it means this
+        node will use a little bit more resources.
+        "
+      p
+        " But more importantly, if you enable remote metrics on all (or
+          too many nodes) you will get "
+        b "full mesh"
+        " of connections and a lot of traffic. So chose chose nodes
+          wisely."
+      p
+        " You might want to "
+        b "find a node"
+        " which has remote stats enabled
+          instead of enabling them here.
+        "
+      p
+        button.btn.btn-danger
+          link click = ctr.enable_remote
+          "Enable"
