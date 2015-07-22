@@ -4,7 +4,7 @@ use std::str::from_utf8;
 use std::io::{Read, Write};
 use std::net::{SocketAddr, SocketAddrV4};
 use std::sync::{RwLock, Arc};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use rustc_serialize::json;
 use rustc_serialize::json::ToJson;
@@ -60,7 +60,7 @@ struct WebSocket {
     sock: TcpStream,
     input: Vec<u8>,
     output: Vec<u8>,
-    subscriptions: HashMap<String, rules::Subscription>,
+    subscriptions: HashSet<rules::RawRule>,
 }
 
 #[derive(Clone, Debug, Copy, PartialEq, Eq)]
@@ -329,7 +329,7 @@ impl Handler {
                 sock: sock,
                 input: Vec::new(),
                 output: buf,
-                subscriptions: HashMap::new(),
+                subscriptions: HashSet::new(),
                 })
                 .map_err(|_| error!("Too many websock clients"));
             if let Ok(cli_token) = ntok {
@@ -408,15 +408,11 @@ impl Handler {
                             if let Some(msg) = msg {
                                 debug!("Websock input {:?}", msg);
                                 match msg {
-                                    InputMessage::Subscribe(idx, sub) => {
-                                        wsock.subscriptions.insert(idx, sub)
-                                        .map(|_| debug!("Replaced"));
+                                    InputMessage::Subscribe(sub) => {
+                                        wsock.subscriptions.insert(sub);
                                     }
-                                    InputMessage::Unsubscribe(idx) => {
-                                        if wsock.subscriptions.remove(&idx)
-                                           .is_none() {
-                                            debug!("No such index");
-                                        }
+                                    InputMessage::Unsubscribe(sub) => {
+                                        wsock.subscriptions.remove(&sub);
                                     }
                                 }
                             } else {
@@ -543,8 +539,8 @@ impl mio::Handler for Handler {
                         }
                         if wsock.output.len() < MAX_OUTPUT_BUFFER {
                             let start = wsock.output.len() == 0;
-                            let val = rules::subscr_filter(
-                                &wsock.subscriptions, &*stats);
+                            let val = rules::query_raw(
+                                wsock.subscriptions.iter(), 1, &*stats);
                             let msg = json::encode(
                                 &OutputMessage::Stats(val)
                                 ).unwrap();

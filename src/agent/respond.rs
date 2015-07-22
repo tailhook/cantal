@@ -151,6 +151,7 @@ pub fn serve_query_raw(req: &Request, context: &mut Context)
        .and_then(|s| json::decode::<RawQuery>(s)
        .map_err(|_| BadRequest::err("Failed to decode query")))
        .and_then(|r| {
-           Ok(http::Response::json(&query_raw(&r, stats)))
+           Ok(http::Response::json(&query_raw(
+                r.rules.iter(), r.limit, stats)))
         })
 }

@@ -1,5 +1,6 @@
 use std::ops::{Add, Sub};
 use std::f64;
+use std::hash::{Hash, Hasher};
 use std::iter::{repeat};
 use std::collections::{HashMap, BTreeMap};
 use std::collections::VecDeque;
@@ -29,14 +30,16 @@ impl From<Error> for Box<http::Error> {
 }
 
 
-#[derive(RustcEncodable, RustcDecodable, Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(RustcEncodable, RustcDecodable, Debug, Clone, Copy)]
+#[derive(PartialEq, Eq, Hash)]
 pub enum Source {
     Tip,
     Fine,
     Coarse,
 }
 
-#[derive(RustcEncodable, RustcDecodable, Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(RustcEncodable, RustcDecodable, Debug, Clone, Copy)]
+#[derive(PartialEq, Eq, Hash)]
 pub enum Aggregation {
     None,
     CasualSum,  // does ignore absent data points, treating them as zero
@@ -50,6 +53,24 @@ pub enum Condition {
     And(Box<Condition>, Box<Condition>),
     Or(Box<Condition>, Box<Condition>),
     Not(Box<Condition>),
+}
+
+impl Hash for Condition {
+    fn hash<H>(&self, s: &mut H) where H: Hasher {
+        use self::Condition::*;
+        match self {
+            &Eq(ref a, ref b) => { "eq".hash(s); a.hash(s); b.hash(s); },
+            &NotEq(ref a, ref b) => { "not-eq".hash(s); a.hash(s); b.hash(s); },
+            &RegexLike(ref a, ref b) => {
+                "regex-like".hash(s);
+                a.hash(s);
+                b.as_str().hash(s);
+            },
+            &And(ref a, ref b) => { "and".hash(s); a.hash(s); b.hash(s); }
+            &Or(ref a, ref b) => { "or".hash(s); a.hash(s); b.hash(s); }
+            &Not(ref a) => { "not".hash(s); a.hash(s); }
+        }
+    }
 }
 
 impl Decodable for Condition {
@@ -122,7 +143,7 @@ impl Encodable for Condition {
     }
 }
 
-#[derive(RustcDecodable, RustcEncodable, Debug, Clone)]
+#[derive(RustcDecodable, RustcEncodable, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RawRule {
     pub source: Source,
     pub condition: Condition,
@@ -148,13 +169,6 @@ pub struct Rule {
     pub key: Vec<String>,
     pub aggregation: Aggregation,
     pub limit: u32,
-}
-
-#[derive(RustcDecodable, RustcEncodable, Debug, Clone)]
-pub struct Subscription {
-    condition: Condition,
-    key: Vec<String>,
-    aggregation: Aggregation,
 }
 
 #[derive(RustcDecodable, Debug, Clone)]
@@ -342,9 +356,12 @@ pub fn query(query: &Query, stats: &Stats) -> Result<Json, Error> {
     return Ok(Json::Object(items));
 }
 
-pub fn query_raw(query: &RawQuery, stats: &Stats) -> RawResult {
+pub fn query_raw<'x, I:Iterator<Item=&'x RawRule>>(
+    rules: I, limit: usize, stats: &Stats)
+    -> RawResult
+{
     let mut fine_metrics = Vec::new();
-    for rule in query.rules.iter() {
+    for rule in rules {
         match rule.source {
             Source::Tip => unimplemented!(),
             Source::Fine => {
@@ -354,7 +371,7 @@ pub fn query_raw(query: &RawQuery, stats: &Stats) -> RawResult {
                     }
                     fine_metrics.push((key.get_map(),
                         stats.history.get_fine_history(key)
-                            .unwrap().take(query.limit)));
+                            .unwrap().take(limit)));
                 }
             }
             Source::Coarse => unimplemented!(),
@@ -363,59 +380,6 @@ pub fn query_raw(query: &RawQuery, stats: &Stats) -> RawResult {
     RawResult {
         fine_metrics: fine_metrics,
         fine_timestamps: stats.history.fine_timestamps.iter()
-            .take(query.limit).cloned().collect(),
-    }
-}
-
-fn query_subscr(rule: &Subscription, stats: &Stats) -> Vec<(Vec<String>, f64)>
-{
-    use self::Aggregation::*;
-    use std::collections::hash_map::Entry::{Occupied, Vacant};
-    let mut keys = HashMap::<_, Vec<_>>::new();
-    for (ref key, _) in stats.history.fine.iter() {
-        if match_cond(key, &rule.condition) {
-            let target_key = rule.key.iter()
-                             .map(|x| key.get(x).unwrap_or(""))
-                             .collect::<Vec<_>>();
-            match keys.entry(target_key) {
-                Occupied(mut e) => { e.get_mut().push(key.clone()); }
-                Vacant(e) => { e.insert(vec![key.clone()]); }
-            };
-        }
-    }
-    keys.into_iter().map(|(key, hkeys)| {
-        use super::history::Histories::*;
-        let stream = merge(hkeys.iter()
-               .filter_map(|key| stats.history.get_fine_history(key)));
-        let ts = &stats.history.fine_timestamps;
-        // TODO(tailhook) do something with all these Json crap
-        let value = match rule.aggregation {
-            None => stream.map(|s| match s {
-                Empty => f64::NAN,
-                Counters(x) => take_rate(ts, x, 1).as_array().unwrap()[0].as_f64().unwrap(),
-                Integers(x) => take_raw(x, 1).as_array().unwrap()[0].as_f64().unwrap(),
-                Floats(x) => take_raw(x, 1).as_array().unwrap()[0].as_f64().unwrap(),
-            }),
-            CasualSum => stream.map(|s| match s {
-                Empty => f64::NAN,
-                Counters(x) => sum_rate(ts, x, 1).as_array().unwrap()[0].as_f64().unwrap(),
-                Integers(x) => sum_raw(x, 1, 0).as_array().unwrap()[0].as_f64().unwrap(),
-                Floats(x) => sum_raw(x, 1, 0.).as_array().unwrap()[0].as_f64().unwrap(),
-            }),
-        }.unwrap_or(f64::NAN);
-        (key.into_iter().map(ToString::to_string).collect(), value)
-    }).collect()
-}
-
-pub fn subscr_filter(query: &HashMap<String, Subscription>, stats: &Stats)
-    -> StatsUpdate
-{
-    let mut items = HashMap::new();
-    for (name, rule) in query.iter() {
-        items.insert(name.clone(), query_subscr(rule, stats));
-    }
-    StatsUpdate {
-        timestamp: stats.history.fine_timestamps[0].0,
-        values: items,
+            .take(limit).cloned().collect(),
     }
 }

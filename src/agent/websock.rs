@@ -44,13 +44,13 @@ pub struct Beacon {
 pub enum OutputMessage {
     Beacon(Beacon),
     NewPeer(String),
-    Stats(rules::StatsUpdate),
+    Stats(rules::RawResult),
 }
 
 #[derive(RustcEncodable, RustcDecodable, Debug)]
 pub enum InputMessage {
-    Subscribe(String, rules::Subscription),
-    Unsubscribe(String),
+    Subscribe(rules::RawRule),
+    Unsubscribe(rules::RawRule),
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
