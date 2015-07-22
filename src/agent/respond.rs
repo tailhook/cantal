@@ -12,7 +12,7 @@ use super::http::{Request, BadRequest};
 use super::server::Context;
 use super::stats::Stats;
 use super::p2p::GossipStats;
-use super::remote::{Peers, PeerHolder};
+use super::remote::{PeerHolder};
 use super::deps::LockedDeps;
 use super::websock::Beacon;
 

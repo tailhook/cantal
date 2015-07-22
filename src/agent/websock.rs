@@ -2,7 +2,6 @@ use std::iter::repeat;
 use std::sync::{Arc, RwLock};
 use std::net::SocketAddr;
 
-use cbor::Cbor;
 use unicase::UniCase;
 use byteorder::{BigEndian, ByteOrder};
 use hyper::header::{Upgrade, ProtocolName};
@@ -64,7 +63,7 @@ impl Opcode {
         match src {
             1 => Some(Opcode::Text),
             2 => Some(Opcode::Binary),
-            x => None,
+            _ => None,
         }
     }
 }

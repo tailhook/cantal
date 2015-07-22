@@ -1,5 +1,4 @@
 use std::ops::{Add, Sub};
-use std::f64;
 use std::hash::{Hash, Hasher};
 use std::iter::{repeat};
 use std::collections::{HashMap, BTreeMap};
@@ -365,7 +364,7 @@ pub fn query_raw<'x, I:Iterator<Item=&'x RawRule>>(
         match rule.source {
             Source::Tip => unimplemented!(),
             Source::Fine => {
-                for (ref key, ref value) in stats.history.fine.iter() {
+                for key in stats.history.fine.keys() {
                     if !match_cond(key, &rule.condition) {
                         continue;
                     }

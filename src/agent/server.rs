@@ -3,7 +3,6 @@ use std::mem::replace;
 use std::str::from_utf8;
 use std::io::{Read, Write};
 use std::net::{SocketAddr, SocketAddrV4};
-use std::sync::{RwLock, Arc};
 use std::collections::{HashMap, HashSet};
 
 use rustc_serialize::json;
@@ -23,7 +22,6 @@ use super::remote;
 use super::websock;
 use super::rules;
 use super::error::Error;
-use super::stats::{Stats};
 use super::http::{NotFound, BadRequest, ServerError, MethodNotAllowed};
 use super::http::Request;
 use super::util::WriteVec as W;
@@ -244,7 +242,7 @@ fn do_add_host(req: &Request, context: &mut Context)
     })
 }
 
-fn do_start_remote(req: &Request, context: &mut Context)
+fn do_start_remote(_req: &Request, context: &mut Context)
     -> Result<http::Response, Box<http::Error>>
 {
     remote::start(context);
@@ -391,7 +389,7 @@ impl Handler {
                             let msg: Option<websock::InputMessage>;
                             msg = websock::parse_message(&mut wsock.input,
                                 &mut context,
-                                |opcode, msg, ctx| {
+                                |opcode, msg, _ctx| {
                                     if opcode == websock::Opcode::Text {
                                         from_utf8(msg)
                                             .map_err(|e| error!(

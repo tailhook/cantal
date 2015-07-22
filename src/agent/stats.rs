@@ -1,5 +1,4 @@
 use std::hash::{Hasher};
-use std::sync::{Arc, RwLock};
 use std::default::Default;
 use std::collections::BTreeMap;
 
@@ -10,8 +9,6 @@ use super::scan::time_ms;
 use super::scan;
 use super::history::History;
 use super::storage::StorageStats;
-use super::p2p::GossipStats;
-//use super::remote::Peers;
 
 
 pub struct Stats {
@@ -21,6 +18,7 @@ pub struct Stats {
     pub scan_duration: u32,
     pub boot_time: Option<u64>,
 
+    // TODO(tailhook) move to separate dependencies items
     pub storage: StorageStats,
     pub history: History,
     pub processes: Vec<scan::processes::MinimalProcess>,

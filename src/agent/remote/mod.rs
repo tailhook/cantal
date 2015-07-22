@@ -1,11 +1,10 @@
 use std::mem::replace;
-use std::net::{Ipv4Addr, SocketAddr};
+use std::net::{SocketAddr};
 use std::ops::DerefMut;
 use std::sync::{Arc, RwLock};
 use std::collections::HashMap;
 
 use mio::{Token, Timeout, EventSet};
-use mio::tcp::TcpStream;
 use mio::util::Slab;
 use time::{SteadyTime};
 use rand::thread_rng;
@@ -14,9 +13,9 @@ use rand::distributions::{IndependentSample, Range};
 use super::server::Context;
 use super::scan::time_ms;
 use super::websock::Beacon;
-use super::websock::InputMessage as OutputMessage;
+//use super::websock::InputMessage as OutputMessage;
 use super::websock::OutputMessage as InputMessage;
-use super::deps::{Dependencies, LockedDeps};
+use super::deps::{LockedDeps};
 use super::server::Timer::{ReconnectPeer, ResetPeer};
 use super::p2p::GossipStats;
 use self::owebsock::WebSocket;
@@ -33,6 +32,7 @@ const MESSAGE_TIMEOUT: u64 = 15000;
 pub type PeerHolder = Arc<RwLock<Peers>>;
 
 
+#[allow(unused)] // start_time will be used later
 pub struct Peers {
     start_time: SteadyTime,
     pub connected: usize,

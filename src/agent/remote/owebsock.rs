@@ -14,7 +14,7 @@ use super::super::websock;
 use super::super::util::WriteVec as W;
 use super::super::util::ReadVec as R;
 use super::super::util::Consume;
-use super::super::websock::InputMessage as OutputMessage;
+//use super::super::websock::InputMessage as OutputMessage;
 use super::super::websock::OutputMessage as InputMessage;
 
 
@@ -121,7 +121,7 @@ impl WebSocket {
                     loop {
                         let msg: Option<InputMessage>;
                         msg = websock::parse_message(&mut self.input, ctx,
-                            |opcode, msg, ctx| {
+                            |opcode, msg, _ctx| {
                                 if opcode == websock::Opcode::Text {
                                     from_utf8(msg)
                                         .map_err(|e| error!(

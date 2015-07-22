@@ -1,5 +1,5 @@
 use std::io;
-use std::io::{Read, Write};
+use std::io::{Write};
 use std::net::{SocketAddr, SocketAddrV4};
 use std::sync::{Arc, RwLock};
 use std::default::Default;
@@ -7,15 +7,13 @@ use std::collections::{HashMap};
 
 use mio::{EventLoop, Token, Handler, EventSet, PollOpt};
 use mio::buf::ByteBuf;
-use mio::{Sender, udp};
+use mio::{udp};
 use nix::unistd::gethostname;
 use cbor::{Decoder};
 use rustc_serialize::Decodable;
 
 use super::error::Error;
-use super::stats::Stats;
 use self::peer::{Peer};
-use super::server;
 use super::deps::{Dependencies, LockedDeps};
 
 mod peer;

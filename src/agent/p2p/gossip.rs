@@ -11,7 +11,7 @@ use super::Context;
 use super::peer::{Peer, Report};
 use super::super::server::Message::NewHost;
 use super::GossipStats;
-use super::super::deps::{Dependencies, LockedDeps};
+use super::super::deps::{LockedDeps};
 
 
 pub const INTERVAL: u64 = 1000;
