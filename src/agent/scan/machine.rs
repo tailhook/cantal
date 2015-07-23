@@ -278,14 +278,14 @@ pub fn read(t: &mut Tip) -> Option<u64> {
                 .and_then(|x| u16::from_str_radix(&x[9..13], 16).ok())
                 .unwrap_or(0u16);
             let status = pieces.next()
-                .and_then(|x| u16::from_str_radix(x, 16).ok())
+                .and_then(|x| u8::from_str_radix(x, 16).ok())
                 .unwrap_or(0);
             let mut queues = pieces.next().unwrap_or("0:0").split(':');
             let tx = queues.next()
-                .and_then(|x| u16::from_str_radix(x, 16).ok())
+                .and_then(|x| u32::from_str_radix(x, 16).ok())
                 .unwrap_or(0);
             let rx = queues.next()
-                .and_then(|x| u16::from_str_radix(x, 16).ok())
+                .and_then(|x| u32::from_str_radix(x, 16).ok())
                 .unwrap_or(0);
             {
                 // TODO(tailhook) read ephemeral port range
@@ -300,7 +300,7 @@ pub fn read(t: &mut Tip) -> Option<u64> {
                     None
                 };
                 if let Some((ref mut coll, port)) = pair {
-                    let estab = if status == S::ESTABLISHED as u16 {1} else {0};
+                    let estab = if status == S::ESTABLISHED as u8 {1} else {0};
                     match coll.entry(port) {
                         Vacant(e) => {
                             e.insert((estab, tx, rx));
@@ -318,10 +318,10 @@ pub fn read(t: &mut Tip) -> Option<u64> {
             tx_queue += tx;
             rx_queue += rx;
             match status {
-                x if x == S::ESTABLISHED as u16 => established += 1,
-                x if x == S::CLOSE_WAIT as u16 => close_wait += 1,
-                x if x == S::TIME_WAIT as u16 => time_wait += 1,
-                x if x == S::LISTEN as u16 => listening += 1,
+                x if x == S::ESTABLISHED as u8 => established += 1,
+                x if x == S::CLOSE_WAIT as u8 => close_wait += 1,
+                x if x == S::TIME_WAIT as u8 => time_wait += 1,
+                x if x == S::LISTEN as u8 => listening += 1,
                 _ => {}
             }
         }
