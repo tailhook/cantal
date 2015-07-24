@@ -439,7 +439,6 @@ impl History {
                     }
                 };
                 for (off, val_opt) in iter {
-                    println!("ITER {:?} {:?}", off, val_opt);
                     let off = off as u64;
                     if let Some(val) = val_opt {
                         hist.push(val, age - off).unwrap();
