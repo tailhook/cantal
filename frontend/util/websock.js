@@ -43,7 +43,7 @@ function connected(ev) {
 }
 
 function disconnected(ev) {
-    connected = true
+    connected = false
     setTimeout(connect, 1000)
 }
 
