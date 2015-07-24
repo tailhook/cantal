@@ -24,6 +24,7 @@ impl HistoryChunk {
             &Integer(ref slc) => slc.len(),
             &Float(ref slc) => slc.len(),
         };
+        assert!(size >= 1);
         HistoryChunkIter {
             chunk: self,
             start_index: 0,
@@ -58,10 +59,10 @@ impl<'a> DoubleEndedIterator for HistoryChunkIter<'a> {
     fn next_back(&mut self) -> Option<Option<TipValue>> {
         use self::HistoryChunk as S;
         use cantal::Value as D;
-        self.end_index -= 1;
         if self.end_index <= self.start_index {
             return None;
         }
+        self.end_index -= 1;
         Some(match self.chunk {
             &S::State((ts, ref val)) => Some(D::State(ts, val.clone())),
             &S::Counter(ref slc) => slc[self.end_index].map(D::Counter),
