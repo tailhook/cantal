@@ -228,6 +228,15 @@ pub fn try_io(tok: Token, ev: EventSet, ctx: &mut Context) -> bool
                 assert!(ctx.eloop.clear_timeout(peer.timeout));
                 peer.timeout = ctx.eloop.timeout_ms(ResetPeer(tok),
                     MESSAGE_TIMEOUT).unwrap();
+                if data.subscriptions.len() > 0 {
+                    for rule in data.subscriptions.keys() {
+                        let subscr = OutputMessage::Subscribe(
+                            rule.clone(), DATA_POINTS);
+                        let msg = json::encode(&subscr).unwrap();
+                        write_text(&mut wsock.output, &msg);
+                    }
+                    ctx.eloop.modify(&wsock.sock, tok, true, true);
+                }
             } else if !old && to_close {
                 data.connected -= 1;
             }
