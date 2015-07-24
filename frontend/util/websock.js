@@ -13,8 +13,8 @@ export function start(_url) {
 function connect() {
     web_socket = new WebSocket(url)
     web_socket.onmessage = message_received;
-    web_socket.onopen = connected
-    web_socket.onclose = disconnected
+    web_socket.onopen = onconnected
+    web_socket.onclose = ondisconnected
 }
 
 function message_received(ev) {
@@ -38,11 +38,11 @@ function message_received(ev) {
     }
 }
 
-function connected(ev) {
+function onconnected(ev) {
     connected = true
 }
 
-function disconnected(ev) {
+function ondisconnected(ev) {
     connected = false
     setTimeout(connect, 1000)
 }
