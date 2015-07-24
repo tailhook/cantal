@@ -1,4 +1,5 @@
 use std::f64::NAN;
+use std::cmp::min;
 use std::mem::replace;
 use std::iter::{repeat, Take, Repeat, Chain};
 use std::collections::VecDeque;
@@ -8,7 +9,9 @@ use std::collections::hash_map::Entry::{Occupied, Vacant};
 
 use super::stats::Key;
 use super::scan::Tip;
+use super::rules::RawResult;
 use super::deltabuf::{DeltaBuf, DeltaIter, Delta};
+use super::history_chunk::HistoryChunk;
 use cantal::Value as TipValue;
 
 type FloatHistory<'a> = Chain<Take<Repeat<Option<f64>>>, NoneMap<'a>>;
@@ -29,12 +32,6 @@ pub enum ValueHistory<'a> {
     Float(FloatHistory<'a>),
 }
 
-#[derive(Debug, Clone, RustcEncodable, RustcDecodable)]
-pub enum HistoryChunk {
-    Counter(Vec<Option<u64>>),
-    Integer(Vec<Option<i64>>),
-    Float(Vec<Option<f64>>),
-}
 
 pub enum Histories<'a> {
     Empty,
@@ -89,7 +86,7 @@ impl Source for TipValue {
             TipValue::Integer(val)
             => Value::Integer(val, age, DeltaBuf::new()),
             TipValue::Float(val)
-            => Value::Float(val, age, VecDeque::new()),
+            => Value::Float(val, age, vec![val].into_iter().collect()),
             TipValue::State(ts, val)
             => Value::State((ts, val), age),
         }
@@ -99,7 +96,7 @@ impl Source for TipValue {
 impl<'a> ValueHistory<'a> {
     pub fn take(self, n: usize) -> HistoryChunk {
         use self::ValueHistory as S;
-        use self::HistoryChunk as D;
+        use super::history_chunk::HistoryChunk as D;
         match self {
             S::Counter(x) => D::Counter(x.take(n).collect()),
             S::Integer(x) => D::Integer(x.take(n).collect()),
@@ -107,6 +104,8 @@ impl<'a> ValueHistory<'a> {
         }
     }
 }
+
+
 
 #[derive(Clone)]
 struct NoneMap<'a> {
@@ -121,10 +120,13 @@ impl<'a> Iterator for NoneMap<'a> {
 }
 
 impl Value {
-    fn push(&mut self, tip: TipValue, age: u64) -> Option<TipValue> {
+    fn push(&mut self, tip: TipValue, age: u64) -> Result<bool, TipValue> {
         match self {
             &mut Value::Counter(ref mut oval, ref mut oage, ref mut buf) => {
                 if let TipValue::Counter(nval) = tip {
+                    if age <= *oage {
+                        return Ok(false);
+                    }
                     // In case deltabuf fails
                     // let mut deltas: Vec<_> = buf.deltas().collect();
                     // deltas.insert(0, Delta::Positive(nval - *oval));
@@ -132,31 +134,37 @@ impl Value {
                     // assert_eq!(buf.deltas().collect::<Vec<_>>(), deltas);
                     *oval = nval;
                     *oage = age;
-                    return None;
+                    return Ok(true);
                 }
             }
             &mut Value::Integer(ref mut oval, ref mut oage, ref mut buf) => {
                 if let TipValue::Integer(nval) = tip {
+                    if age <= *oage {
+                        return Ok(false);
+                    }
                     buf.push(*oval, nval, age - *oage);
                     *oval = nval;
                     *oage = age;
-                    return None;
+                    return Ok(true);
                 }
             }
             &mut Value::Float(ref mut oval, ref mut oage, ref mut queue) => {
                 if let TipValue::Float(nval) = tip {
+                    if age <= *oage {
+                        return Ok(false);
+                    }
                     for _ in *oage+1..age {
                         queue.push_front(NAN);
                     }
                     queue.push_front(nval);
                     *oage = age;
                     *oval = nval;
-                    return None;
+                    return Ok(true);
                 }
             }
             _ => {},
         }
-        return Some(tip);
+        return Err(tip);
     }
     fn history<'x>(&'x self, current_age: u64) -> ValueHistory<'x> {
         use self::ValueHistory::*;
@@ -315,6 +323,35 @@ impl<'a> Iterator for IntegerHistory<'a> {
     }
 }
 
+/// Returns tuple of
+/// ("number of new datapoints", "number of valid data points")
+fn compare_timestamps(new: &Vec<(u64, u32)>, old: &VecDeque<(u64, u32)>)
+    -> (u64, usize)
+{
+    let mut iter_new = new.iter().enumerate().peekable();
+    let last_ots = old[0].0;
+    let mut new_pt;
+    loop { // New points
+        match iter_new.peek() {
+            None => return (new.len() as u64, new.len()),
+            Some(&(_, &(nts, _))) if nts > last_ots => {
+                iter_new.next().unwrap();
+                continue;
+            }
+            Some(&(nidx, _)) => {
+                new_pt = nidx;
+                break;
+            }
+        }
+    }
+    for ((nidx, &(nts, _)), &(ots, _)) in iter_new.zip(old.iter()) {
+        if nts != ots {
+            return (new_pt as u64, nidx);
+        }
+    }
+    return (new_pt as u64, min(new.len(), new_pt + old.len()));
+}
+
 impl History {
     pub fn new() -> History {
         return History {
@@ -349,7 +386,7 @@ impl History {
             };
             match collection.entry(key) {
                 Occupied(mut entry) => {
-                    if let Some(val) = entry.get_mut().push(value, self.age) {
+                    if let Err(val) = entry.get_mut().push(value, self.age) {
                         *entry.get_mut() = val.begin_history(self.age);
                     }
                 }
@@ -361,6 +398,55 @@ impl History {
         self.fine_timestamps.push_front((timestamp, duration));
         self.coarse_timestamps.push_front((timestamp, duration));
         self.tip_timestamp = (timestamp, duration);
+    }
+    /// Checks and inserts timestamps which are not yet present in history
+    /// Returns how many *valid* timestamps are there (usually all, but...)
+    fn insert_timestamps(&mut self, timestamps: &Vec<(u64, u32)>) -> usize {
+        if self.fine_timestamps.len() == 0 {
+            self.fine_timestamps = timestamps.iter().cloned().collect();
+            self.age += self.fine_timestamps.len() as u64;
+            return self.fine_timestamps.len();
+        } else {
+            let (diff, valid) = compare_timestamps(
+                timestamps, &self.fine_timestamps);
+            self.age += diff;
+            for &pair in timestamps[..diff as usize].iter().rev() {
+                self.fine_timestamps.push_front(pair);
+            }
+            return valid;
+        }
+    }
+    pub fn update_chunks(&mut self, chunk: RawResult) {
+        if chunk.fine_timestamps.len() == 0 {
+            debug!("Got empty timestamps {:?}", chunk);
+            return
+        }
+        let valid = self.insert_timestamps(&chunk.fine_timestamps);
+        for (key, data) in chunk.fine_metrics.into_iter() {
+            let mut iter = data.iter().enumerate().rev();
+            if let Some((foff, mut fval)) = iter.by_ref()
+                .find(|&(off, ref val)| off < valid && val.is_some())
+            {
+                let foff = foff as u64;
+                let age = self.age;
+                let hist = self.fine.entry(Key::new(key))
+                    .or_insert_with(|| {
+                        fval.take().unwrap().begin_history(age - foff)
+                    });
+                if fval.is_some() {
+                    if let Err(val) = hist.push(fval.take().unwrap(), age - foff) {
+                        *hist = val.begin_history(age - foff);
+                    }
+                };
+                for (off, val_opt) in iter {
+                    println!("ITER {:?} {:?}", off, val_opt);
+                    let off = off as u64;
+                    if let Some(val) = val_opt {
+                        hist.push(val, age - off).unwrap();
+                    }
+                }
+            }
+        }
     }
     pub fn truncate_by_time(&mut self, timestamp: u64) {
         let idx = self.fine_timestamps.iter().enumerate()
@@ -429,3 +515,72 @@ pub fn merge<'x, I: Iterator<Item=ValueHistory<'x>>>(iter: I)
         (Floats(_), _) => return None,
     })))
 }
+
+#[cfg(test)]
+mod test {
+    use super::compare_timestamps;
+
+    #[test]
+    fn all_new() {
+        assert_eq!(compare_timestamps(
+            &vec![(130, 0), (120, 0), (110, 0)],
+            &vec![(30, 0), (20, 0), (10, 0)].into_iter().collect()),
+            (3, 3));
+    }
+
+    #[test]
+    fn touch() {
+        assert_eq!(compare_timestamps(
+            &vec![(50, 0), (40, 0), (30, 0)],
+            &vec![(30, 0), (20, 0), (10, 0), (0, 0)].into_iter().collect()),
+            (2, 3));
+    }
+    #[test]
+    fn overlap() {
+        assert_eq!(compare_timestamps(
+            &vec![(40, 0), (30, 0), (20, 0)],
+            &vec![(30, 0), (20, 0), (10, 0), (0, 0)].into_iter().collect()),
+            (1, 3));
+    }
+
+    #[test]
+    fn old() {
+        assert_eq!(compare_timestamps(
+            &vec![(30, 0), (20, 0), (10, 0)],
+            &vec![(130, 0), (120, 0), (110, 0)].into_iter().collect()),
+            (0, 0));
+    }
+
+    #[test]
+    fn middle() {
+        assert_eq!(compare_timestamps(
+            &vec![(40, 0), (30, 0), (25, 0)],
+            &vec![(30, 0), (20, 0), (10, 0), (0, 0)].into_iter().collect()),
+            (1, 2));
+    }
+
+    #[test]
+    fn middle2() {
+        assert_eq!(compare_timestamps(
+            &vec![(40, 0), (35, 0), (25, 0)],
+            &vec![(30, 0), (20, 0), (10, 0), (0, 0)].into_iter().collect()),
+            (2, 2));
+    }
+
+    #[test]
+    fn middle3() {
+        assert_eq!(compare_timestamps(
+            &vec![(50, 0), (40, 0), (35, 0), (20, 0)],
+            &vec![(30, 0), (20, 0), (10, 0), (0, 0)].into_iter().collect()),
+            (3, 3));
+    }
+
+    #[test]
+    fn new_big() {
+        assert_eq!(compare_timestamps(
+            &vec![(50, 0), (40, 0), (30, 0), (20, 0), (10, 0)],
+            &vec![(30, 0), (20, 0)].into_iter().collect()),
+            (2, 4));
+    }
+}
+

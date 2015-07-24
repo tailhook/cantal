@@ -11,15 +11,9 @@ use rustc_serialize::{Decodable, Decoder, Encodable, Encoder};
 
 use super::http;
 use super::stats::{Stats, Key};
-use super::history::{History};
-use super::history::{merge, HistoryChunk};
+use super::history::{History, merge};
+use super::history_chunk::{HistoryChunk};
 
-
-#[derive(RustcDecodable, RustcEncodable, Debug)]
-pub struct StatsUpdate {
-    pub timestamp: u64,
-    pub values: HashMap<String, Vec<(Vec<String>, f64)>>,
-}
 
 pub struct Error(pub &'static str);
 

@@ -42,6 +42,9 @@ impl Stats {
 pub struct Key(BTreeMap<String, String>);
 
 impl Key {
+    pub fn new(val: BTreeMap<String, String>) -> Key {
+        Key(val)
+    }
     pub fn from_json(json: &Json) -> Result<Key, ()> {
         if let &Json::Object(ref obj) = json {
             let mut key = BTreeMap::new();

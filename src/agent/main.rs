@@ -42,6 +42,7 @@ mod scan;
 mod mountpoints;
 mod deltabuf;
 mod history;
+mod history_chunk;
 mod storage;
 mod rules;
 mod p2p;

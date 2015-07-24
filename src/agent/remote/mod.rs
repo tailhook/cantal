@@ -5,7 +5,7 @@ use std::str::from_utf8;
 use std::sync::{Arc, RwLock};
 use std::collections::HashMap;
 
-use mio::{Token, Timeout, EventSet};
+use mio::{Token, Timeout, EventSet, Sender};
 use mio::util::Slab;
 use time::{SteadyTime};
 use rand::thread_rng;
@@ -20,6 +20,7 @@ use super::websock::OutputMessage as InputMessage;
 use super::deps::{LockedDeps};
 use super::server::Timer::{ReconnectPeer, ResetPeer};
 use super::p2p::GossipStats;
+use super::p2p;
 use self::owebsock::WebSocket;
 use super::rules::{RawQuery, RawRule, RawResult};
 use super::rules;
@@ -74,6 +75,7 @@ impl Peer {
         self.connection.as_ref().map(|x| !x.handshake).unwrap_or(false)
     }
 }
+
 
 pub fn ensure_started(ctx: &mut Context) {
     if let Some(peers) = ctx.deps.get::<PeerHolder>() {
@@ -199,12 +201,21 @@ pub fn try_io(tok: Token, ev: EventSet, ctx: &mut Context) -> bool
                         InputMessage::Beacon(b) => {
                             peer.last_beacon = Some((time_ms(), b));
                         }
-                        InputMessage::NewPeer(p) => {
+                        InputMessage::NewPeer(pstr) => {
                             // TODO(tailhook) process it
-                            debug!("New peer from websock {:?}", p);
+                            debug!("New peer from websock {:?}", pstr);
+                            pstr.parse()
+                            .map(|addr| ctx.deps.get::<Sender<p2p::Command>>()
+                                        .unwrap().send(
+                                            p2p::Command::AddGossipHost(addr)
+                                        ).unwrap())
+                            .map_err(|_|
+                                error!("Bad host addr in NewPeer: {:?}", pstr))
+                            .ok();
                         }
-                        InputMessage::Stats(x) => {
-                            debug!("New stats from peer {:?}", x);
+                        InputMessage::Stats(stats) => {
+                            debug!("New stats from peer {:?}", stats);
+                            peer.history.update_chunks(stats);
                         }
                     }
                 }
@@ -259,7 +270,8 @@ pub fn serve_query_raw(req: &Request, context: &mut Context)
 
         for rule in query.rules.into_iter() {
             let ts = SteadyTime::now();
-            if peers.subscriptions.contains_key(&rule) {
+            if let Some(ts_ref) = peers.subscriptions.get_mut(&rule) {
+                *ts_ref = ts;
                 continue;
             }
             // TODO(tailhook) may optimize this rule.clone()
