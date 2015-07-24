@@ -7,7 +7,7 @@ use std::collections::HashMap;
 
 use mio::{Token, Timeout, EventSet, Sender};
 use mio::util::Slab;
-use time::{SteadyTime};
+use time::{SteadyTime, Duration};
 use rand::thread_rng;
 use rand::distributions::{IndependentSample, Range};
 use rustc_serialize::json;
@@ -39,7 +39,7 @@ const MAX_OUTPUT_CONNECTIONS: usize = 4096;
 const HANDSHAKE_TIMEOUT: u64 = 30000;
 const MESSAGE_TIMEOUT: u64 = 15000;
 const GARBAGE_COLLECTOR_INTERVAL: u64 = 60_000;
-const SUBSCRIPTION_LIFETIME: u64 = 3 * 60_000;
+const SUBSCRIPTION_LIFETIME: i64 = 3 * 60_000;
 const DATA_POINTS: usize = 150;  // five minutes
 
 
@@ -316,7 +316,17 @@ pub fn serve_query_raw(req: &Request, context: &mut Context)
 pub fn garbage_collector(ctx: &mut Context) {
     debug!("Garbage collector");
     let mut peers = ctx.deps.write::<Peers>();
-    // TODO(tailhook) check expired connections
+
+    let cut_off = SteadyTime::now() - Duration::milliseconds(
+        SUBSCRIPTION_LIFETIME);
+    peers.subscriptions = replace(&mut peers.subscriptions, HashMap::new())
+        .into_iter()
+        .filter(|&(_, timestamp)| timestamp > cut_off)
+        .collect();
+
+    for peer in peers.peers.iter_mut() {
+        peer.history.truncate_by_num(DATA_POINTS);
+    }
 
     peers.gc_timer = ctx.eloop.timeout_ms(RemoteCollectGarbage,
         GARBAGE_COLLECTOR_INTERVAL).unwrap();

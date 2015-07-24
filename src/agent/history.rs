@@ -448,11 +448,13 @@ impl History {
         }
     }
     pub fn truncate_by_time(&mut self, timestamp: u64) {
-        let idx = self.fine_timestamps.iter().enumerate()
-            .skip_while(|&(_idx, &(ts, _dur))| ts >= timestamp)
-            .next().unwrap_or((1000000, &(0, 0)))
-            .0;
-
+        if let Some((idx, _)) = self.fine_timestamps.iter().enumerate()
+            .find(|&(_idx, &(ts, _dur))| ts < timestamp)
+        {
+            self.truncate_by_num(idx);
+        }
+    }
+    pub fn truncate_by_num(&mut self, idx: usize) {
         let target_age = self.age.saturating_sub(idx as u64);
         self.fine = replace(&mut self.fine, HashMap::new()).into_iter()
             .filter_map(|(key, mut val)| {
@@ -475,11 +477,7 @@ impl History {
             self.fine_timestamps.pop_back();
         }
 
-        let idx = self.coarse_timestamps.iter().enumerate()
-            .skip_while(|&(_, &(ts, _))| ts >= timestamp)
-            .next().unwrap_or((1000000, &(0, 0)))
-            .0;
-
+        // TODO(tailhook) use some other number for coarse timestamps
         let target_age = self.age.saturating_sub(idx as u64);
         self.coarse = replace(&mut self.coarse, HashMap::new()).into_iter()
             .filter_map(|(key, mut val)| {
