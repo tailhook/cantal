@@ -210,7 +210,9 @@ fn resolve(req: &Request, context: &mut Context)
         (&Post, &P(ref x)) if &x[..] == "/query_raw.json"
         => respond::serve_query_raw(req, context),
         (&Post, &P(ref x)) if &x[..] == "/remote/query_raw.json"
-        => remote::serve_query_raw(req, context),
+        => remote::respond::serve_query_raw(req, context),
+        (&Post, &P(ref x)) if &x[..] == "/remote/query_by_host.json"
+        => remote::respond::serve_query_by_host(req, context),
         (&Post, &P(ref x)) if &x[..] == "/add_host.json"
         => do_add_host(req, context),
         // TODO(tailhook) this should be post

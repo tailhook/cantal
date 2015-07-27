@@ -1,7 +1,6 @@
 use std::mem::replace;
 use std::net::{SocketAddr};
 use std::ops::DerefMut;
-use std::str::from_utf8;
 use std::sync::{Arc, RwLock};
 use std::collections::HashMap;
 
@@ -22,16 +21,14 @@ use super::server::Timer::{ReconnectPeer, ResetPeer};
 use super::p2p::GossipStats;
 use super::p2p;
 use self::owebsock::WebSocket;
-use super::rules::{RawQuery, RawRule, RawResult};
-use super::rules;
+use super::rules::{RawRule};
 use super::history::History;
-use super::http;
-use super::http::{Request, BadRequest};
 use super::ioutil::Poll;
-use super::server::{MAX_OUTPUT_BUFFER};
 use super::server::Timer::{RemoteCollectGarbage};
 
 mod owebsock;
+mod aggregate;
+pub mod respond;
 
 
 const SLAB_START: usize = 1000000000;
@@ -54,12 +51,6 @@ pub struct Peers {
     pub addresses: HashMap<SocketAddr, Token>,
     pub peers: Slab<Peer>,
     subscriptions: HashMap<RawRule, SteadyTime>,
-}
-
-#[derive(RustcDecodable, RustcEncodable)]
-pub struct HostStats {
-    addr: String,
-    values: RawResult,
 }
 
 pub struct Peer {
@@ -257,60 +248,6 @@ pub fn try_io(tok: Token, ev: EventSet, ctx: &mut Context) -> bool
     // unreachable
     //data.peers.remove(tok)
     //return true;
-}
-
-pub fn serve_query_raw(req: &Request, context: &mut Context)
-    -> Result<http::Response, Box<http::Error>>
-{
-    from_utf8(&req.body)
-    .map_err(|_| BadRequest::err("Bad utf-8 encoding"))
-    .and_then(|s| json::decode::<RawQuery>(s)
-    .map_err(|_| BadRequest::err("Failed to decode query")))
-    .and_then(|query| {
-        ensure_started(context);
-
-        let mut peerguard = context.deps.write::<Peers>();
-        let mut peers = &mut *peerguard;
-        let response: Vec<_> = peers.peers.iter().map(|peer| HostStats {
-            addr: peer.addr.to_string(),
-            values: rules::query_raw(query.rules.iter(),
-                              DATA_POINTS, &peer.history),
-        }).collect();
-
-        for rule in query.rules.into_iter() {
-            let ts = SteadyTime::now();
-            if let Some(ts_ref) = peers.subscriptions.get_mut(&rule) {
-                *ts_ref = ts;
-                continue;
-            }
-            // TODO(tailhook) may optimize this rule.clone()
-            let subscr = OutputMessage::Subscribe(rule.clone(), DATA_POINTS);
-            let msg = json::encode(&subscr).unwrap();
-            let ref mut addresses = &mut peers.addresses;
-            let ref mut peerlist = &mut peers.peers;
-            let ref mut eloop = context.eloop;
-            for tok in addresses.values() {
-                peerlist.replace_with(*tok, |mut peer| {
-                    if let Some(ref mut wsock) = peer.connection {
-                        if wsock.output.len() > MAX_OUTPUT_BUFFER {
-                            debug!("Websocket buffer overflow");
-                            eloop.remove(&wsock.sock);
-                            return None;
-                        }
-                        let start = wsock.output.len() == 0;
-                        write_text(&mut wsock.output, &msg);
-                        if start {
-                            eloop.modify(&wsock.sock, *tok, true, true);
-                        }
-                    }
-                    Some(peer)
-                }).unwrap()
-            }
-            peers.subscriptions.insert(rule, ts);
-        }
-
-        Ok(http::Response::json(&response))
-    })
 }
 
 pub fn garbage_collector(ctx: &mut Context) {

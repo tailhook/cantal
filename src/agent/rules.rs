@@ -170,7 +170,7 @@ pub struct Query {
     pub rules: HashMap<String, Rule>,
 }
 
-fn match_cond(key: &Key, cond: &Condition) -> bool {
+pub fn match_cond(key: &Key, cond: &Condition) -> bool {
     use self::Condition::*;
     match cond {
         &Eq(ref name, ref value) => key.get(name) == Some(value),
@@ -188,25 +188,20 @@ fn query_tip(_rule: &Rule, _stats: &Stats) -> Result<Json, Error> {
 }
 
 fn tree_insert(map: &mut BTreeMap<String, Json>, key: &[&str], val: Json) {
-    use std::collections::btree_map::Entry::{Occupied, Vacant};
     if key.len() == 1 {
         map.insert(key[0].to_string(), val);
     } else {
-        match map.entry(key[0].to_string()) {
-                Occupied(mut x) => {
-                    tree_insert(x.get_mut().as_object_mut().unwrap(),
-                                &key[1..], val);
-                }
-                Vacant(x) => {
-                    let mut m = BTreeMap::new();
-                    tree_insert(&mut m, &key[1..], val);
-                    x.insert(Json::Object(m));
-                }
-        }
+        tree_insert(
+            map.entry(key[0].to_string())
+                .or_insert_with(|| Json::Object(BTreeMap::new()))
+                .as_object_mut().unwrap(),
+            &key[1..], val);
     }
 }
 
-fn json_tree<'x, I>(iter: I) -> Json
+// TODO(tailhook) move it to some utitity module?
+// TODO(tailhook) or maybe get rid of this crappy dict tree?
+pub fn json_tree<'x, I>(iter: I) -> Json
     where I: Iterator<Item=(Vec<&'x str>, Json)>
 {
     let mut res = BTreeMap::new();
@@ -220,7 +215,7 @@ fn json_tree<'x, I>(iter: I) -> Json
     return Json::Object(res);
 }
 
-fn take_raw<T:ToJson, I:Iterator<Item=Option<T>>>(items: Vec<I>, limit: u32)
+pub fn take_raw<T:ToJson, I:Iterator<Item=Option<T>>>(items: Vec<I>, limit: u32)
     -> Json
 {
     items.into_iter()
@@ -228,7 +223,7 @@ fn take_raw<T:ToJson, I:Iterator<Item=Option<T>>>(items: Vec<I>, limit: u32)
         .collect::<Vec<_>>().to_json()
 }
 
-fn take_rate<T, I>(ts: &VecDeque<(u64, u32)>, items: Vec<I>, limit: u32)
+pub fn take_rate<T, I>(ts: &VecDeque<(u64, u32)>, items: Vec<I>, limit: u32)
     -> Json
     where I: Iterator<Item=Option<T>> + Clone,
           T: Sub<T, Output=T>+ToPrimitive
@@ -246,7 +241,7 @@ fn take_rate<T, I>(ts: &VecDeque<(u64, u32)>, items: Vec<I>, limit: u32)
     }).collect::<Vec<_>>().to_json()
 }
 
-fn sum_raw<T, I>(items: Vec<I>, limit: u32, zero: T) -> Json
+pub fn sum_raw<T, I>(items: Vec<I>, limit: u32, zero: T) -> Json
     where T: Add<T, Output=T> + ToJson + Copy,
           I: Iterator<Item=Option<T>>
 {
@@ -267,7 +262,7 @@ fn sum_raw<T, I>(items: Vec<I>, limit: u32, zero: T) -> Json
         .to_json()
 }
 
-fn sum_rate<T, I>(ts: &VecDeque<(u64, u32)>, items: Vec<I>, limit: u32)
+pub fn sum_rate<T, I>(ts: &VecDeque<(u64, u32)>, items: Vec<I>, limit: u32)
     -> Json
     where I: Iterator<Item=Option<T>> + Clone,
           T: Sub<T, Output=T> + ToPrimitive + Copy
@@ -298,17 +293,15 @@ fn sum_rate<T, I>(ts: &VecDeque<(u64, u32)>, items: Vec<I>, limit: u32)
 
 fn query_fine(rule: &Rule, stats: &Stats) -> Result<Json, Error> {
     use self::Aggregation::*;
-    use std::collections::hash_map::Entry::{Occupied, Vacant};
     let mut keys = HashMap::<_, Vec<_>>::new();
     for (ref key, _) in stats.history.fine.iter() {
         if match_cond(key, &rule.condition) {
             let target_key = rule.key.iter()
                              .map(|x| key.get(x).unwrap_or(""))
                              .collect::<Vec<_>>();
-            match keys.entry(target_key) {
-                Occupied(mut e) => { e.get_mut().push(key.clone()); }
-                Vacant(e) => { e.insert(vec![key.clone()]); }
-            };
+            keys.entry(target_key)
+                .or_insert_with(Vec::new)
+                .push(key.clone());
         }
     }
     Ok(json_tree(keys.into_iter().map(|(key, hkeys)| {
