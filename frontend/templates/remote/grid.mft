@@ -1,12 +1,86 @@
+import {QueryRemote} from 'util/query'
+import {cpu_chart, mem_chart} from 'util/compute'
+import donut from 'templates/donut.mft'
+import sparkline from 'templates/charts/sparkline.mft'
+
 css:
   .peer
     float: left
     display: inline-block
-    min-width: 256px
-    min-height: 256px
+    min-width: 160px
+    min-height: 160px
+    text-align: center
+    border: solid rgba(44, 162, 95, 0.5) 4px
+    border-radius: 8px
+  .latency
+    float: right
+  .question
+    font-size: 120px
+  .addr
+    font-family: Consolas, monospace
+  .donut-container, .sparkline-container
+    margin: 4px
 
 html render(peers):
   div
-    for peer of peers:
-      .peer.well
-        .title "{peer.addr}"
+    store grid_query = new QueryRemote({
+      'memory': {
+          'source': 'Fine',
+          'condition': ['regex-like', 'metric', '^memory\\.'],
+          'key': ['metric'],
+          'aggregation': 'None',
+          'limit': 150   # Equals datapoints, but unused actually
+          },
+      'cpu_sum': {
+          'source': 'Fine',
+          'condition': ['regex-like', 'metric', '^cpu\\.'],
+          'key': [],
+          'aggregation': 'CasualSum',
+          'limit': 150   # Equals datapoints, but unused actually
+          },
+      'cpu': {
+          'source': 'Fine',
+          'condition': ['regex-like', 'metric', '^cpu\\.'],
+          'key': ['metric'],
+          'aggregation': 'None',
+          'limit': 150   # Equals datapoints, but unused actually
+          }
+    })
+    let cpu_yaxis = {
+      height: 40,
+      bg_color: 'rgb(237,248,233)',
+      skip_color: "white",
+      colors: [
+        [100, 'rgb(186,228,179)'],
+        [200,'rgb(116,196,118)'],
+        [800, 'rgb(49,163,84)'],
+        [1600, 'rgb(0,109,44)'],
+        [6400, "black"]
+      ]
+    }
+    .latency "{grid_query.latency}ms"
+    div
+      for peer of peers:
+        div
+          if grid_query.response and grid_query.response[peer.addr]:
+            .peer
+              let stats = grid_query.response[peer.addr]
+
+
+              let mem = mem_chart(stats.fine_metrics.memory)
+              .donut-container
+                =donut.render(mem.items, 120, 120, mem.total)
+
+              let cpu = cpu_chart(stats.fine_metrics.cpu_sum,
+                                  stats.fine_metrics.cpu)
+              .sparkline-container
+                =sparkline.render(150, stats.fine_timestamps, [{
+                      'title': 'Cpu',
+                      'values': cpu['cpu.usage'],
+                      'yaxis': cpu_yaxis
+                      }])
+              .addr "{peer.addr}"
+          else:
+            .peer
+              .question "?"
+              .addr "{peer.addr}"

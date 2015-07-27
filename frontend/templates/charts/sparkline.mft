@@ -5,7 +5,6 @@ import {Follow} from 'util/stores'
 css:
   .bar
     height: 41px
-    border-bottom: solid black 1px
     position: relative
   .title
     font-family: Verdana, Tahoma, sans-serif
@@ -35,11 +34,6 @@ css:
     padding-top: 8px
     padding-right: 8px
     height: 41px
-  .xaxis
-    height: 40px
-    position: relative
-    border-bottom: solid black 1px
-    padding-bottom: 0px
   line.tick
     stroke: black
   text.tick
@@ -52,12 +46,6 @@ html render(width, timestamps, items):
     store mouse_position = new Follow()
     link {mousemove,mouseenter,mouseleave} = mouse_position
     let xaxis = compact.xaxis(timestamps, width)
-    .xaxis[style={'width': '{width}px}'}]
-      svg[width="{width}", height="40"]
-        for tick of xaxis.ticks:
-          g[transform="translate({tick.x}, 40)"]
-            line.tick[y2="-6", x2="0"]
-            text.tick[y="-8"] "{tick.text}"
     div
       for item of items:
         if item.values:
@@ -76,17 +64,3 @@ html render(width, timestamps, items):
         else:
           .bar.nodata[style={'width': '{width}px}'}]
             "-- no data --"
-    if mouse_position.x != null and mouse_position.x < width:
-      .footer[style={'width': '{width}px}'}]
-        .footer-time.follow[style={'right': width - mouse_position.x + 'px'}]
-          let px = xaxis.pixels[mouse_position.x]
-          if px:
-            "{format_datetime(px.exact_time)}"
-          else:
-            "--"
-    else:
-      .footer[style={'width': '{width}px}'}]
-        let px = xaxis.pixels[width-1]
-        if px:
-          .footer-time "{format_datetime(px.exact_time)}"
-

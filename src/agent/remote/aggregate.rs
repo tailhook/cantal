@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::collections::BTreeMap;
 
 use rustc_serialize::json::Json;
+use rustc_serialize::json::ToJson;
 
 use super::{Peers, Peer};
 use super::super::rules::{Rule, Query, Source, json_tree, match_cond};
@@ -50,19 +51,25 @@ fn query_fine(rule: &Rule, peer: &Peer) -> Json {
 pub fn query(query: &Query, peers: &Peers) -> Json {
     // TODO(tailhook) query.limit is unused, remove it or use it
     let mut items = BTreeMap::new();
-    for (name, ref rule) in query.rules.iter() {
-        match rule.source {
-            Source::Tip => unimplemented!(),
-            Source::Fine => {
-                let mut dict = BTreeMap::new();
-                for (addr, &tok) in peers.addresses.iter() {
-                    dict.insert(addr.to_string(),
+    for (addr, &tok) in peers.addresses.iter() {
+        let mut dict = BTreeMap::new();
+        for (name, ref rule) in query.rules.iter() {
+            match rule.source {
+                Source::Tip => unimplemented!(),
+                Source::Fine => {
+                    dict.insert(name.clone(),
                         query_fine(rule, &peers.peers[tok]));
                 }
-                items.insert(name.clone(), Json::Object(dict));
+                Source::Coarse => unimplemented!(),
             }
-            Source::Coarse => unimplemented!(),
         }
+        items.insert(addr.to_string(), Json::Object(vec![
+            ("fine_metrics".to_string(), Json::Object(dict)),
+            ("fine_timestamps".to_string(),
+                peers.peers[tok].history.fine_timestamps
+                .iter().map(|&(x, _)| x).collect::<Vec<_>>()
+                .to_json()),
+            ].into_iter().collect()));
     }
     return Json::Object(items);
 }

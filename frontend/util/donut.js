@@ -68,7 +68,11 @@ export function with_paths(items, total, size) {
         } else {
             angle -= 360 * it.value / total;
         }
-        var path = sector(cx, cy, r > 50 ? r*0.50 : r*0.2, r, sangle, angle)
+        var path = sector(cx, cy,
+            // TODO(tailhook) use some interpolation
+            r > 150 ? r*0.50 :
+            r > 50 ? r*0.4 : r*0.2,
+            r, sangle, angle)
         result.push({path: path, ...it})
     }
     return result

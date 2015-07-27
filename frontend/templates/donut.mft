@@ -6,20 +6,25 @@ css:
     vertical-align: middle
   .hover
     stroke: black
+  .hint
+    position: absolute
+    top: 10px
+    left: 10px
+    pointer-events: none
 
 html render(items, width, height, total):
   div
+    store tooltip = new Tooltip()
     svg[style={
         'width': width + "px",
         'height': height + "px"
         }]
       let paths = donut.with_paths(items, total, width)
-      store tooltip = new Tooltip()
       g
         for item of paths:
           path[fill=item.color, title=item.title, d=item.path]
             link mouseenter = item -> tooltip.enter
             link {mouseleave} = tooltip
-      if tooltip.visible:
-        text[x="10", y="20"] "{tooltip.data.title}: {tooltip.data.text}"
+    if tooltip.visible:
+      .hint "{tooltip.data.title}: {tooltip.data.text}"
 

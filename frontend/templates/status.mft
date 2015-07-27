@@ -1,6 +1,5 @@
 import {component} from 'util/base'
 import {Toggle} from 'util/stores'
-import {DonutChart} from 'util/donut'
 import donut from 'templates/donut.mft'
 import plot from 'templates/plot.mft'
 import compact from 'templates/charts/compact.mft'
@@ -69,7 +68,7 @@ html render(error, timestamps, data, mem_chart, cpu_chart):
       }
     h2 "CPU"
     if cpu_chart:
-      =compact.render(timestamps, [{
+      =compact.render(1100, timestamps, [{
             'title': 'Cpu',
             'values': cpu_chart['cpu.usage'],
             'yaxis': cpu_yaxis
@@ -105,7 +104,7 @@ html render(error, timestamps, data, mem_chart, cpu_chart):
       }
     h2 "Network"
     if data.network:
-      =compact.render(timestamps, [{
+      =compact.render(1100, timestamps, [{
             'title': 'Receive',
             'values': data.network['net.interface.rx.bytes'],
             'yaxis': net_yaxis
@@ -153,7 +152,7 @@ html render(error, timestamps, data, mem_chart, cpu_chart):
           ]
       }
     if data.disk:
-      =compact.render(timestamps, [{
+      =compact.render(1100, timestamps, [{
             'title': 'Disk Read Ops',
             'values': data.disk['disk.read.ops'],
             'yaxis': ops_yaxis
