@@ -34,7 +34,7 @@ html render(current_page):
       let beacon = websock.last_beacon
       div.navbar-header
         a.navbar-brand[href="#/"]
-          "Cantal {current_page}"
+          "Cantal"
       div.collapse.navbar-collapse
         ul.nav.navbar-nav
           li.active?(current_page == 'processes')
