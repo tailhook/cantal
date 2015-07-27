@@ -14,6 +14,7 @@ use super::super::websock;
 use super::super::util::WriteVec as W;
 use super::super::util::ReadVec as R;
 use super::super::util::Consume;
+use super::super::ioutil::Poll;
 //use super::super::websock::InputMessage as OutputMessage;
 use super::super::websock::OutputMessage as InputMessage;
 
@@ -59,15 +60,7 @@ impl WebSocket {
             let buf = replace(&mut self.output, Vec::new());
             match W::write(&mut self.sock, buf) {
                 W::Done => {
-                    match ctx.eloop.reregister(&self.sock, tok,
-                        EventSet::readable(), PollOpt::level())
-                    {
-                        Ok(_) => return Some(Vec::new()),
-                        Err(e) => {
-                            error!("Error on reregister: {}; \
-                                    closing connection", e);
-                        }
-                    }
+                    ctx.eloop.modify(&self.sock, tok, true, false);
                 }
                 W::More(buf) => {
                     self.output = buf;
@@ -138,14 +131,16 @@ impl WebSocket {
                     }
                     return Some(messages);
                 }
-                R::Full|R::Close => {}
+                R::Full => {
+                    debug!("Input buffer is full (too big message), \
+                        closing connection.");
+                }
+                R::Close => {}
                 R::Error(err) => {
                     debug!("Error reading from websock: {}", err);
                 }
             }
-            ctx.eloop.deregister(&self.sock)
-                .map_err(|err| error!("Can't deregister sock: {}", err))
-                .ok();
+            ctx.eloop.remove(&self.sock);
             return None;
         }
         return Some(Vec::new());

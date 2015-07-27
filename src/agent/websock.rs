@@ -177,6 +177,8 @@ pub fn parse_message<F, T>(buf: &mut Vec<u8>, context: &mut Context, cb: F)
 }
 
 pub fn write_text(buf: &mut Vec<u8>, chunk: &str) {
+    // TODO(tailhook) implement masking for client websock
+    // as it should be required (by spec)
     let bytes = chunk.as_bytes();
     buf.push(0b10000001);  // text message
     if bytes.len() > 65535 {
