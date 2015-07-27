@@ -327,6 +327,7 @@ fn query_fine(rule: &Rule, stats: &Stats) -> Result<Json, Error> {
     })))
 }
 
+// Get rid of Result, it always succeed
 pub fn query(query: &Query, stats: &Stats) -> Result<Json, Error> {
     let mut items = BTreeMap::new();
     for (name, rule) in query.rules.iter() {

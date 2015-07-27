@@ -12,6 +12,7 @@ css:
     text-align: center
     border: solid rgba(44, 162, 95, 0.5) 4px
     border-radius: 8px
+    margin: 2px
   .latency
     float: right
   .question
@@ -60,12 +61,12 @@ html render(peers):
     }
     .latency "{grid_query.latency}ms"
     div
-      for peer of peers:
+      for peer of peers.concat([{'addr': 'myself'}]):
         div
           if grid_query.response and grid_query.response[peer.addr]:
             .peer
               let stats = grid_query.response[peer.addr]
-
+              let name = peer.addr.split(':')[0]
 
               let mem = mem_chart(stats.fine_metrics.memory)
               .donut-container
@@ -79,7 +80,7 @@ html render(peers):
                       'values': cpu['cpu.usage'],
                       'yaxis': cpu_yaxis
                       }])
-              .addr "{peer.addr}"
+              .addr "{name}"
           else:
             .peer
               .question "?"
