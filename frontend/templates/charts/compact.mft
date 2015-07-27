@@ -52,7 +52,7 @@ html render(width, timestamps, items):
     store mouse_position = new Follow()
     link {mousemove,mouseenter,mouseleave} = mouse_position
     let xaxis = compact.xaxis(timestamps, width)
-    .xaxis[style={'width': '{width}px}'}]
+    .xaxis[style={'width': width+'px'}]
       svg[width="{width}", height="40"]
         for tick of xaxis.ticks:
           g[transform="translate({tick.x}, 40)"]
@@ -61,7 +61,7 @@ html render(width, timestamps, items):
     div
       for item of items:
         if item.values:
-          .bar[style={'width': '{width}px}'}]
+          .bar[style={'width': width + 'px'}]
             =compact.draw(xaxis, item.yaxis, item.values)
             .title "{item.title}"
             if mouse_position.x != null and mouse_position.x < width:
@@ -74,10 +74,10 @@ html render(width, timestamps, items):
             else:
               .value "{item.values[0]}"
         else:
-          .bar.nodata[style={'width': '{width}px}'}]
+          .bar.nodata[style={'width': width+'px'}]
             "-- no data --"
     if mouse_position.x != null and mouse_position.x < width:
-      .footer[style={'width': '{width}px}'}]
+      .footer[style={'width': width+'px'}]
         .footer-time.follow[style={'right': width - mouse_position.x + 'px'}]
           let px = xaxis.pixels[mouse_position.x]
           if px:
@@ -85,7 +85,7 @@ html render(width, timestamps, items):
           else:
             "--"
     else:
-      .footer[style={'width': '{width}px}'}]
+      .footer[style={'width': width+'px'}]
         let px = xaxis.pixels[width-1]
         if px:
           .footer-time "{format_datetime(px.exact_time)}"
