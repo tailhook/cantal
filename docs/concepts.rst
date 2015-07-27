@@ -71,7 +71,7 @@ network is lossy.
 You can ask **any instance** of agent to get metrics for whole cluster. This
 is how we allow to get data over whole cluster with a single HTTP request. But
 we do it *lazily*, so that we don't have full mesh of connections. I.e. when
-first client asks, we connect to every node by TCP and subcribe for connections.
+first client asks, we connect to every node by TCP and subcribe for metrics.
 
 
 Discovery
@@ -151,9 +151,9 @@ The only practical limitation of it is the that running a full-mesh of TCP
 connections is quite inefficient. So you should poll a single node while it's
 still available and switch to another one only when it's not.
 
-.. warning:: It's hard to overstate that you should not poll every node in turn
-   otherwise you will have a full mesh of connections and every node will send
-   updates to each other every two seconds.
+.. warning:: It's hard to overstate that you should not poll every node in
+   turn, otherwise you will have a full mesh of connections and every node will
+   send updates to each other every two seconds.
 
    Viewing web interface for **local metrics** and polling for them is
    perfectly OK on any and every node.
