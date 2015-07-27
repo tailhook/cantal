@@ -42,18 +42,13 @@ commands:
     description: Build ubuntu (trusty) package
     container: ubuntu
     write-mode: transient-hard-link-copy
-    run:
-    - checkinstall
-    - --default
-    - --maintainer=paul@colomiets.name
-    - --pkglicense=MIT
-    - --pkgname=cantal
-    - --nodoc
-    - --strip=no
-    - make
-    - -B
-    - all
-    - install
+    run: |
+      make -B
+      checkinstall --default \
+        --maintainer=paul@colomiets.name \
+        --pkglicense=MIT --pkgname=cantal \
+        --nodoc --strip=no \
+        make install
 
   mpack: !Command
     description: Run interactive python with msgpack (to debug file format)
