@@ -93,11 +93,7 @@ impl WebSocket {
                                 Err(err) => {
                                     debug!("Error while reading request: {:?}",
                                         err);
-                                    ctx.eloop.deregister(&self.sock)
-                                        .map_err(|err| error!(
-                                            "Can't deregister sock: {}",
-                                            err))
-                                        .ok();
+                                    ctx.eloop.remove(&self.sock);
                                     return None;
                                 }
                             }
@@ -120,6 +116,7 @@ impl WebSocket {
                                             "Error decoding msg {:?}", e))
                                         .ok())
                                 } else {
+                                    debug!("Wrong opcode. Skipping");
                                     None
                                 }
                             });

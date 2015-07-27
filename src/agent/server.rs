@@ -436,6 +436,8 @@ impl Handler {
                         debug!("Error reading from websock: {}", err);
                     }
                 }
+            } else {
+                return true;
             }
             context.eloop.remove(&wsock.sock);
         } else {
