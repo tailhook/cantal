@@ -145,7 +145,8 @@ pub fn serve_query_by_host(req: &Request, context: &mut Context)
                         .ok().expect("query always succeeds")),
                     ("fine_timestamps".to_string(),
                         stats.history.fine_timestamps
-                        .iter().map(|&(x, _)| x).collect::<Vec<_>>()
+                        .iter().take(DATA_POINTS)
+                            .map(|&(x, _)| x).collect::<Vec<_>>()
                         .to_json()),
                 ].into_iter().collect()));
         }
