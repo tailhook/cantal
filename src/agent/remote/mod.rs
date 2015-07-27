@@ -205,7 +205,8 @@ pub fn try_io(tok: Token, ev: EventSet, ctx: &mut Context) -> bool
                             .ok();
                         }
                         InputMessage::Stats(stats) => {
-                            debug!("New stats from peer {:?}", stats);
+                            debug!("New stats from peer {:?}", peer.addr);
+                            trace!("Stat values {:?}: {:?}", peer.addr, stats);
                             peer.history.update_chunks(stats);
                         }
                     }
@@ -215,6 +216,7 @@ pub fn try_io(tok: Token, ev: EventSet, ctx: &mut Context) -> bool
                 to_close = true;
             }
             if old &&  !to_close && !wsock.handshake {
+                debug!("Connected websocket to {:?}", peer.addr);
                 data.connected += 1;
                 assert!(ctx.eloop.clear_timeout(peer.timeout));
                 peer.timeout = ctx.eloop.timeout_ms(ResetPeer(tok),
@@ -229,6 +231,7 @@ pub fn try_io(tok: Token, ev: EventSet, ctx: &mut Context) -> bool
                     ctx.eloop.modify(&wsock.sock, tok, true, true);
                 }
             } else if !old && to_close {
+                debug!("Disconnected websocket from {:?}", peer.addr);
                 data.connected -= 1;
             }
             to_close
