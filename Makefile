@@ -7,13 +7,13 @@ all: bin js
 
 bin:
 	cargo build --release
-	cp ./target/release/cantal-agent .
-	cp ./target/release/cantal .
+	cp --remove-destination ./target/release/cantal-agent .
+	cp --remove-destination ./target/release/cantal .
 
 debug-bin:
 	cargo build
-	cp ./target/debug/cantal-agent .
-	cp ./target/debug/cantal .
+	cp --remove-destination ./target/debug/cantal-agent .
+	cp --remove-destination ./target/debug/cantal .
 
 # ------------------ JAVASCRIPTS -----------------------
 
