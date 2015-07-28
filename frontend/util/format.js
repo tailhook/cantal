@@ -34,7 +34,7 @@ export function bytes_formatter() {
         } else if(x >= (10 << 19)) {
             return (x >> 20) + 'Mi'
         } else if(x >= (1 << 19)) {
-            return (x / (1 >> 20)).toFixed(1) + 'Mi'
+            return (x / (1 << 20)).toFixed(1) + 'Mi'
         } else if(x >= (10 << 9)) {
             return (x >> 10) + 'ki'
         } else if(x >= (1 << 9)) {
