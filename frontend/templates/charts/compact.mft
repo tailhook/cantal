@@ -68,11 +68,20 @@ html render(width, timestamps, items):
               .value.follow[style={'right': width - mouse_position.x + 'px'}]
                 let px = xaxis.pixels[mouse_position.x]
                 if px:
-                  "{item.values[px.index]}"
+                  if !isNaN(item.values[px.index]):
+                    if item.yaxis.format:
+                      =String(item.yaxis.format(item.values[px.index]))
+                    else:
+                      =String(item.values[px.index].toFixed(2))
                 else:
                   "--"
             else:
-              .value "{item.values[0]}"
+              .value
+                if !isNaN(item.values[0]):
+                  if item.yaxis.format:
+                    =String(item.yaxis.format(item.values[0]))
+                  else:
+                    =String(item.values[0].toFixed(2))
         else:
           .bar.nodata[style={'width': width+'px'}]
             "-- no data --"

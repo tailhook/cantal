@@ -2,6 +2,7 @@ import {QueryRemote} from 'util/query'
 import {cpu_chart, mem_chart} from 'util/compute'
 import donut from 'templates/donut.mft'
 import sparkline from 'templates/charts/sparkline.mft'
+import {number_formatter, already_percent_formatter} from 'util/format'
 
 css:
   .peer
@@ -13,6 +14,7 @@ css:
     border: solid rgba(44, 162, 95, 0.5) 4px
     border-radius: 8px
     margin: 2px
+    position: relative
   .latency
     float: right
   .question
@@ -51,6 +53,7 @@ html render(peers):
       height: 40,
       bg_color: 'rgb(237,248,233)',
       skip_color: "white",
+      format: already_percent_formatter(),
       colors: [
         [100, 'rgb(186,228,179)'],
         [200,'rgb(116,196,118)'],

@@ -4,6 +4,8 @@ import donut from 'templates/donut.mft'
 import plot from 'templates/plot.mft'
 import compact from 'templates/charts/compact.mft'
 import {last} from 'util/list'
+import {integral_formatter, bytes_formatter} from 'util/format'
+import {number_formatter, already_percent_formatter} from 'util/format'
 
 css:
   .sample
@@ -58,6 +60,7 @@ html render(error, timestamps, data, mem_chart, cpu_chart):
       height: 40,
       bg_color: 'rgb(237,248,233)',
       skip_color: "white",
+      format: already_percent_formatter(),
       colors: [
           [100, 'rgb(186,228,179)'],
           [200,'rgb(116,196,118)'],
@@ -94,6 +97,7 @@ html render(error, timestamps, data, mem_chart, cpu_chart):
       height: 40,
       bg_color: 'rgb(237,248,233)',
       skip_color: "white",
+      format: bytes_formatter(),
       colors: [
           [100*1024, 'rgb(186,228,179)'],
           [1024*1024,'rgb(116,196,118)'],
@@ -119,6 +123,7 @@ html render(error, timestamps, data, mem_chart, cpu_chart):
       height: 40,
       bg_color: 'rgb(237,248,233)',
       skip_color: "white",
+      format: bytes_formatter(),
       colors: [
           [1024, 'rgb(186,228,179)'],
           [100*1024,'rgb(116,196,118)'],
@@ -131,6 +136,7 @@ html render(error, timestamps, data, mem_chart, cpu_chart):
       height: 40,
       bg_color: 'rgb(237,248,233)',
       skip_color: "white",
+      format: integral_formatter(),
       colors: [
           [5, 'rgb(186,228,179)'],
           [20,'rgb(116,196,118)'],
@@ -143,6 +149,7 @@ html render(error, timestamps, data, mem_chart, cpu_chart):
       height: 40,
       bg_color: 'rgb(237,248,233)',
       skip_color: "white",
+      format: integral_formatter(),
       colors: [
           [5, 'rgb(186,228,179)'],
           [10,'rgb(116,196,118)'],

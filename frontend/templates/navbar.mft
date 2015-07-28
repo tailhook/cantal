@@ -1,7 +1,5 @@
 import {format_uptime, till_now_ms, from_ms} from 'util/time'
 import {component} from 'util/base'
-import {Sparkline} from 'util/sparkline'
-import {DonutChart} from 'util/donut'
 import websock from 'util/websock'
 
 css:
