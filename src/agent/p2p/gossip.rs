@@ -68,7 +68,6 @@ fn get_friends_for(peers: &HashMap<SocketAddr, Peer>, peer: SocketAddr)
     }).collect()
 }
 
-
 impl Context {
     pub fn gossip_broadcast(&mut self) {
         let cut_time = get_time() - Duration::milliseconds(MIN_PROBE as i64);
@@ -174,7 +173,14 @@ impl Context {
             Packet::Ping { me: info, now, friends } => {
                 {
                     let peer = stats.peers.entry(addr)
-                                .or_insert_with(|| Peer::new(addr));
+                        .or_insert_with(|| {
+                            self.deps.get::<Sender<_>>().unwrap()
+                                .send(NewHost(addr))
+                                .map_err(|_| error!(
+                                    "Error sending NewHost msg"))
+                                .ok();
+                            Peer::new(addr)
+                        });
                     peer.report = Some(Report {
                         peers: info.peers,
                     });
@@ -203,7 +209,14 @@ impl Context {
             Packet::Pong { me: info, ping_time, peer_time, friends } => {
                 {
                     let peer = stats.peers.entry(addr)
-                                .or_insert_with(|| Peer::new(addr));
+                        .or_insert_with(|| {
+                            self.deps.get::<Sender<_>>().unwrap()
+                                .send(NewHost(addr))
+                                .map_err(|_| error!(
+                                    "Error sending NewHost msg"))
+                                .ok();
+                            Peer::new(addr)
+                        });
                     peer.report = Some(Report {
                         peers: info.peers,
                     });

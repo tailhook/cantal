@@ -73,6 +73,7 @@ pub fn ensure_started(ctx: &mut Context) {
         peers.write().unwrap().touch_time = SteadyTime::now();
         return; // already started
     }
+    debug!("Starting remote tracking");
     let range = Range::new(5, 150);
     let mut rng = thread_rng();
     let peers:Vec<_>;
@@ -105,6 +106,7 @@ pub fn ensure_started(ctx: &mut Context) {
 }
 
 pub fn add_peer(addr: SocketAddr, ctx: &mut Context) {
+    debug!("Adding peer {:?}", addr);
     let range = Range::new(5, 150);
     let mut rng = thread_rng();
     if ctx.deps.get::<PeerHolder>().is_none() {
