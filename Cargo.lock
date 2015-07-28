@@ -6,11 +6,11 @@ dependencies = [
  "argparse 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "byteorder 0.3.11 (registry+https://github.com/rust-lang/crates.io-index)",
  "cbor 0.3.14 (registry+https://github.com/rust-lang/crates.io-index)",
- "env_logger 0.3.1 (git+git://github.com/rust-lang/log)",
+ "fern 0.3.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "httparse 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "hyper 0.6.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "libc 0.1.8 (registry+https://github.com/rust-lang/crates.io-index)",
- "log 0.3.1 (git+git://github.com/rust-lang/log)",
+ "log 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "mime 0.0.12 (registry+https://github.com/rust-lang/crates.io-index)",
  "mio 0.4.1 (git+git://github.com/carllerche/mio)",
  "nix 0.3.9 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -99,12 +99,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "env_logger"
-version = "0.3.1"
-source = "git+git://github.com/rust-lang/log#fb2d9aa175dde57afc8f90d98282e3fe413732c0"
+name = "fern"
+version = "0.3.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
- "log 0.3.1 (git+git://github.com/rust-lang/log)",
- "regex 0.1.41 (registry+https://github.com/rust-lang/crates.io-index)",
+ "log 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -180,14 +179,6 @@ version = "2.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "pnacl-build-helper 1.4.7 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
-name = "log"
-version = "0.3.1"
-source = "git+git://github.com/rust-lang/log#fb2d9aa175dde57afc8f90d98282e3fe413732c0"
-dependencies = [
- "libc 0.1.8 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]

@@ -4,7 +4,6 @@ extern crate cbor;
 extern crate argparse;
 extern crate cantal;
 extern crate rustc_serialize;
-extern crate env_logger;
 extern crate regex;
 extern crate nix;
 extern crate mio;
@@ -18,9 +17,12 @@ extern crate hyper;
 extern crate websocket;
 extern crate byteorder;
 extern crate anymap;
+extern crate fern;
 
+use std::env;
 use std::thread;
 use std::fs::File;
+use std::str::FromStr;
 use std::path::PathBuf;
 use std::sync::{RwLock,Arc};
 use std::process::exit;
@@ -28,7 +30,7 @@ use std::error::Error;
 
 use rustc_serialize::Decodable;
 use cbor::{Decoder};
-use argparse::{ArgumentParser, Store, ParseOption};
+use argparse::{ArgumentParser, Store, ParseOption, StoreOption};
 
 use deps::{Dependencies, LockedDeps};
 
@@ -66,11 +68,12 @@ fn main() {
 }
 
 fn run() -> Result<(), Box<Error>> {
-    env_logger::init().unwrap();
 
     let mut host = "127.0.0.1".to_string();
     let mut port = 22682u16;
     let mut storage_dir = None::<PathBuf>;
+    let mut log_level = env::var("RUST_LOG").ok()
+        .and_then(|x| FromStr::from_str(&x).ok());
     {
         let mut ap = ArgumentParser::new();
         ap.refer(&mut port)
@@ -82,7 +85,27 @@ fn run() -> Result<(), Box<Error>> {
         ap.refer(&mut storage_dir)
             .add_option(&["-d", "--storage-dir"], ParseOption,
                 "A directory to serialize data to");
+        ap.refer(&mut log_level)
+            .add_option(&["--log-level"], StoreOption,
+                "Log level");
         ap.parse_args_or_exit();
+    }
+
+    let logger_config = fern::DispatchConfig {
+        format: Box::new(|msg: &str, level: &log::LogLevel,
+                location: &log::LogLocation|
+        {
+            format!("[{}][{}] {} {}",
+                time::now().strftime("%Y-%m-%d %H:%M:%S").unwrap(),
+                level, location.module_path(), msg)
+        }),
+        output: vec![fern::OutputConfig::stderr()],
+        level: log_level.unwrap_or(log::LogLevel::Warn).to_log_level_filter(),
+    };
+    if let Err(e) = fern::init_global_logger(logger_config,
+        log_level.unwrap_or(log::LogLevel::Warn).to_log_level_filter())
+    {
+        panic!("Failed to initialize global logger: {}", e);
     }
 
     let mut deps = Dependencies::new();
