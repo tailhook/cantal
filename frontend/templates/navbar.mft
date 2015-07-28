@@ -35,6 +35,9 @@ html render(current_page):
           "Cantal"
       div.collapse.navbar-collapse
         ul.nav.navbar-nav
+          li.active?(current_page == 'status')
+            a[href="#/status"]
+              "Status"
           li.active?(current_page == 'processes')
             a[href="#/processes"]
               "Processes"
@@ -69,5 +72,3 @@ html render(current_page):
           if beacon:
             =render_self(beacon, websock.connected)
           ") "
-          a.btn.btn-default[href="#/status"]
-            "Status"
