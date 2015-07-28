@@ -2,6 +2,7 @@ use std::sync::{Arc, RwLock};
 use std::io::Write;
 
 use mio;
+use nix::unistd::getpid;
 use libc::usleep;
 use cbor::Encoder as Mencoder;
 
@@ -29,6 +30,8 @@ pub fn scan_loop(deps: Dependencies)
     let mut last_hourly = last_store / 3_600_000;
     let mut process_cache = processes::ReadCache::new();
     let mut values_cache = values::ReadCache::new();
+    stats.write().map(|mut s| { s.pid = getpid(); })
+        .ok().expect("Stats must be readable still");
     loop {
         let start = time_ms();
         let mut tip = Tip::new();
@@ -36,6 +39,7 @@ pub fn scan_loop(deps: Dependencies)
         let boot_time = machine::read(&mut tip);
 
         let processes = processes::read(&mut process_cache);
+        processes::write_tip(&mut tip, &processes);
         values::read(&mut tip, &mut values_cache, &processes);
 
         let scan_duration = (time_ms() - start) as u32;

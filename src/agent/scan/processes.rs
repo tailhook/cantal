@@ -7,6 +7,8 @@ use libc;
 use cantal::find_elem;
 use cantal::itertools::{NextValue, NextStr, words};
 use cantal::iotools::{ReadHostBytes};
+use super::Tip;
+use super::super::stats::Key;
 
 pub type Pid = u32;
 
@@ -106,5 +108,40 @@ impl ReadCache {
                 libc::sysconf(libc::consts::os::sysconf::_SC_CLK_TCK) as u32
             },
         }
+    }
+}
+
+pub fn write_tip(tip: &mut Tip, processes: &Vec<MinimalProcess>) {
+    use cantal::Value::*;
+
+    for p in processes {
+        let pid = p.pid.to_string();
+        tip.add(Key::pairs(&[
+            ("pid", &pid[..]),
+            ("metric", "vsize"),
+            ]),
+            Integer(p.vsize as i64));
+        tip.add(Key::pairs(&[
+            ("pid", &pid[..]),
+            ("metric", "rss"),
+            ]),
+            Integer(p.rss as i64));
+        tip.add(Key::pairs(&[
+            ("pid", &pid[..]),
+            ("metric", "num_threads"),
+            ]),
+            Integer(p.num_threads as i64));
+        tip.add(Key::pairs(&[
+            ("pid", &pid[..]),
+            ("metric", "user_time"),
+            ]),
+            Counter(p.user_time as u64));
+        tip.add(Key::pairs(&[
+            ("pid", &pid[..]),
+            ("metric", "system_time"),
+            ]),
+            Counter(p.system_time as u64));
+        // TODO(tailhook) io
+        // TODO(tailhook) FDSize
     }
 }
