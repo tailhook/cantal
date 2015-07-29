@@ -2,10 +2,12 @@ import {format_uptime, till_now_ms, from_ms} from 'util/time'
 import {component} from 'util/base'
 import websock from 'util/websock'
 import {Query} from 'util/query'
-import {already_percent_formatter} from 'util/format'
+import {already_percent_formatter, bytes_formatter} from 'util/format'
+import {percent_formatter} from 'util/format'
 import sparkline from 'templates/charts/sparkline.mft'
 import donut from 'templates/donut.mft'
 import {cpu_chart, mem_chart} from 'util/compute'
+import {self_cpu} from 'util/navbar'
 
 css:
   .pointer
@@ -23,7 +25,7 @@ css:
 html icon(name):
   span.glyphicon[class="glyphicon-{name}"]
 
-html render_self(beacon, connected):
+html render_self(beacon, connected, stats):
   span.pointer[title="Uptime of the cantal agent itself"]
     " up "
     =format_uptime(till_now_ms(from_ms(beacon.startup_time)))
@@ -33,6 +35,13 @@ html render_self(beacon, connected):
   " "
   span.pointer[title="Time it takes for cantal to read all stats once"]
     "{beacon.scan_duration:d}ms"
+  if stats:
+    " "
+    =bytes_formatter()(stats.fine_metrics.self.rss[0][0])
+    "/"
+    =already_percent_formatter()(
+      stats.fine_metrics.self.user_time[0][0] +
+      stats.fine_metrics.self.system_time[0][0])
 
 html render_machine(beacon, stats):
   span.pointer[title="Uptime of the box running cantal"]
@@ -113,7 +122,7 @@ html render(current_page):
                     'condition': ['eq', 'pid', String(beacon.pid)],
                     'key': ['metric'],
                     'aggregation': 'None',
-                    'limit': 120
+                    'limit': 2
                     },
                 'memory': {
                     'source': 'Fine',
@@ -145,5 +154,5 @@ html render(current_page):
             ") ("
             =icon('scale')
             if beacon:
-              =render_self(beacon, websock.connected)
+              =render_self(beacon, websock.connected, query.response)
             ") "
