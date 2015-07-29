@@ -2,6 +2,7 @@ use std::iter::repeat;
 use std::sync::{Arc, RwLock};
 use std::net::SocketAddr;
 
+use libc::pid_t;
 use unicase::UniCase;
 use byteorder::{BigEndian, ByteOrder};
 use hyper::header::{Upgrade, ProtocolName};
@@ -25,6 +26,7 @@ use super::rules;
 
 #[derive(RustcEncodable, RustcDecodable, Debug, Clone)]
 pub struct Beacon {
+    pub pid: pid_t,
     pub current_time: u64,
     pub startup_time: u64,
     pub boot_time: Option<u64>,
@@ -201,7 +203,8 @@ pub fn write_text(buf: &mut Vec<u8>, chunk: &str) {
 
 pub fn beacon(deps: &Dependencies) -> String {
     // Lock one by one, to avoid deadlocks
-    let (startup_time,
+    let (pid,
+         startup_time,
          boot_time,
          scan_time,
          scan_duration,
@@ -210,7 +213,8 @@ pub fn beacon(deps: &Dependencies) -> String {
          fine_history_length,
          history_age) = {
             let st = deps.read::<Stats>();
-            (   st.startup_time,
+            (   st.pid,
+                st.startup_time,
                 st.boot_time.map(|x| x*1000),
                 st.last_scan,
                 st.scan_duration,
@@ -232,6 +236,7 @@ pub fn beacon(deps: &Dependencies) -> String {
             (None, None)
         };
     json::encode(&OutputMessage::Beacon(Beacon {
+        pid: pid,
         current_time: time_ms(),
         startup_time: startup_time,
         boot_time: boot_time,
