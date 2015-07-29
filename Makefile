@@ -26,15 +26,10 @@ js:
 install:
 	install -d $(DESTDIR)$(PREFIX)/bin
 	install -d $(DESTDIR)$(PREFIX)/lib/cantal
-	install -m 755 cantal $(DESTDIR)$(PREFIX)/bin/cantal
+	install -m 755 ./target/release/cantal $(DESTDIR)$(PREFIX)/bin/cantal
 
-	install -m 755 cantal-agent $(DESTDIR)$(PREFIX)/lib/cantal/cantal-agent
+	install -m 755 ./target/release/cantal-agent $(DESTDIR)$(PREFIX)/lib/cantal/cantal-agent
 	ln -s ../lib/cantal/cantal-agent $(DESTDIR)$(PREFIX)/bin/cantal-agent
-	# setcap is required to be able to read other processes environment
-	# without root privileges
-	# setcap "cap_sys_ptrace=ep cap_dac_read_search=ep" \
-	#	$(DESTDIR)$(PREFIX)/lib/cantal/cantal_agent
-
 	cp -r public $(DESTDIR)$(PREFIX)/lib/cantal/
 
 
