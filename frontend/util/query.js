@@ -88,3 +88,23 @@ export class QueryRemote extends JsonQuery {
         this.response = obj
     }
 }
+
+export class Query extends JsonQuery {
+    constructor(interval, rules) {
+        super()
+        this.rules = rules
+        this.url = '/query.json'
+        this.interval = interval || 5000
+        this.post_data = JSON.stringify({
+            'rules': this.rules,
+        })
+        this.start()
+    }
+    apply(json) {
+        this.response = {
+            "fine_timestamps": json.fine_timestamps
+                .map(([ts, _]) => from_ms(ts)),
+            "fine_metrics": json.dataset,
+        }
+    }
+}

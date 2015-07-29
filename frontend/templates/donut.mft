@@ -13,9 +13,11 @@ css:
     pointer-events: none
     font-family: Verdana, Tahoma, sans-serif
     text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5)
+  .canvas
+    display: inline-block
 
 html render(items, width, height, total):
-  div
+  .canvas
     store tooltip = new Tooltip()
     svg[style={
         'width': width + "px",

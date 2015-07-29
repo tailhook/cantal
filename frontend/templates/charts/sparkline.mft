@@ -6,6 +6,8 @@ css:
   .bar
     height: 41px
     position: relative
+    display: inline-block
+    vertical-align: middle
   .title
     font-family: Verdana, Tahoma, sans-serif
     text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5)
@@ -42,11 +44,11 @@ css:
     font-size: 12px
 
 html render(width, timestamps, items):
-  div
+  span
     store mouse_position = new Follow()
     link {mousemove,mouseenter,mouseleave} = mouse_position
     let xaxis = compact.xaxis(timestamps, width)
-    div
+    span
       for item of items:
         if item.values:
           .bar[style={'width': '{width}px}'}]
