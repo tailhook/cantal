@@ -22,7 +22,7 @@ Then just download and build project with cargo::
 
     wget https://github.com/tailhook/cantal/archive/staging.tar.gz
     cd cantal-staging
-    cargo build
+    cargo build --release
 
 .. note:: We build from *staging* branch, because that contains javascripts
    already built. Building javascripts is a little bit more complex process,
