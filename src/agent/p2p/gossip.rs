@@ -2,7 +2,6 @@ use std::net::{SocketAddr};
 use std::collections::HashMap;
 
 use mio::Sender;
-use time::{Timespec, Duration, get_time};
 use rand::{thread_rng, Rng, sample};
 use cbor::Encoder;
 use mio::buf::ByteBuf;
@@ -12,6 +11,8 @@ use super::peer::{Peer, Report};
 use super::super::server::Message::NewHost;
 use super::GossipStats;
 use super::super::deps::{LockedDeps};
+use super::super::remote::Peers as RemotePeers;
+use super::super::scan::time_ms;
 
 
 pub const INTERVAL: u64 = 1000;
@@ -22,13 +23,13 @@ pub const NUM_FRIENDS: u64 = 10;
 pub enum Packet {
     Ping {
         me: MyInfo,
-        now: Timespec,
+        now: u64,
         friends: Vec<FriendInfo>,
     },
     Pong {
         me: MyInfo,
-        ping_time: Timespec,
-        peer_time: Timespec,
+        ping_time: u64,
+        peer_time: u64,
         friends: Vec<FriendInfo>,
     },
 }
@@ -36,21 +37,15 @@ pub enum Packet {
 #[derive(Debug, Clone, RustcEncodable, RustcDecodable)]
 pub struct MyInfo {
     host: String,
-    peers: u32,
+    report: Report,
 }
 
 #[derive(Debug, Clone, RustcEncodable, RustcDecodable)]
 pub struct FriendInfo {
     addr: String,
     host: Option<String>,
-    peers: Option<u32>,
-    last_report: Option<Timespec>,
-    roundtrip: Option<(Timespec, u64)>,
-}
-
-
-fn after(tm: Option<Timespec>, target_time: Timespec) -> bool {
-    return tm.map(|x| x >= target_time).unwrap_or(false);
+    report: Option<(u64, Report)>,
+    roundtrip: Option<(u64, u64)>,
 }
 
 fn get_friends_for(peers: &HashMap<SocketAddr, Peer>, peer: SocketAddr)
@@ -62,15 +57,27 @@ fn get_friends_for(peers: &HashMap<SocketAddr, Peer>, peer: SocketAddr)
     friends.into_iter().map(|(a, f)| FriendInfo {
         addr: a.to_string(),
         host: f.host.clone(),
-        peers: f.report.as_ref().map(|x| x.peers),
-        last_report: f.last_report,
+        report: f.report.clone(),
         roundtrip: f.last_roundtrip,
     }).collect()
 }
 
+fn apply_report(dest: &mut Option<(u64, Report)>, src: Option<(u64, Report)>) {
+    if match (&dest, &src) {
+        (&&mut Some((pts, _)), &Some((fts, _)))
+        if pts < fts  // apply only newer report
+        => true,
+        (&&mut None, &Some((_, _)))  // or if one did not exists
+        => true,
+        _ => false
+    } {
+        *dest = src;
+    }
+}
+
 impl Context {
     pub fn gossip_broadcast(&mut self) {
-        let cut_time = get_time() - Duration::milliseconds(MIN_PROBE as i64);
+        let cut_time = time_ms() - MIN_PROBE;
         let mut stats = self.deps.write::<GossipStats>();
         if self.queue.len() == 0 {
             if stats.peers.len() == 0 {
@@ -86,8 +93,10 @@ impl Context {
             let target_ip = self.queue.pop().unwrap();
             // if not expired yet
             if let Some(peer) = stats.peers.get(&target_ip) {
-                if after(peer.last_probe, cut_time) ||
-                   after(peer.last_report, cut_time) {
+                if peer.last_probe.map(|x| x > cut_time).unwrap_or(false) ||
+                   peer.last_report_direct.map(|x| x > cut_time)
+                    .unwrap_or(false)
+                {
                     continue;  // don't probe too often
                 }
             }
@@ -97,7 +106,7 @@ impl Context {
     fn apply_friends(&self, peers: &mut HashMap<SocketAddr, Peer>,
                      friends: Vec<FriendInfo>, source: SocketAddr)
     {
-        for friend in friends {
+        for friend in friends.into_iter() {
             let addr: SocketAddr = if let Ok(val) = friend.addr.parse() {
                 val
             } else {
@@ -111,11 +120,7 @@ impl Context {
                         .ok();
                     Peer::new(addr)
                 });
-            if peer.report.is_none() {
-                peer.report = friend.peers.map(|x| Report {
-                    peers: x,
-                });
-            }
+            apply_report(&mut peer.report, friend.report);
             if peer.host != friend.host {
                 if friend.host.is_some() && peer.host.is_some() {
                     debug!("Peer host is different for {} \
@@ -135,6 +140,10 @@ impl Context {
     pub fn send_gossip(&self, addr: SocketAddr,
                        peers: &mut HashMap<SocketAddr, Peer>)
     {
+        // This "has_remote" thing is put here but it risks deadlock
+        // TODO(tailhook) fix this deadlock please!!!
+        let has_remote = self.deps.read::<Option<RemotePeers>>().is_some();
+
         debug!("Sending gossip to {}", addr);
         let mut buf = ByteBuf::mut_with_capacity(1024);
         {
@@ -142,9 +151,12 @@ impl Context {
             e.encode(&[&Packet::Ping {
                 me: MyInfo {
                     host: self.hostname.clone(),
-                    peers: peers.len() as u32,
+                    report: Report {
+                        peers: peers.len() as u32,
+                        has_remote: has_remote,
+                    },
                 },
-                now: get_time(),
+                now: time_ms(),
                 friends: get_friends_for(peers, addr),
             }]).unwrap();
         }
@@ -158,7 +170,7 @@ impl Context {
                             .ok();
                         Peer::new(addr)
                     });
-                peer.last_probe = Some(get_time());
+                peer.last_probe = Some(time_ms());
             }
             Err(e) => {
                 error!("Error sending probe to {:?}: {}", addr, e);
@@ -167,7 +179,13 @@ impl Context {
     }
 
     pub fn consume_gossip(&self, packet: Packet, addr: SocketAddr) {
-        let tm = get_time();
+        let tm = time_ms();
+
+        // This "has_remote" thing is put here to reduce the chance of
+        // deadlock (i.e. get remote peers before logging gossip stats
+        // However, it's not always needed so, may be optimize it?
+        let has_remote = self.deps.read::<Option<RemotePeers>>().is_some();
+
         let mut stats = self.deps.write::<GossipStats>();
         match packet {
             Packet::Ping { me: info, now, friends } => {
@@ -181,11 +199,9 @@ impl Context {
                                 .ok();
                             Peer::new(addr)
                         });
-                    peer.report = Some(Report {
-                        peers: info.peers,
-                    });
+                    apply_report(&mut peer.report, Some((tm, info.report)));
                     peer.host = Some(info.host.clone());
-                    peer.last_report = Some(tm);
+                    peer.last_report_direct = Some(tm);
                 }
                 self.apply_friends(&mut stats.peers, friends, addr);
                 let mut buf = ByteBuf::mut_with_capacity(1024);
@@ -194,7 +210,10 @@ impl Context {
                     e.encode(&[&Packet::Pong {
                         me: MyInfo {
                             host: self.hostname.clone(),
-                            peers: stats.peers.len() as u32,
+                            report: Report {
+                                peers: stats.peers.len() as u32,
+                                has_remote: has_remote,
+                            },
                         },
                         ping_time: now,
                         peer_time: tm,
@@ -217,16 +236,14 @@ impl Context {
                                 .ok();
                             Peer::new(addr)
                         });
-                    peer.report = Some(Report {
-                        peers: info.peers,
-                    });
+                    apply_report(&mut peer.report, Some((tm, info.report)));
                     // sanity check
                     if ping_time < tm && ping_time < peer_time {
                         peer.last_roundtrip = Some(
-                            (tm, (tm - ping_time).num_milliseconds() as u64));
+                            (tm, (tm - ping_time) as u64));
                     }
                     peer.host = Some(info.host.clone());
-                    peer.last_report = Some(tm);
+                    peer.last_report_direct = Some(tm);
                 }
                 self.apply_friends(&mut stats.peers, friends, addr);
             }

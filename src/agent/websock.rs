@@ -1,5 +1,5 @@
 use std::iter::repeat;
-use std::sync::{Arc, RwLock};
+use std::ops::Deref;
 use std::net::SocketAddr;
 
 use libc::pid_t;
@@ -229,8 +229,7 @@ pub fn beacon(deps: &Dependencies) -> String {
         gossip.peers.len()
     };
     let (remote_total, remote_connected) =
-        if let Some(ref pr) = deps.get::<Arc<RwLock<Peers>>>() {
-            let peers = pr.read().unwrap();
+        if let &Some(ref peers) = deps.read::<Option<Peers>>().deref() {
             (Some(peers.addresses.len()), Some(peers.connected))
         } else {
             (None, None)

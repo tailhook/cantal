@@ -1,4 +1,5 @@
 use std::io;
+use std::sync::{Arc, RwLock};
 use std::mem::replace;
 use std::str::from_utf8;
 use std::io::{Read, Write};
@@ -603,6 +604,7 @@ pub fn server_init(deps: &mut Dependencies, host: &str, port: u16)
     let mut eloop = try!(EventLoop::new());
     try!(eloop.register(&server, INPUT));
     deps.insert(eloop.channel());
+    deps.insert(Arc::new(RwLock::new(None::<remote::Peers>)));
     Ok(Init {
         input: server,
         eloop: eloop,

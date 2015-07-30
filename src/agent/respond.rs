@@ -12,7 +12,7 @@ use super::http::{Request, BadRequest};
 use super::server::Context;
 use super::stats::Stats;
 use super::p2p::GossipStats;
-use super::remote::{PeerHolder};
+use super::remote::{Peers};
 use super::deps::LockedDeps;
 use super::websock::Beacon;
 
@@ -86,7 +86,7 @@ pub fn serve_remote_stats(_req: &Request, context: &mut Context)
     -> Result<http::Response, Box<http::Error>>
 {
     #[derive(RustcEncodable)]
-    struct Peers {
+    struct Response {
         enabled: bool,
         peers: Vec<PeerInfo>,
     }
@@ -97,8 +97,7 @@ pub fn serve_remote_stats(_req: &Request, context: &mut Context)
         last_beacon_time: Option<u64>,
         last_beacon: Option<Beacon>,
     }
-    let response = if let Some(hld) = context.deps.get::<PeerHolder>() {
-        let peers = hld.read().unwrap();
+    let response = if let Some(ref peers) = *context.deps.read::<Option<Peers>>() {
         let mut result = Vec::new();
         for p in peers.peers.iter() {
             result.push(PeerInfo {
@@ -108,12 +107,12 @@ pub fn serve_remote_stats(_req: &Request, context: &mut Context)
                 last_beacon: p.last_beacon.as_ref().map(|x| x.1.clone()),
             })
         }
-        Peers {
+        Response {
             enabled: true,
             peers: result,
         }
     } else {
-        Peers {
+        Response {
             enabled: false,
             peers: Vec::new(),
         }

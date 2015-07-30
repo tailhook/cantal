@@ -1,5 +1,5 @@
 import {Toggle, Store, Value} from 'util/stores'
-import {format_uptime, till_now_ms, from_ms} from 'util/time'
+import {format_uptime, format_diff, till_now_ms, from_ms} from 'util/time'
 
 html render(peers, ctr):
   .container
@@ -56,6 +56,7 @@ html render(peers, ctr):
                   th "Last Report"
                   th "Roundtrip"
                   th "Peers"
+                  th "Remote?"
               tbody
                 for p of peers:
                   tr
@@ -67,12 +68,12 @@ html render(peers, ctr):
                         "unknown"
                     td.text-muted?(p.probe == null)
                       if p.probe:
-                        =format_uptime(till_now_ms(from_ms(p.probe*1000)))
+                        =format_diff(till_now_ms(from_ms(p.probe)))
                       else:
                         "never"
                     td.text-muted?(p.report == null)
-                      if p.report:
-                        =format_uptime(till_now_ms(from_ms(p.report*1000)))
+                      if p.report != null:
+                        =format_diff(till_now_ms(from_ms(p.report)))
                       else:
                         "never"
                     td.text-muted?(p.roundtrip == null)
@@ -85,6 +86,13 @@ html render(peers, ctr):
                         "{p.peers}"
                       else:
                         "∅"
+                    td.text-muted?(p.remote == null)
+                      if p.remote == null:
+                        "∅"
+                      elif p.remote:
+                        span.glyphicon.glyphicon-ok
+                      else:
+                        span.glyphicon.glyphicon-remove
           else:
             .panel.panel-warning
               .panel-heading

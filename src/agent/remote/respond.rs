@@ -37,8 +37,8 @@ pub fn serve_query_raw(req: &Request, context: &mut Context)
     .and_then(|query| {
         ensure_started(context);
 
-        let mut peerguard = context.deps.write::<Peers>();
-        let mut peers = &mut *peerguard;
+        let mut peerguard = context.deps.write::<Option<Peers>>();
+        let mut peers = peerguard.as_mut().unwrap();
 
         let response: Vec<_> = peers.peers.iter().map(|peer| HostStats {
             addr: peer.addr.to_string(),
@@ -93,8 +93,8 @@ pub fn serve_query_by_host(req: &Request, context: &mut Context)
         ensure_started(context);
 
         let mut resp = {
-            let mut peerguard = context.deps.write::<Peers>();
-            let mut peers = &mut *peerguard;
+            let mut peerguard = context.deps.write::<Option<Peers>>();
+            let mut peers = peerguard.as_mut().unwrap();
 
             for (_, qrule) in query.rules.iter() {
                 let rule = RawRule {

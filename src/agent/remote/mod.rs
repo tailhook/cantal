@@ -40,9 +40,6 @@ const SUBSCRIPTION_LIFETIME: i64 = 3 * 60_000;
 const DATA_POINTS: usize = 150;  // five minutes
 
 
-pub type PeerHolder = Arc<RwLock<Peers>>;
-
-
 #[allow(unused)] // start_time will be used later
 pub struct Peers {
     touch_time: SteadyTime,
@@ -69,8 +66,10 @@ impl Peer {
 
 
 pub fn ensure_started(ctx: &mut Context) {
-    if let Some(peers) = ctx.deps.get::<PeerHolder>() {
-        peers.write().unwrap().touch_time = SteadyTime::now();
+    let pref = ctx.deps.get::<Arc<RwLock<Option<Peers>>>>().unwrap().clone();
+    let mut opt_peers = pref.write().unwrap();
+    if let &mut Some(ref mut peers) = opt_peers.deref_mut() {
+        peers.touch_time = SteadyTime::now();
         return; // already started
     }
     debug!("Starting remote tracking");
@@ -102,18 +101,19 @@ pub fn ensure_started(ctx: &mut Context) {
             error!("Too many peers");
         }
     }
-    ctx.deps.insert(Arc::new(RwLock::new(data)));
+    *opt_peers = Some(data);
 }
 
 pub fn add_peer(addr: SocketAddr, ctx: &mut Context) {
     debug!("Adding peer {:?}", addr);
     let range = Range::new(5, 150);
     let mut rng = thread_rng();
-    if ctx.deps.get::<PeerHolder>().is_none() {
+    let mut opt_peers = ctx.deps.write::<Option<Peers>>();
+    if opt_peers.is_none() {
         // Remote handling is not enabled ATM
         return;
     }
-    let mut data = ctx.deps.write::<Peers>();
+    let data = opt_peers.as_mut().unwrap();
     if data.addresses.contains_key(&addr) {
         return;
     }
@@ -133,7 +133,8 @@ pub fn add_peer(addr: SocketAddr, ctx: &mut Context) {
 }
 
 pub fn reconnect_peer(tok: Token, ctx: &mut Context) {
-    let mut data = ctx.deps.write::<Peers>();
+    let mut peers_opt = ctx.deps.write::<Option<Peers>>();
+    let data = peers_opt.as_mut().unwrap();
     if let Some(ref mut peer) = data.peers.get_mut(tok) {
         assert!(peer.connection.is_none());
         let range = Range::new(1000, 2000);
@@ -160,7 +161,8 @@ pub fn reconnect_peer(tok: Token, ctx: &mut Context) {
 }
 
 pub fn reset_peer(tok: Token, ctx: &mut Context) {
-    let mut data = ctx.deps.write::<Peers>();
+    let mut peers_opt = ctx.deps.write::<Option<Peers>>();
+    let data = peers_opt.as_mut().unwrap();
     if let Some(ref mut peer) = data.peers.get_mut(tok) {
         let wsock = replace(&mut peer.connection, None)
             .expect("No socket to reset");
@@ -174,9 +176,9 @@ pub fn reset_peer(tok: Token, ctx: &mut Context) {
 
 pub fn try_io(tok: Token, ev: EventSet, ctx: &mut Context) -> bool
 {
-    let dataref = ctx.deps.get::<PeerHolder>().unwrap().clone();
-    let mut dataguard = dataref.write().unwrap();
-    let ref mut data = dataguard.deref_mut();
+    let pref = ctx.deps.get::<Arc<RwLock<Option<Peers>>>>().unwrap().clone();
+    let mut opt_peers = pref.write().unwrap();
+    let data = opt_peers.as_mut().unwrap();
     if let Some(ref mut peer) = data.peers.get_mut(tok) {
         let to_close = {
             let ref mut wsock = peer.connection.as_mut()
@@ -257,7 +259,8 @@ pub fn try_io(tok: Token, ev: EventSet, ctx: &mut Context) -> bool
 
 pub fn garbage_collector(ctx: &mut Context) {
     debug!("Garbage collector");
-    let mut peers = ctx.deps.write::<Peers>();
+    let mut peers_opt = ctx.deps.write::<Option<Peers>>();
+    let peers = peers_opt.as_mut().unwrap();
 
     let cut_off = SteadyTime::now() - Duration::milliseconds(
         SUBSCRIPTION_LIFETIME);
