@@ -21,6 +21,10 @@ css:
     border-radius: 3px
   .navbar-right
     margin-top: 2px
+  .version
+    font-size: x-small
+    position: relative
+    top: -4px
 
 html icon(name):
   span.glyphicon[class="glyphicon-{name}"]
@@ -85,6 +89,7 @@ html render(current_page):
       div.navbar-header
         a.navbar-brand[href="#/"]
           "Cantal"
+          .version "dev"
       div.collapse.navbar-collapse
         ul.nav.navbar-nav
           li.active?(current_page == 'status')

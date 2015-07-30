@@ -38,6 +38,7 @@ Or you can build a package with::
 
       checkinstall --default \
         --pkglicense=MIT --pkgname=cantal \
+        --pkgversion="$(cat version.txt)" \
         --requires="libssl1.0.0"
         --nodoc --strip=no \
         make install
