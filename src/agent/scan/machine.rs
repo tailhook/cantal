@@ -25,6 +25,15 @@ pub fn read(t: &mut Tip) -> Option<u64> {
             t.add_next_float(Key::metric("uptime"), &mut pieces);
             t.add_next_float(Key::metric("idle_time"), &mut pieces);
         }).ok();
+    File::open(&Path::new("/proc/sys/fs/file-nr"))
+        .and_then(|mut f| {
+            let mut buf = String::with_capacity(100);
+            f.read_to_string(&mut buf)
+            .map(|_| buf)})
+        .map(|buf| {
+            let mut pieces = words(&buf);
+            t.add_next_int(Key::metric("open_files"), &mut pieces);
+        }).ok();
     File::open(&Path::new("/proc/loadavg"))
         .and_then(|mut f| {
             let mut buf = String::with_capacity(100);
