@@ -31,6 +31,8 @@ pub struct MinimalProcess {
     pub child_user_time: u32,
     pub child_system_time: u32,
     pub cmdline: String,
+    pub read_bytes: u64,
+    pub write_bytes: u64,
 }
 
 fn page_size() -> usize {
@@ -67,6 +69,26 @@ fn read_process(cache: &mut ReadCache, pid: Pid)
         .map_err(|e| debug!("Can't decode stat file: {}", e)));
     let mut words = words(&stat_line);
 
+    let mut buf = String::with_capacity(512);
+    try!(File::open(&format!("/proc/{}/io", pid))
+        .and_then(|mut f| f.read_to_string(&mut buf))
+        .map_err(|e| debug!("Can't read io file: {}", e)));
+    let mut read_bytes = None;
+    let mut write_bytes = None;
+    for line in buf.split('\n') {
+        let mut pieces = line.split_whitespace();
+        let name = pieces.next();
+        if name == Some("read_bytes:") {
+            read_bytes = pieces.next().and_then(|x| FromStr::from_str(x).ok());
+        } else if name == Some("write_bytes:") {
+            write_bytes = pieces.next().and_then(|x| FromStr::from_str(x).ok());
+        }
+    }
+    let read_bytes = try!(read_bytes.ok_or(())
+        .map_err(|_| error!("Can't parse /proc/{}/io", pid)));
+    let write_bytes = try!(write_bytes.ok_or(())
+        .map_err(|_| error!("Can't parse /proc/{}/io", pid)));
+
     return Ok(MinimalProcess {
         pid: pid,
         name: name,
@@ -85,6 +107,8 @@ fn read_process(cache: &mut ReadCache, pid: Pid)
             let rss: u64 = try!(words.next_value());
             rss * page_size() as u64},
         cmdline: cmdline.to_string(),
+        read_bytes: read_bytes,
+        write_bytes: write_bytes,
     });
 }
 
@@ -141,6 +165,16 @@ pub fn write_tip(tip: &mut Tip, processes: &Vec<MinimalProcess>) {
             ("metric", "system_time"),
             ]),
             Counter(p.system_time as u64));
+        tip.add(Key::pairs(&[
+            ("pid", &pid[..]),
+            ("metric", "read_bytes"),
+            ]),
+            Counter(p.read_bytes));
+        tip.add(Key::pairs(&[
+            ("pid", &pid[..]),
+            ("metric", "write_bytes"),
+            ]),
+            Counter(p.write_bytes));
         // TODO(tailhook) io
         // TODO(tailhook) FDSize
     }
