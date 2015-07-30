@@ -9,5 +9,10 @@ html render(metrics):
         for m of metrics:
           pre
             code
-              =JSON.stringify(m)
+              =JSON.stringify(m[0])
+            code[style={'float': 'right'}]
+              if m[1].variant == "State":
+                "{m[1].variant}({m[1].fields[1]})"
+              else:
+                "{m[1].variant}({m[1].fields[0]})"
 

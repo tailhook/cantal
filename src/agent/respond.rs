@@ -58,9 +58,10 @@ pub fn serve_metrics(_req: &Request, context: &mut Context)
 {
     let stats: &Stats = &*context.deps.read();
     Ok(http::Response::json(
-            &stats.history.tip.keys()
-            .chain(stats.history.fine.keys())
-            .chain(stats.history.coarse.keys())
+            &stats.history.tip.iter()
+            .chain(stats.history.fine.iter())
+            .chain(stats.history.coarse.iter())
+            .map(|(k, v)| (k, v.tip()))
             .collect::<Vec<_>>()
             .to_json()
         ))

@@ -215,6 +215,16 @@ impl Value {
         }
         return true;
     }
+    pub fn tip(&self) -> TipValue {
+        use self::Value as S;
+        use cantal::Value as D;
+        match self {
+            &S::Counter(val, _, _) => D::Counter(val),
+            &S::Integer(val, _, _) => D::Integer(val),
+            &S::Float(val, _, _) => D::Float(val),
+            &S::State((ts, ref val), _) => D::State(ts, val.clone()),
+        }
+    }
 }
 
 #[derive(Clone, PartialEq, Eq, Copy, Debug)]

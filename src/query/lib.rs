@@ -17,7 +17,7 @@ use std::path::Path;
 use std::error::Error;
 use std::convert::From;
 use rustc_serialize::json;
-use rustc_serialize::json::Json;
+use rustc_serialize::json::{Json, ToJson};
 
 use itertools::NextValue;
 use iotools::ReadHostBytes;
@@ -271,6 +271,33 @@ impl Type {
             Type::State(len) => len as usize,
             Type::Pad(len) => len as usize,
             Type::Unknown(len) => len as usize,
+        }
+    }
+}
+
+impl ToJson for Value {  // Matching to default encode generator
+    fn to_json(&self) -> Json {
+        use self::Value::*;
+        use rustc_serialize::json::Json::*;
+        match self {
+            &Counter(x) => Object(vec![
+                ("variant".to_string(), String("Counter".to_string())),
+                ("fields".to_string(), Array(vec![U64(x)])),
+                ].into_iter().collect()),
+            &Integer(x) => Object(vec![
+                ("variant".to_string(), String("Integer".to_string())),
+                ("fields".to_string(), Array(vec![I64(x)])),
+                ].into_iter().collect()),
+            &Float(x) => Object(vec![
+                ("variant".to_string(), String("Float".to_string())),
+                ("fields".to_string(), Array(vec![F64(x)])),
+                ].into_iter().collect()),
+            &State(ts, ref val) => Object(vec![
+                ("variant".to_string(), String("State".to_string())),
+                ("fields".to_string(), Array(vec![
+                    U64(ts), String(val.to_string())
+                ])),
+                ].into_iter().collect()),
         }
     }
 }
