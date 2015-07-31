@@ -39,6 +39,7 @@ pub struct Beacon {
     pub history_age: u64,
     pub remote_total: Option<usize>,
     pub remote_connected: Option<usize>,
+    pub peers_with_remote: usize,
 }
 
 #[derive(RustcEncodable, RustcDecodable, Debug)]
@@ -224,9 +225,9 @@ pub fn beacon(deps: &Dependencies) -> String {
                 st.history.fine_timestamps.len(),
                 st.history.age)
     };
-    let gossip_peers = {
+    let (gossip_peers, peers_with_remote) = {
         let gossip = deps.read::<GossipStats>();
-        gossip.peers.len()
+        (gossip.peers.len(), gossip.num_having_remote)
     };
     let (remote_total, remote_connected) =
         if let &Some(ref peers) = deps.read::<Option<Peers>>().deref() {
@@ -248,6 +249,7 @@ pub fn beacon(deps: &Dependencies) -> String {
         peers: gossip_peers,
         remote_total: remote_total,
         remote_connected: remote_connected,
+        peers_with_remote: peers_with_remote,
     })).unwrap()
 }
 

@@ -109,7 +109,7 @@ html render(current_page):
             a[href="#/peers"]
               "Peers"
               if beacon:
-                " [{beacon.peers}]"
+                " [{beacon.peers_with_remote}/{beacon.peers}]"
           li.active?(current_page == 'remote')
             a[href="#/remote"]
               "Remote"

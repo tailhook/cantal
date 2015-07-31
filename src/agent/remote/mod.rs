@@ -102,6 +102,11 @@ pub fn ensure_started(ctx: &mut Context) {
         }
     }
     *opt_peers = Some(data);
+
+    ctx.deps.get::<Sender<p2p::Command>>().unwrap()
+        .send(p2p::Command::RemoteSwitch(true))
+        .map_err(|_| error!("Error sending RemoteSwitch to p2p"))
+        .ok();
 }
 
 pub fn add_peer(addr: SocketAddr, ctx: &mut Context) {

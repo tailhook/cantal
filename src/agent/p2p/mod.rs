@@ -71,6 +71,7 @@ pub fn p2p_loop(init: Init, deps: Dependencies)
 #[derive(Debug)]
 pub enum Command {
     AddGossipHost(SocketAddr),
+    RemoteSwitch(bool),
 }
 
 #[derive(Debug)]
@@ -94,6 +95,8 @@ struct Context {
 #[derive(Default)]
 pub struct GossipStats {
     pub peers: HashMap<SocketAddr, Peer>,
+    pub num_having_remote: usize,
+    pub has_remote: bool,
 }
 
 impl Handler for Context {
@@ -132,7 +135,11 @@ impl Handler for Context {
         match msg {
             AddGossipHost(ip) => {
                 let ref mut stats = self.deps.write::<GossipStats>();
-                self.send_gossip(ip, &mut stats.peers);
+                self.send_gossip(ip, stats);
+            }
+            RemoteSwitch(val) => {
+                let ref mut stats = self.deps.write::<GossipStats>();
+                stats.has_remote = val;
             }
         }
     }

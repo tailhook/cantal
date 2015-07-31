@@ -11,7 +11,6 @@ use super::peer::{Peer, Report};
 use super::super::server::Message::NewHost;
 use super::GossipStats;
 use super::super::deps::{LockedDeps};
-use super::super::remote::Peers as RemotePeers;
 use super::super::scan::time_ms;
 
 
@@ -62,7 +61,10 @@ fn get_friends_for(peers: &HashMap<SocketAddr, Peer>, peer: SocketAddr)
     }).collect()
 }
 
-fn apply_report(dest: &mut Option<(u64, Report)>, src: Option<(u64, Report)>) {
+fn apply_report(num_having_remote: &mut usize,
+    dest: &mut Option<(u64, Report)>, src: Option<(u64, Report)>) {
+    let old_remote = dest.as_ref()
+        .map(|&(_, ref x)| x.has_remote).unwrap_or(false);
     if match (&dest, &src) {
         (&&mut Some((pts, _)), &Some((fts, _)))
         if pts < fts  // apply only newer report
@@ -72,6 +74,15 @@ fn apply_report(dest: &mut Option<(u64, Report)>, src: Option<(u64, Report)>) {
         _ => false
     } {
         *dest = src;
+    }
+    let new_remote = dest.as_ref()
+        .map(|&(_, ref x)| x.has_remote).unwrap_or(false);
+    if old_remote != new_remote {
+        if new_remote {
+            *num_having_remote += 1;
+        } else {
+            *num_having_remote -= 1;
+        }
     }
 }
 
@@ -100,10 +111,10 @@ impl Context {
                     continue;  // don't probe too often
                 }
             }
-            self.send_gossip(target_ip, &mut stats.peers);
+            self.send_gossip(target_ip, &mut stats);
         }
     }
-    fn apply_friends(&self, peers: &mut HashMap<SocketAddr, Peer>,
+    fn apply_friends(&self, stats: &mut GossipStats,
                      friends: Vec<FriendInfo>, source: SocketAddr)
     {
         for friend in friends.into_iter() {
@@ -112,7 +123,7 @@ impl Context {
             } else {
                 continue;
             };
-            let peer = peers.entry(addr)
+            let peer = stats.peers.entry(addr)
                 .or_insert_with(|| {
                     self.deps.get::<Sender<_>>().unwrap()
                         .send(NewHost(addr))
@@ -120,7 +131,8 @@ impl Context {
                         .ok();
                     Peer::new(addr)
                 });
-            apply_report(&mut peer.report, friend.report);
+            apply_report(&mut stats.num_having_remote,
+                &mut peer.report, friend.report);
             if peer.host != friend.host {
                 if friend.host.is_some() && peer.host.is_some() {
                     debug!("Peer host is different for {} \
@@ -137,13 +149,8 @@ impl Context {
             }
         }
     }
-    pub fn send_gossip(&self, addr: SocketAddr,
-                       peers: &mut HashMap<SocketAddr, Peer>)
+    pub fn send_gossip(&self, addr: SocketAddr, stats: &mut GossipStats)
     {
-        // This "has_remote" thing is put here but it risks deadlock
-        // TODO(tailhook) fix this deadlock please!!!
-        let has_remote = self.deps.read::<Option<RemotePeers>>().is_some();
-
         debug!("Sending gossip to {}", addr);
         let mut buf = ByteBuf::mut_with_capacity(1024);
         {
@@ -152,17 +159,17 @@ impl Context {
                 me: MyInfo {
                     host: self.hostname.clone(),
                     report: Report {
-                        peers: peers.len() as u32,
-                        has_remote: has_remote,
+                        peers: stats.peers.len() as u32,
+                        has_remote: stats.has_remote,
                     },
                 },
                 now: time_ms(),
-                friends: get_friends_for(peers, addr),
+                friends: get_friends_for(&stats.peers, addr),
             }]).unwrap();
         }
         match self.sock.send_to(&mut buf.flip(), &addr) {
             Ok(_) => {
-                let peer = peers.entry(addr)
+                let peer = stats.peers.entry(addr)
                     .or_insert_with(|| {
                         self.deps.get::<Sender<_>>().unwrap()
                             .send(NewHost(addr))
@@ -181,12 +188,8 @@ impl Context {
     pub fn consume_gossip(&self, packet: Packet, addr: SocketAddr) {
         let tm = time_ms();
 
-        // This "has_remote" thing is put here to reduce the chance of
-        // deadlock (i.e. get remote peers before logging gossip stats
-        // However, it's not always needed so, may be optimize it?
-        let has_remote = self.deps.read::<Option<RemotePeers>>().is_some();
-
-        let mut stats = self.deps.write::<GossipStats>();
+        let mut statsguard = self.deps.write::<GossipStats>();
+        let ref mut stats = &mut *statsguard;
         match packet {
             Packet::Ping { me: info, now, friends } => {
                 {
@@ -199,11 +202,12 @@ impl Context {
                                 .ok();
                             Peer::new(addr)
                         });
-                    apply_report(&mut peer.report, Some((tm, info.report)));
+                    apply_report(&mut stats.num_having_remote,
+                        &mut peer.report, Some((tm, info.report)));
                     peer.host = Some(info.host.clone());
                     peer.last_report_direct = Some(tm);
                 }
-                self.apply_friends(&mut stats.peers, friends, addr);
+                self.apply_friends(&mut *stats, friends, addr);
                 let mut buf = ByteBuf::mut_with_capacity(1024);
                 {
                     let mut e = Encoder::from_writer(&mut buf);
@@ -212,7 +216,7 @@ impl Context {
                             host: self.hostname.clone(),
                             report: Report {
                                 peers: stats.peers.len() as u32,
-                                has_remote: has_remote,
+                                has_remote: stats.has_remote,
                             },
                         },
                         ping_time: now,
@@ -236,7 +240,8 @@ impl Context {
                                 .ok();
                             Peer::new(addr)
                         });
-                    apply_report(&mut peer.report, Some((tm, info.report)));
+                    apply_report(&mut stats.num_having_remote,
+                        &mut peer.report, Some((tm, info.report)));
                     // sanity check
                     if ping_time < tm && ping_time < peer_time {
                         peer.last_roundtrip = Some(
@@ -245,7 +250,7 @@ impl Context {
                     peer.host = Some(info.host.clone());
                     peer.last_report_direct = Some(tm);
                 }
-                self.apply_friends(&mut stats.peers, friends, addr);
+                self.apply_friends(&mut *stats, friends, addr);
             }
         }
     }

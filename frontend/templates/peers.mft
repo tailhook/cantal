@@ -86,10 +86,10 @@ html render(peers, ctr):
                         "{p.peers}"
                       else:
                         "∅"
-                    td.text-muted?(p.remote == null)
-                      if p.remote == null:
+                    td.text-muted?(p.num_remote == null)
+                      if p.has_remote == null:
                         "∅"
-                      elif p.remote:
+                      elif p.has_remote:
                         span.glyphicon.glyphicon-ok
                       else:
                         span.glyphicon.glyphicon-remove
