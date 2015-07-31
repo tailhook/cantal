@@ -21,10 +21,12 @@ css:
     border-radius: 3px
   .navbar-right
     margin-top: 2px
-  .version
+  .version_string
     font-size: x-small
     position: relative
     top: -4px
+  .version
+    display: inline
 
 html icon(name):
   span.glyphicon[class="glyphicon-{name}"]
@@ -89,7 +91,11 @@ html render(current_page):
       div.navbar-header
         a.navbar-brand[href="#/"]
           "Cantal"
-          .version "dev"
+          .version_string
+            .version "dev"
+            if beacon:
+              " / "
+              "{beacon.version}"
       div.collapse.navbar-collapse
         ul.nav.navbar-nav
           li.active?(current_page == 'status')

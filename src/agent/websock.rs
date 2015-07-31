@@ -26,6 +26,7 @@ use super::rules;
 
 #[derive(RustcEncodable, RustcDecodable, Debug, Clone)]
 pub struct Beacon {
+    pub version: String,
     pub pid: pid_t,
     pub current_time: u64,
     pub startup_time: u64,
@@ -236,6 +237,7 @@ pub fn beacon(deps: &Dependencies) -> String {
             (None, None)
         };
     json::encode(&OutputMessage::Beacon(Beacon {
+        version: include_str!("../../version.txt").to_string(),
         pid: pid,
         current_time: time_ms(),
         startup_time: startup_time,
