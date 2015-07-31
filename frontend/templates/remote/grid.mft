@@ -24,7 +24,7 @@ css:
   .donut-container, .sparkline-container
     margin: 4px
 
-html render(peers):
+html render(peer_map):
   div
     store grid_query = new QueryRemote({
       'memory': {
@@ -64,12 +64,13 @@ html render(peers):
     }
     .latency "{grid_query.latency}ms"
     div
-      for peer of peers.concat([{'addr': 'myself'}]):
+      for peer of Object.keys(peer_map).concat('myself'):
         div
-          if grid_query.response and grid_query.response[peer.addr]:
+          let name = peer_map[peer] or peer.split(':')[0]
+          let port = peer.split(':')[1]
+          if grid_query.response and grid_query.response[peer]:
             .peer
-              let stats = grid_query.response[peer.addr]
-              let name = peer.addr.split(':')[0]
+              let stats = grid_query.response[peer]
 
               let mem = mem_chart(stats.fine_metrics.memory)
               .donut-container
@@ -83,8 +84,16 @@ html render(peers):
                       'values': cpu['cpu.usage'],
                       'yaxis': cpu_yaxis
                       }])
-              .addr "{name}"
+              .addr
+                "{name} "
+                if name != 'myself':
+                  a.btn.btn-default.btn-xs[href="http://{name}:{port}"]
+                    span.glyphicon.glyphicon-play
           else:
             .peer
               .question "?"
-              .addr "{peer.addr}"
+              .addr
+                "{name} "
+                if name != 'myself':
+                  a.btn.btn-default.btn-xs[href="http://{name}:{port}"]
+                    span.glyphicon.glyphicon-play

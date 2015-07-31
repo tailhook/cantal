@@ -115,6 +115,18 @@ export class Query extends JsonQuery {
     }
 }
 
+export class RemoteStats extends JsonQuery {
+    constructor(interval) {
+        super()
+        this.url = '/remote_stats.json'
+        this.interval = interval || 5000
+        this.start()
+    }
+    apply(json) {
+        this.response = json
+    }
+}
+
 export class PeersRequest extends JsonQuery {
     constructor(only_remote, interval) {
         super()

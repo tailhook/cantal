@@ -51,6 +51,10 @@ export function send(variant, ...args) {
     web_socket.send(JSON.stringify({"variant": variant, "fields": args}))
 }
 
+export function remote_enabled() {
+    return last_beacon && last_beacon.remote_total != null
+}
+
 
 export default exports
 window.WEBSOCK_DEBUG_INTERFACE = exports

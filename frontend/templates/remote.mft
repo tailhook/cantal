@@ -2,23 +2,10 @@ import disabled from 'templates/remote/disabled.mft'
 import list from 'templates/remote/list.mft'
 import grid from 'templates/remote/grid.mft'
 import {Hier} from 'util/routing'
-
-css:
-  pre.short
-    height: 1em
-    overflow: hide
-  .beacon
-    display: inline-block
-    margin-right: 8px
-  .corner
-    position: absolute
-    right: 8px
-    top: 8px
-  .relative
-    position: relative
+import {RemoteStats} from 'util/query'
 
 
-html render(enabled, peers, error, ctr):
+html render(enabled, peer_map, ctr):
   .container
     store page = new Hier(1, "list")
     if enabled:
@@ -28,8 +15,6 @@ html render(enabled, peers, error, ctr):
             li.active?(page.value == 'list')
               a[href="#/remote/list"]
                 "Peer List"
-                if peers:
-                  " ({peers.length}) "
             li.active?(page.value == 'grid')
               a[href="#/remote/grid"]
                 "Grid"
@@ -37,9 +22,10 @@ html render(enabled, peers, error, ctr):
       if page.value == 'list':
         .row[style={'margin-top': '1em'}]
           p.col-xs-12
-            if peers:
-              if peers.length > 0:
-                =list.render(peers)
+            store stats_q = new RemoteStats()
+            if stats_q.response:
+              if stats_q.response.peers.length > 0:
+                =list.render(stats_q.response.peers, peer_map)
               else:
                 .panel.panel-warning
                   .panel-heading
@@ -51,7 +37,7 @@ html render(enabled, peers, error, ctr):
       elif page.value == 'grid':
         .row[style={'margin-top': '1em'}]
           p.col-xs-12
-            =grid.render(peers)
+            =grid.render(peer_map)
     elif enabled == undefined:
       .row
         .col-xs-12
