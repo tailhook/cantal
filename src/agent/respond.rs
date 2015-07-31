@@ -82,6 +82,24 @@ pub fn serve_peers(_req: &Request, context: &mut Context)
     Ok(resp)
 }
 
+pub fn serve_peers_with_remote(_req: &Request, context: &mut Context)
+    -> Result<http::Response, Box<http::Error>>
+{
+    let gossip: &GossipStats = &*context.deps.read();
+    let resp = http::Response::json(
+        &json::Json::Object(vec![
+            (String::from("peers"), json::Json::Array(
+                gossip.peers.values()
+                .filter(|x| x.report.as_ref()
+                             .map(|&(_, ref r)| r.has_remote)
+                             .unwrap_or(false))
+                .map(ToJson::to_json)
+                .collect())),
+        ].into_iter().collect()
+       ));
+    Ok(resp)
+}
+
 pub fn serve_remote_stats(_req: &Request, context: &mut Context)
     -> Result<http::Response, Box<http::Error>>
 {

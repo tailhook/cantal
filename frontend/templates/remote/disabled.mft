@@ -1,3 +1,5 @@
+import {PeersRequest} from 'util/query'
+
 html render(enable_remote):
   h1
     "Remote Stats Are Disabled"
@@ -21,7 +23,25 @@ html render(enable_remote):
         " which has remote stats enabled
           instead of enabling them here.
         "
-      p
+      store peers_request = new PeersRequest(true, 20000)
+      if not peers_request.peers:
+        p "Loading node list..."
+      elif peers_request.peers.length == 0:
+        p
+          i "Unfortunately no nodes are known to have remote tab enabled"
+      else:
+        ul
+          for peer of peers_request.peers:
+            li
+              let port = peer.addr.split(':')[1]
+              if peer.hostname:
+                a[href="http://{peer.hostname}:{port}/"]
+                  "http://{peer.hostname}:{port}/"
+                " ({peer.addr})"
+              else:
+                  code "{peer.addr}"
+                  " (no known host name)"
+      p.text-right?(!peers_request.peers or peers_request.peers.length != 0)
         button.btn.btn-danger
           link click = enable_remote
           "Enable"

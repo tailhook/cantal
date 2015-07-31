@@ -60,8 +60,14 @@ export class JsonQuery  {
             this.apply(json)
             update();
         }
-        req.open('POST', this.url, true)
-        req.send(this.post_data)
+        const post_data = this.post_data
+        if(post_data) {
+            req.open('POST', this.url, true)
+            req.send(post_data)
+        } else {
+            req.open('GET', this.url, true)
+            req.send();
+        }
     }
 }
 
@@ -106,5 +112,17 @@ export class Query extends JsonQuery {
                 .map(([ts, _]) => from_ms(ts)),
             "fine_metrics": json.dataset,
         }
+    }
+}
+
+export class PeersRequest extends JsonQuery {
+    constructor(only_remote, interval) {
+        super()
+        this.url = '/peers_with_remote.json'
+        this.interval = interval || 5000
+        this.start()
+    }
+    apply(json) {
+        this.peers = json.peers
     }
 }

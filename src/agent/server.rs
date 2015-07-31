@@ -204,6 +204,8 @@ fn resolve(req: &Request, context: &mut Context)
         => respond::serve_metrics(req, context),
         (&Get, &P(ref x)) if &x[..] == "/all_peers.json"
         => respond::serve_peers(req, context),
+        (&Get, &P(ref x)) if &x[..] == "/peers_with_remote.json"
+        => respond::serve_peers_with_remote(req, context),
         (&Get, &P(ref x)) if &x[..] == "/remote_stats.json"
         => respond::serve_remote_stats(req, context),
         (&Post, &P(ref x)) if &x[..] == "/query.json"
