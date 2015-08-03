@@ -4,9 +4,7 @@ use std::str::from_utf8;
 use std::fs::{File, read_dir};
 use libc;
 
-use cantal::find_elem;
 use cantal::itertools::{NextValue, NextStr, words};
-use cantal::iotools::{ReadHostBytes};
 use super::Tip;
 use super::super::stats::Key;
 
@@ -43,24 +41,29 @@ fn page_size() -> usize {
 fn read_process(cache: &mut ReadCache, pid: Pid)
     -> Result<MinimalProcess, ()>
 {
-    let cmdline = try!(File::open(&format!("/proc/{}/cmdline", pid))
-        .and_then(|mut f| f.read_chunk(4096))
-        .map_err(|_| debug!("Can't read cmdline file")));
-    // Command-line may be non-full, but we don't care
-    let cmdline = String::from_utf8_lossy(&cmdline);
+    let cmdline = {
+        let mut buf = [0u8; 4096];
+        let bytes = try!(File::open(&format!("/proc/{}/cmdline", pid))
+            .and_then(|mut f| f.read(&mut buf))
+            .map_err(|_| debug!("Can't read cmdline file")));
+        // Command-line may be non-full, but we don't care
+        String::from_utf8_lossy(&buf[..bytes]).to_string()
+    };
 
-    let buf = try!(File::open(&format!("/proc/{}/stat", pid))
-        .and_then(|mut f| f.read_chunk(4096))
+    let mut buf = [0u8; 2048];
+    let bytes = try!(File::open(&format!("/proc/{}/stat", pid))
+        .and_then(|mut f| f.read(&mut buf))
         .map_err(|e| debug!("Can't read stat file: {}", e)));
-    if buf.len() >= 4096 {
+    if bytes == 2048 {
         error!("Stat line too long");
         return Err(());
     }
 
-    let name_start = try!(find_elem(&buf, &b'(').ok_or(()));
+    let buf = &buf[..bytes];
+    let name_start = try!(buf.iter().position(|x| x == &b'(').ok_or(()));
     // Since there might be brackets in the name itself we should use last
     // closing paren
-    let name_end = try!(find_elem(&buf, &b')').ok_or(()));
+    let name_end = try!(buf.iter().rposition(|x| x == &b')').ok_or(()));
     let name = try!(from_utf8(&buf[name_start+1..name_end])
         .map_err(|e| debug!("Can't decode stat file: {}", e)))
         .to_string();
@@ -106,7 +109,7 @@ fn read_process(cache: &mut ReadCache, pid: Pid)
         rss: {
             let rss: u64 = try!(words.next_value());
             rss * page_size() as u64},
-        cmdline: cmdline.to_string(),
+        cmdline: cmdline,
         read_bytes: read_bytes,
         write_bytes: write_bytes,
     });

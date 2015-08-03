@@ -4,12 +4,14 @@
 extern crate rustc_serialize;
 extern crate libc;
 #[macro_use] extern crate log;
+extern crate byteorder;
 
 use std::fmt::Display;
 use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
 use std::io::{Cursor, BufReader};
-use std::io::{Read, BufRead};
+use std::io::{Read, BufRead, Seek};
+use std::io::SeekFrom::{Current};
 use std::io::Error as IoError;
 use std::fs::File;
 use std::rc::Rc;
@@ -18,14 +20,13 @@ use std::error::Error;
 use std::convert::From;
 use rustc_serialize::json;
 use rustc_serialize::json::{Json, ToJson};
+use byteorder::{NativeEndian, ReadBytesExt};
 
 use itertools::NextValue;
-use iotools::ReadHostBytes;
 
 
 mod util;
 pub mod itertools;
-pub mod iotools;
 
 
 #[derive(Clone, Debug, RustcEncodable, RustcDecodable)]
@@ -59,6 +60,7 @@ pub enum MetadataError {
     Json(json::ParserError),
     ParseError(&'static str),
     BadLength(usize),
+    UnexpectedEOF,
 }
 
 
@@ -71,16 +73,6 @@ pub struct Descriptor {
 pub struct Metadata {
     items: Vec<Rc<Descriptor>>,
     stat: util::Stat,
-}
-
-
-pub fn find_elem<T:Eq+Sized>(arr: &[T], val: &T) -> Option<usize> {
-    for i in 0..arr.len() {
-        if arr[i] == *val {
-            return Some(i);
-        }
-    }
-    return None;
 }
 
 impl Metadata {
@@ -162,41 +154,50 @@ impl Metadata {
     {
         //  We should read as fast as possible to have more precise results
         //  So we buffer whole file
+        // TODO(tailhook) calculate the size of the file when reading metadata
         let mut buf = Vec::with_capacity(4096);
         try!(File::open(path)
             .and_then(|mut f| f.read_to_end(&mut buf)));
 
-        let mut stream = BufReader::new(Cursor::new(buf));
+        let mut stream = Cursor::new(buf);
         let mut res = vec!();
         for desc in self.items.iter() {
             let data = match desc.kind {
                 Type::Counter(8) => {
-                    Value::Counter(try!(stream.read_u64()))
+                    Value::Counter(try!(stream.read_u64::<NativeEndian>()))
                 }
                 Type::Level(8, LevelType::Signed) => {
-                    Value::Integer(try!(stream.read_i64()))
+                    Value::Integer(try!(stream.read_i64::<NativeEndian>()))
                 }
                 Type::Level(8, LevelType::Float) => {
-                    Value::Float(try!(stream.read_f64()))
+                    Value::Float(try!(stream.read_f64::<NativeEndian>()))
                 }
                 Type::State(len) if len > 8 => {
-                    let time_ms = try!(stream.read_u64());
-                    let val = try!(stream.read_bytes((len - 8) as usize));
-                    let text = if let Some(end) = find_elem(&val[..], &0)
-                    {
-                        String::from_utf8_lossy(&val[0..end])
-                    } else {
-                        String::from_utf8_lossy(&val[..])
+                    let time_ms = try!(stream.read_u64::<NativeEndian>());
+                    let pos = stream.position() as usize;
+                    let end = pos+(len as usize)-8;
+                    let text = {
+                        let buf = stream.get_ref();
+                        if buf.len() <= end {
+                            return Err(MetadataError::UnexpectedEOF);
+                        }
+                        let slice = &buf[pos..end];
+                        if let Some(end) = slice.iter().position(|&x| x == 0) {
+                            String::from_utf8_lossy(&slice[0..end]).to_string()
+                        } else {
+                            String::from_utf8_lossy(&slice[..]).to_string()
+                        }
                     };
-                    Value::State(time_ms, text.to_string())
+                    try!(stream.seek(Current((len-8) as i64)));
+                    Value::State(time_ms, text)
                 }
                 Type::Pad(x) => {
-                    try!(stream.read_bytes(x as usize));
+                    try!(stream.seek(Current(x as i64)));
                     continue;
                 }
                 x => {
                     warn!("Type {:?} cannot be read", x);
-                    try!(stream.read_bytes(x.len()));
+                    try!(stream.seek(Current(x.len() as i64)));
                     continue;
                 }
             };
@@ -220,6 +221,8 @@ impl Error for MetadataError {
             => "Error parsing metadata file: wrong field length",
             MetadataError::Json(_)
             => "Error parsing metadata file: bad json",
+            MetadataError::UnexpectedEOF  // FIXME(tailhook) probably other err
+            => "Error parsing values file: unexpected eof",
         }
     }
     fn cause<'x>(&'x self) -> Option<&'x Error> {
@@ -227,6 +230,7 @@ impl Error for MetadataError {
             MetadataError::Io(ref err) => Some(err as &Error),
             MetadataError::Json(_) => None,  // json::ParserError sucks
             MetadataError::ParseError(_) | MetadataError::BadLength(_) => None,
+            MetadataError::UnexpectedEOF => None,
         }
     }
 }
@@ -247,6 +251,10 @@ impl Display for MetadataError {
                 write!(fmt, "error parsing metadata file: field length {} \
                     is not supported", val)
             }
+            MetadataError::UnexpectedEOF => {
+                // FIXME(tailhook) probably other err
+                write!(fmt, "error parsing values file: unexpected of")
+            }
         }
     }
 }
@@ -254,6 +262,15 @@ impl Display for MetadataError {
 impl From<IoError> for MetadataError {
     fn from(err: IoError) -> MetadataError {
         MetadataError::Io(err)
+    }
+}
+
+impl From<byteorder::Error> for MetadataError {
+    fn from(err: byteorder::Error) -> MetadataError {
+        match err {
+            byteorder::Error::UnexpectedEOF => MetadataError::UnexpectedEOF,
+            byteorder::Error::Io(err) => MetadataError::Io(err)
+        }
     }
 }
 
