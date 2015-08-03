@@ -5,7 +5,7 @@ use std::io::{BufReader, Read, BufRead};
 use std::collections::HashMap;
 use std::collections::hash_map::Entry::{Vacant,Occupied};
 
-use cantal::itertools::{words, NextValue};
+use cantal::itertools::{NextValue};
 use cantal::Value::{Counter, Integer};
 
 use super::Tip;
@@ -20,7 +20,7 @@ pub fn read(t: &mut Tip) -> Option<u64> {
             f.read_to_string(&mut buf)
             .map(|_| buf)})
         .map(|buf| {
-            let mut pieces = words(&buf);
+            let mut pieces = buf.split_whitespace();
             // TODO(tailhook) they are float counters?
             t.add_next_float(Key::metric("uptime"), &mut pieces);
             t.add_next_float(Key::metric("idle_time"), &mut pieces);
@@ -31,7 +31,7 @@ pub fn read(t: &mut Tip) -> Option<u64> {
             f.read_to_string(&mut buf)
             .map(|_| buf)})
         .map(|buf| {
-            let mut pieces = words(&buf);
+            let mut pieces = buf.split_whitespace();
             t.add_next_int(Key::metric("open_files"), &mut pieces);
         }).ok();
     File::open(&Path::new("/proc/loadavg"))
@@ -41,7 +41,7 @@ pub fn read(t: &mut Tip) -> Option<u64> {
             .map(|_| buf)
         })
         .map(|buf| {
-            let mut pieces = words(&buf);
+            let mut pieces = buf.split_whitespace();
             t.add_next_float(Key::metric("load_avg_1min"), &mut pieces);
             t.add_next_float(Key::metric("load_avg_5min"), &mut pieces);
             t.add_next_float(Key::metric("load_avg_15min"), &mut pieces);
@@ -60,7 +60,7 @@ pub fn read(t: &mut Tip) -> Option<u64> {
             try!(f.read_line(&mut line));
             if line.len() == 0 { break; }
             if line.starts_with("cpu ") {
-                let mut pieces = words(&line);
+                let mut pieces = line.split_whitespace();
                 pieces.next();
                 t.add_next_cnt(Key::metric("cpu.user"), &mut pieces);
                 t.add_next_cnt(Key::metric("cpu.nice"), &mut pieces);
@@ -84,7 +84,7 @@ pub fn read(t: &mut Tip) -> Option<u64> {
             let mut line = String::with_capacity(50);
             try!(f.read_line(&mut line));
             if line.len() == 0 { break; }
-            let mut pieces = words(&line);
+            let mut pieces = line.split_whitespace();
             let ksuffix = if let Some(x) = pieces.next() { x }
                 else { continue; };
             let key = Key::metric(&format!("memory.{}",
@@ -116,17 +116,17 @@ pub fn read(t: &mut Tip) -> Option<u64> {
         let mut slices = line.splitn(3, '|');
         slices.next();
         let mut fields = vec!();
-        for i in words(&slices.next().unwrap_or("")) {
+        for i in slices.next().unwrap_or("").split_whitespace() {
             fields.push(format!("net.interface.rx.{}", i));
         }
-        for i in words(&slices.next().unwrap_or("")) {
+        for i in slices.next().unwrap_or("").split_whitespace() {
             fields.push(format!("net.interface.tx.{}", i));
         }
         loop {
             let mut line = String::with_capacity(200);
             try!(f.read_line(&mut line));
             if line.len() == 0 { break; }
-            let mut pieces = words(&line);
+            let mut pieces = line.split_whitespace();
             let interface = pieces.next().unwrap_or("unknown:")
                             .trim_right_matches(':');
             for (k, v) in fields.iter().zip(pieces) {
@@ -148,12 +148,12 @@ pub fn read(t: &mut Tip) -> Option<u64> {
             let mut header_line = String::with_capacity(2048);
             try!(f.read_line(&mut header_line));
             if header_line.len() == 0 { break; }
-            let mut header = words(&header_line);
+            let mut header = header_line.split_whitespace();
 
             let mut values_line = String::with_capacity(1024);
             try!(f.read_line(&mut values_line));
             if values_line.len() == 0 { break; }
-            let mut values = words(&values_line);
+            let mut values = values_line.split_whitespace();
 
             let first = header.next();
             if first != values.next() {
@@ -176,7 +176,7 @@ pub fn read(t: &mut Tip) -> Option<u64> {
             let mut line = String::with_capacity(200);
             try!(f.read_line(&mut line));
             if line.len() == 0 { break; }
-            let mut pieces = words(&line);
+            let mut pieces = line.split_whitespace();
             pieces.next(); pieces.next(); // major, minor numbers
             let device = pieces.next().unwrap_or("loop");
             if device.starts_with("ram") || device.starts_with("loop") {
@@ -276,7 +276,7 @@ pub fn read(t: &mut Tip) -> Option<u64> {
             let mut line = String::with_capacity(200);
             try!(f.read_line(&mut line));
             if line.len() == 0 { break; }
-            let mut pieces = words(&line);
+            let mut pieces = line.split_whitespace();
             pieces.next(); // Skip slot number
             let local = pieces.next()
                 .and_then(|x| if x.len() == 13 { Some(x) } else { None })

@@ -4,7 +4,7 @@ use std::str::from_utf8;
 use std::fs::{File, read_dir};
 use libc;
 
-use cantal::itertools::{NextValue, NextStr, words};
+use cantal::itertools::{NextValue, NextStr};
 use super::Tip;
 use super::super::stats::Key;
 
@@ -70,7 +70,7 @@ fn read_process(cache: &mut ReadCache, pid: Pid)
 
     let stat_line = try!(from_utf8(&buf[name_end+1..])
         .map_err(|e| debug!("Can't decode stat file: {}", e)));
-    let mut words = words(&stat_line);
+    let mut words = stat_line.split_whitespace();
 
     let mut buf = String::with_capacity(512);
     try!(File::open(&format!("/proc/{}/io", pid))
