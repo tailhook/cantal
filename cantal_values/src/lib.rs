@@ -1,5 +1,5 @@
 #![crate_type="lib"]
-#![crate_name="cantal"]
+#![crate_name="cantal_values"]
 
 extern crate rustc_serialize;
 extern crate libc;

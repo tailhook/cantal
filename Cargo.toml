@@ -28,20 +28,15 @@ anymap = "0.11"
 fern = "0.3"
 log = "0.3"
 
+[dependencies.cantal_values]
+path = "cantal_values"
+
 [dependencies.mio]
 git = "git://github.com/carllerche/mio"
 
 [dependencies.time]
 version = "0.1"
 features = ["rustc-serialize"]
-
-[lib]
-name = "cantal"
-path = "src/query/lib.rs"
-
-[[bin]]
-name = "cantal"
-path = "src/cli/main.rs"
 
 [[bin]]
 name = "cantal-agent"

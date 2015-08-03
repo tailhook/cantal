@@ -2,7 +2,7 @@ extern crate libc;
 #[macro_use] extern crate log;
 extern crate cbor;
 extern crate argparse;
-extern crate cantal;
+extern crate cantal_values as cantal;
 extern crate rustc_serialize;
 extern crate regex;
 extern crate nix;

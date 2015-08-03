@@ -1,0 +1,20 @@
+[package]
+
+name = "cantal_values"
+description = "The parser of cantal file format"
+license = "MIT"
+keywords = ["monitoring", "statistics"]
+homepage = "http://github.com/tailhook/cantal"
+version = "0.1.0"
+authors = ["paul@colomiets.name"]
+
+[dependencies]
+byteorder = "0.3"
+rustc-serialize = "0.3"
+log = "0.3"
+libc = "0.1"
+
+[[bin]]
+name = "cantal"
+path = "src/bin/main.rs"
+
