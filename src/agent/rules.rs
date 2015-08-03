@@ -47,6 +47,7 @@ pub enum Condition {
     And(Box<Condition>, Box<Condition>),
     Or(Box<Condition>, Box<Condition>),
     Not(Box<Condition>),
+    Has(String),
 }
 
 impl Hash for Condition {
@@ -63,6 +64,7 @@ impl Hash for Condition {
             &And(ref a, ref b) => { "and".hash(s); a.hash(s); b.hash(s); }
             &Or(ref a, ref b) => { "or".hash(s); a.hash(s); b.hash(s); }
             &Not(ref a) => { "not".hash(s); a.hash(s); }
+            &Has(ref a) => { "has".hash(s); a.hash(s); }
         }
     }
 }
@@ -72,12 +74,13 @@ impl Decodable for Condition {
         use self::Condition::*;
         d.read_seq(|d, len| {
             let s = try!(d.read_str());
-            let norm_len = if s == "not" { 2 } else { 3 };
+            let norm_len = if s == "not" || s == "has" { 2 } else { 3 };
             if norm_len != len {
                 return Err(d.error("Bad tuple length condition"));
             }
             match &s[..] {
                 "not" => Ok(Not(Box::new(try!(Decodable::decode(d))))),
+                "has" => Ok(Has(try!(Decodable::decode(d)))),
                 "and" => Ok(And(
                     Box::new(try!(Decodable::decode(d))),
                     Box::new(try!(Decodable::decode(d))),
@@ -103,6 +106,7 @@ impl Encodable for Condition {
         use self::Condition::*;
         let len = match self {
             &Not(_) => 1,
+            &Has(_) => 1,
             _ => 2,
         };
         e.emit_seq(len, |e| {
@@ -113,6 +117,7 @@ impl Encodable for Condition {
                 &And(_, _) => "and",
                 &Or(_, _) => "or",
                 &Not(_) => "not",
+                &Has(_) => "has",
             }).encode(e)));
             try!(e.emit_seq_elt(1, |e| match self {
                 &Eq(ref x, _) => x.encode(e),
@@ -121,6 +126,7 @@ impl Encodable for Condition {
                 &And(ref x, _) => x.encode(e),
                 &Or(ref x, _) => x.encode(e),
                 &Not(ref x) => x.encode(e),
+                &Has(ref x) => x.encode(e),
             }));
             if len >= 2 {
                 try!(e.emit_seq_elt(2, |e| match self {
@@ -180,6 +186,7 @@ pub fn match_cond(key: &Key, cond: &Condition) -> bool {
         &And(ref a, ref b) => match_cond(key, a) && match_cond(key, b),
         &Or(ref a, ref b) => match_cond(key, a) || match_cond(key, b),
         &Not(ref x) => !match_cond(key, x),
+        &Has(ref name) => key.get(name).is_some(),
     }
 }
 
