@@ -7,27 +7,25 @@ use rustc_serialize::json::ToJson;
 use super::{Peers, Peer};
 use super::super::rules::{Rule, Query, Source, json_tree, match_cond};
 use super::super::rules::{take_rate, take_raw, sum_rate, sum_raw};
-use super::super::history::{merge};
+use history::ValueSet;
 
 
 
 fn query_fine(rule: &Rule, peer: &Peer) -> Json {
     use super::super::rules::Aggregation::*;
-    let mut keys = HashMap::<_, Vec<_>>::new();
-    for (ref key, _) in peer.history.fine.iter() {
+    let mut keys = HashMap::<_, ValueSet>::new();
+    for (ref key, value) in peer.history.fine.iter() {
         if match_cond(key, &rule.condition) {
             let target_key = rule.key.iter()
                              .map(|x| key.get(x).unwrap_or(""))
                              .collect::<Vec<_>>();
             keys.entry(target_key)
-                .or_insert_with(Vec::new)
-                .push(key.clone());
+                .or_insert(ValueSet::Empty)
+                .push(value);
         }
     }
-    return json_tree(keys.into_iter().map(|(key, hkeys)| {
-        use super::super::history::Histories::*;
-        let stream = merge(hkeys.iter()
-               .filter_map(|key| peer.history.get_fine_history(key)));
+    return json_tree(keys.into_iter().map(|(key, stream)| {
+        use history::ValueSet::*;
         let ts = &peer.history.fine_timestamps;
         let json = match rule.aggregation {
             None => stream.map(|s| match s {

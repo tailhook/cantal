@@ -10,9 +10,11 @@ use rustc_serialize::json::{Json, ToJson};
 use rustc_serialize::{Decodable, Decoder, Encodable, Encoder};
 
 use super::http;
-use super::stats::{Stats, Key};
-use super::history::{History, merge};
-use super::history_chunk::{HistoryChunk};
+use super::stats::Stats;
+use history::{Key};
+use history::{History};
+use history::{HistoryChunk};
+use history::{ValueSet};
 
 
 pub struct Error(pub &'static str);
@@ -300,21 +302,19 @@ pub fn sum_rate<T, I>(ts: &VecDeque<(u64, u32)>, items: Vec<I>, limit: u32)
 
 fn query_fine(rule: &Rule, stats: &Stats) -> Result<Json, Error> {
     use self::Aggregation::*;
-    let mut keys = HashMap::<_, Vec<_>>::new();
-    for (ref key, _) in stats.history.fine.iter() {
+    let mut keys = HashMap::<_, ValueSet>::new();
+    for (ref key, value) in stats.history.fine.iter() {
         if match_cond(key, &rule.condition) {
             let target_key = rule.key.iter()
                              .map(|x| key.get(x).unwrap_or(""))
                              .collect::<Vec<_>>();
             keys.entry(target_key)
-                .or_insert_with(Vec::new)
-                .push(key.clone());
+                .or_insert_with(ValueSet::Empty)
+                .push(value);
         }
     }
-    Ok(json_tree(keys.into_iter().map(|(key, hkeys)| {
-        use super::history::Histories::*;
-        let stream = merge(hkeys.iter()
-               .filter_map(|key| stats.history.get_fine_history(key)));
+    Ok(json_tree(keys.into_iter().map(|(key, stream)| {
+        use history::ValueSet::*;
         let ts = &stats.history.fine_timestamps;
         let json = match rule.aggregation {
             None => stream.map(|s| match s {

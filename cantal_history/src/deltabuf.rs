@@ -1,6 +1,11 @@
 use std::cmp::min;
+use std::ops::{Shl, Shr, BitOr, BitAnd};
+use std::marker::PhantomData;
 use std::collections::VecDeque;
 use std::collections::vec_deque::Iter as DequeIter;
+
+use num::{Integer, FromPrimitive, ToPrimitive};
+
 
 const SIGN_BIT: u8     = 0b00100000;
 const SPECIAL_BIT: u8  = 0b01000000;  // WARNING! check only with CONTINUATION
@@ -16,47 +21,66 @@ const CONTINUATION_SHIFT: u32 = 7;
 const FIRST_BYTE_MASK: u8 = 0b00011111;
 const CONTINUATION_MASK: u8 = 0b01111111;
 
-#[derive(RustcDecodable, RustcEncodable, Debug, Clone)]
-pub struct DeltaBuf(VecDeque<u8>);
+
+pub trait Int: Integer + FromPrimitive + ToPrimitive + Copy +
+    Shl<u32, Output=Self> + Shr<u32, Output=Self> +
+    BitOr<Self, Output=Self> + BitAnd<Self, Output=Self> {}
+
+#[derive(Debug, Clone)]
+pub struct DeltaBuf<T:Int>(VecDeque<u8>, PhantomData<T>);
 
 #[derive(PartialEq, Eq, Debug, Clone, Copy)]
-pub enum Delta {
-    Positive(u64),
-    Negative(u64),
+pub enum Delta<T:Int> {
+    Positive(T),
+    Negative(T),
     Skip,
 }
 
 
 #[derive(PartialEq, Eq, Debug, Clone, Copy)]
-enum DequeItem {
+enum DequeItem<T:Int> {
     Empty,
     Gaps(u8),
     Zeros(u8),
-    Diff(Delta),
+    Diff(Delta<T>),
 }
 
 #[derive(Clone)]
-pub struct DeltaIter<'a> {
+pub struct DeltaIter<'a, T:Int> {
     iter: DequeIter<'a, u8>,
-    queue: DequeItem,
+    queue: DequeItem<T>,
 }
 
-impl<'a> DeltaIter<'a> {
+impl<T> Int for T
+    where
+        T: Integer,
+        T: FromPrimitive,
+        T: ToPrimitive,
+        T: Copy,
+        T: Shl<u32, Output=T>,
+        T: Shr<u32, Output=T>,
+        T: BitOr<T, Output=T>,
+        T: BitAnd<T, Output=T>,
+{}
+
+impl<'a, T:Int> DeltaIter<'a, T> where T:Shl<u32, Output=T> {
     fn refill_queue(&mut self) {
         use self::DequeItem::*;
 
-        let mut delta = 0;
+        let mut delta: T = T::zero();
         loop {
             let byte = match self.iter.next() {
                 Some(x) => *x,
                 None => {
-                    if delta != 0 { error!("EOF in the middle of delta"); }
+                    if delta != T::zero() {
+                        error!("EOF in the middle of delta");
+                    }
                     break;
                 }
             };
             if byte & CONTINUATION_BIT != 0 {
-                delta <<= CONTINUATION_SHIFT;
-                delta |= (byte & CONTINUATION_MASK) as u64;
+                delta = delta << CONTINUATION_SHIFT;
+                delta = delta | T::from_u8(byte & CONTINUATION_MASK).unwrap();
             } else {
                 if byte & SPECIAL_BIT != 0 {
                     if byte & SPECIAL_BITS == SKIP_BITS {
@@ -73,8 +97,8 @@ impl<'a> DeltaIter<'a> {
                         error!("Errorneous special bits");
                     }
                 } else {
-                    delta <<= FIRST_BYTE_SHIFT;
-                    delta |= (byte & FIRST_BYTE_MASK) as u64;
+                    delta = delta << FIRST_BYTE_SHIFT;
+                    delta = delta | T::from_u8(byte & FIRST_BYTE_MASK).unwrap();
                     if byte & SIGN_BIT != 0 {
                         self.queue = Diff(Delta::Negative(delta));
                     } else {
@@ -87,10 +111,10 @@ impl<'a> DeltaIter<'a> {
     }
 }
 
-impl<'a> Iterator for DeltaIter<'a> {
-    type Item = Delta;
+impl<'a, T:Int> Iterator for DeltaIter<'a, T> {
+    type Item = Delta<T>;
 
-    fn next(&mut self) -> Option<Delta> {
+    fn next(&mut self) -> Option<Delta<T>> {
         use self::DequeItem::*;
         match self.queue {
             Empty | Gaps(0) | Zeros(0) => self.refill_queue(),
@@ -101,21 +125,21 @@ impl<'a> Iterator for DeltaIter<'a> {
             Diff(x) => (Empty, Some(x)),
             Gaps(1) => (Empty, Some(Delta::Skip)),
             Gaps(x) => (Gaps(x-1), Some(Delta::Skip)),
-            Zeros(1) => (Empty, Some(Delta::Positive(0))),
-            Zeros(x) => (Zeros(x-1), Some(Delta::Positive(0))),
+            Zeros(1) => (Empty, Some(Delta::Positive(T::zero()))),
+            Zeros(x) => (Zeros(x-1), Some(Delta::Positive(T::zero()))),
         };
         self.queue = nque;
         result
     }
 }
 
-impl DeltaBuf {
-    pub fn new() -> DeltaBuf {
-        return DeltaBuf(VecDeque::new());
+impl<T:Int> DeltaBuf<T> {
+    pub fn new() -> DeltaBuf<T> {
+        return DeltaBuf(VecDeque::new(), PhantomData);
     }
-    pub fn push(&mut self, old_value: i64, new_value: i64, mut age_diff: u64)
+    pub fn push(&mut self, old_value: T, new_value: T, mut age_diff: u64)
     {
-        let DeltaBuf(ref mut deque) = *self;
+        let DeltaBuf(ref mut deque, _) = *self;
         if age_diff == 0 {
             warn!("Duplicate write at same age"); // Shouldn't we panic?
             return;
@@ -131,7 +155,7 @@ impl DeltaBuf {
         } else {
             (new_value - old_value, 0)
         };
-        if delta == 0 {
+        if delta == T::zero() {
             if deque.len() > 0 && deque[0] & SPECIAL_BITS == ZERO_BITS {
                 let old_val = deque[0] & SPECIAL_MASK;
                 if old_val < SPECIAL_MASK {
@@ -142,15 +166,18 @@ impl DeltaBuf {
             deque.push_front(ZERO_BITS as u8 | 1);
             return;
         }
-        deque.push_front(sign | (delta as u8 & FIRST_BYTE_MASK));
+        deque.push_front(sign |
+            (delta & T::from_u8(FIRST_BYTE_MASK).unwrap()).to_u8().unwrap());
         delta = delta >> FIRST_BYTE_SHIFT;
-        while delta > From::from(0) {
-            deque.push_front((delta as u8 & CONTINUATION_MASK) |
-                CONTINUATION_BIT);
+        while delta > T::zero() {
+            deque.push_front(
+                (delta & T::from_u8(CONTINUATION_MASK).unwrap())
+                .to_u8().unwrap()
+                | CONTINUATION_BIT);
             delta = delta >> CONTINUATION_SHIFT;
         }
     }
-    pub fn deltas<'a>(&'a self) -> DeltaIter<'a> {
+    pub fn deltas<'a>(&'a self) -> DeltaIter<'a, T> {
         DeltaIter {
             iter: self.0.iter(),
             queue: DequeItem::Empty,
@@ -163,7 +190,7 @@ impl DeltaBuf {
         }
         match self._truncate_bytes(limit) {
             Ok((limit_bytes, truncate_num)) => {
-                let DeltaBuf(ref mut deque) = *self;
+                let DeltaBuf(ref mut deque, _) = *self;
                 if truncate_num > 0 {
                     let b = deque[limit_bytes-1];
                     debug_assert!(b & CONTINUATION_BIT as u8 == 0);
@@ -182,7 +209,7 @@ impl DeltaBuf {
         }
     }
     fn _truncate_bytes(&self, limit: usize) -> Result<(usize, u8), usize> {
-        let DeltaBuf(ref deque) = *self;
+        let DeltaBuf(ref deque, _) = *self;
         let mut counter = 0usize;
         for (idx, &byte) in deque.iter().enumerate() {
             if byte & CONTINUATION_BIT as u8 != 0 {
@@ -190,7 +217,7 @@ impl DeltaBuf {
             }
             if byte & SPECIAL_BIT as u8 != 0 {
                 let cnt = byte & SPECIAL_MASK as u8;
-                let newcnt = counter + cnt as usize;
+                let newcnt = counter + cnt.to_usize().unwrap();
                 if newcnt == limit {
                     return Ok((idx+1, 0));
                 } else if newcnt > limit {
@@ -217,7 +244,7 @@ mod test {
     use super::{Delta, DeltaBuf};
     use super::Delta::*;
 
-    fn to_buf(values: &[i64]) -> DeltaBuf {
+    fn to_buf(values: &[i64]) -> DeltaBuf<i64> {
         let mut buf = DeltaBuf::new();
         for idx in 0..(values.len()-1) {
             buf.push(values[idx], values[idx+1], 1);
@@ -225,7 +252,7 @@ mod test {
         return buf;
     }
     fn to_buf_opt(values: &[Option<i64>])
-        -> DeltaBuf
+        -> DeltaBuf<i64>
     {
         let mut buf = DeltaBuf::new();
         let mut off = 0;
@@ -241,13 +268,13 @@ mod test {
         return buf;
     }
 
-    fn deltify(values: &[i64]) -> Vec<Delta> {
+    fn deltify(values: &[i64]) -> Vec<Delta<i64>> {
         let buf = to_buf(values);
         println!("BUFFER {:?}", buf);
         return buf.deltas().collect()
     }
     fn deltify_opt(values: &[Option<i64>])
-        -> Vec<Delta>
+        -> Vec<Delta<i64>>
     {
         return to_buf_opt(values).deltas().collect()
     }

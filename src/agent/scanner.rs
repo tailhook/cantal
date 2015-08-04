@@ -16,6 +16,7 @@ use super::scan::time_ms;
 use super::util::Cell;
 use super::storage::Buffer;
 use super::deps::{Dependencies, LockedDeps};
+use cantal::Value;
 
 
 const SNAPSHOT_INTERVAL: u64 = 60000;
@@ -49,7 +50,13 @@ pub fn scan_loop(deps: Dependencies)
             debug!("Got {} values and {} processes in {} ms",
                 tip.map.len(), processes.len(), scan_duration);
 
-            stats.history.push(start, scan_duration, tip);
+            // TODO(tailhook) use drain-style iterator and push to both
+            // at once, so we don't need clone (each metric)
+            stats.history.fine.push((start, scan_duration), tip.map.iter()
+                .filter(|&(k, v)| matches!(v, &Value::State(_, _))));
+            stats.history.tip.push((start, scan_duration), tip.map.iter()
+                .filter(|&(k, v)| !matches!(v, &Value::State(_, _))));
+
             stats.last_scan = start;
             stats.boot_time = boot_time.or(stats.boot_time);
             stats.processes = processes;

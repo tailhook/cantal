@@ -1,7 +1,7 @@
-use cantal::Value as TipValue;
+use values::Value as TipValue;
 
 
-#[derive(Debug, Clone, RustcEncodable, RustcDecodable)]
+#[derive(Debug, Clone)]
 pub enum HistoryChunk {
     State((u64, String)),
     Counter(Vec<Option<u64>>),
@@ -37,7 +37,7 @@ impl<'a> Iterator for HistoryChunkIter<'a> {
     type Item = Option<TipValue>;
     fn next(&mut self) -> Option<Option<TipValue>> {
         use self::HistoryChunk as S;
-        use cantal::Value as D;
+        use values::Value as D;
         let idx = self.start_index;
         if idx >= self.end_index {
             return None;
@@ -58,7 +58,7 @@ impl<'a> Iterator for HistoryChunkIter<'a> {
 impl<'a> DoubleEndedIterator for HistoryChunkIter<'a> {
     fn next_back(&mut self) -> Option<Option<TipValue>> {
         use self::HistoryChunk as S;
-        use cantal::Value as D;
+        use values::Value as D;
         if self.end_index <= self.start_index {
             return None;
         }

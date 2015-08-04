@@ -9,7 +9,7 @@ use cantal::itertools::{NextValue};
 use cantal::Value::{Counter, Integer};
 
 use super::Tip;
-use super::super::stats::Key;
+use history::Key;
 
 
 pub fn read(t: &mut Tip) -> Option<u64> {

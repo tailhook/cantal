@@ -10,7 +10,7 @@ use cantal::{Metadata, Value, Descriptor};
 
 use super::Tip;
 use super::super::util::tree_collect;
-use super::super::stats::Key;
+use history::Key;
 use super::processes::{Pid, MinimalProcess};
 use super::super::mountpoints::{MountPrefix, parse_mount_point};
 

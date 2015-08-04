@@ -2,7 +2,7 @@ use std::ptr;
 use std::collections::HashMap;
 use libc;
 
-use super::stats::Key;
+use history::Key;
 use cantal::Value;
 use cantal::itertools::NextValue;
 

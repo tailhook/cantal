@@ -7,3 +7,5 @@
 /public/js
 /frontend/tools/jadecompile
 /target
+/cantal_values/target
+/cantal_history/target

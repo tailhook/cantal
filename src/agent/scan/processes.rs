@@ -6,7 +6,7 @@ use libc;
 
 use cantal::itertools::{NextValue, NextStr};
 use super::Tip;
-use super::super::stats::Key;
+use history::Key;
 
 pub type Pid = u32;
 
