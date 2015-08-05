@@ -141,10 +141,11 @@ pub fn read(tip: &mut Tip, cache: &mut ReadCache, processes: &[MinimalProcess])
                 let (data, new_meta) = read_values(cache, &realpath);
                 if let Some(data) = data {
                     for (desc, value) in data.into_iter() {
-                        if let Ok(key) = Key::from_json(&desc.json) {
-                            tip.add(key.add_pair("pid",
-                                                 &format!("{}", prc.pid)),
-                                    value);
+                        let pid = &format!("{}", prc.pid);
+                        if let Ok(key) = Key::from_json(
+                            &desc.json, &[("pid", pid)])
+                        {
+                            tip.add(key, value);
                         }
                     }
                 }

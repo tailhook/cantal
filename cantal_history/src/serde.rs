@@ -1,4 +1,4 @@
-use std::io::{Cursor, Read, Write};
+use std::io::{Cursor, Read};
 use std::collections::VecDeque;
 
 use cbor::{Encoder, Decoder, Config};
@@ -181,7 +181,7 @@ impl History {
                 read_assert!(plen == 3);
                 // We temporarily rely on exact order of properties
                 read_assert!(&try_log!(d.text())[..] == "age");
-                let age = try_log!(d.u64());
+                h.fine.age = try_log!(d.u64());
                 read_assert!(&try_log!(d.text())[..] == "timestamps");
                 let tslen = try_log!(d.array());
                 for _ in 0..tslen {

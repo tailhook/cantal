@@ -120,12 +120,9 @@ fn run() -> Result<(), Box<Error>> {
         let mydeps = deps.clone();
         let result = File::open(&path.join("current.cbor"))
             .map_err(|e| error!("Error reading old data: {}. Ignoring...", e))
-            .and_then(|f| Decoder::from_reader(f).decode().next()
-                .ok_or_else(|| error!(
-                    "Error parsing old data: No data. Ignoring..."))
-                .and_then(|r| r.map_err(|e| error!(
-                    "Error parsing old data {:?}. Ignoring...", e)
-                )));
+            .and_then(|f| history::History::decode(f)
+                .map_err(|()| error!("Error parsing old data. Ignoring...")
+                ));
         if let Ok(history) = result {
             mydeps.write::<stats::Stats>().history = history;
         }
