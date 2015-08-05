@@ -3,10 +3,7 @@ use std::collections::BTreeMap;
 use cbor::{Encoder};
 use serialize::json::Json;
 
-///
-/// This contains CBOR-encoded key-value pairs
-#[derive(Hash, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Key(Box<[u8]>);
+use Key;
 
 impl Key {
     /// Note: caller must ensure that order is Okay
@@ -60,6 +57,10 @@ impl Key {
     }
     pub fn metric(metric: &str) -> Key {
         Key::from_iter([("metric", metric)].iter().cloned())
+    }
+
+    pub fn as_bytes<'x>(&'x self) -> &'x [u8] {
+        return &self.0[..]
     }
 }
 

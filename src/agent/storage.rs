@@ -16,7 +16,7 @@ use super::deps::{Dependencies, LockedDeps};
 pub struct Buffer {
     pub timestamp: u64,
     pub snapshot: Option<String>,
-    pub data: Vec<u8>,
+    pub data: Box<[u8]>,
 }
 
 #[derive(Default, RustcEncodable, Clone, Copy)]

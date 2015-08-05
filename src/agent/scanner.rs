@@ -71,17 +71,11 @@ pub fn scan_loop(deps: Dependencies)
                     last_hourly = hourly;
                 }
                 if let Some(cell) = cell {
-                    let mut enc = Mencoder::from_memory();
-                    enc.encode(&[&stats.history])
-                        .map_err(|e| error!("Can't serialize history: {}", e))
-                        .map(|_| {
-                            cell.put(Buffer {
-                                timestamp: start,
-                                snapshot: snapshot,
-                                data: enc.into_bytes(),
-                            });
-                        })
-                        .ok();
+                    cell.put(Buffer {
+                        timestamp: start,
+                        snapshot: snapshot,
+                        data: stats.history.encode(),
+                    });
                 }
             }
         }

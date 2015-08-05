@@ -77,8 +77,9 @@ impl Value {
 
 #[derive(Debug)]
 pub struct Backlog {
-    age: u64,
-    timestamps: VecDeque<(u64, u32)>,
+    // Made pub for serializer, may be fix it?
+    pub age: u64,
+    pub timestamps: VecDeque<(u64, u32)>,
     pub values: HashMap<Key, Value>,
 }
 
@@ -102,6 +103,13 @@ pub trait ValueBuf<T> {
 }
 
 impl<T: Copy, U:ValueBuf<T>> Inner<T, U> {
+    pub fn unpack<S:Into<U>>(tip: T, age: u64, buf: S) -> Inner<T, U> {
+        Inner {
+            tip: tip,
+            age: age,
+            buf: buf.into(),
+        }
+    }
     fn push(&mut self, tip: T, age: u64) -> bool {
         if age < self.age {
             // Pushing already existing history
@@ -132,6 +140,12 @@ impl<T: Copy, U:ValueBuf<T>> Inner<T, U> {
     }
     pub fn tip(&self) -> T {
         self.tip
+    }
+    pub fn age(&self) -> u64 {
+        self.age
+    }
+    pub fn buf<'x>(&'x self) -> &'x U {
+        &self.buf
     }
 }
 
@@ -250,11 +264,11 @@ mod test {
         backlog.push((1000, 10), vec![
             (&Key::metric("test1"), &Counter(10)),
             (&Key::metric("test2"), &Counter(20)),
-        ].iter());
+        ].into_iter());
         backlog.push((2000, 10), vec![
             (&Key::metric("test2"), &Counter(20)),
             (&Key::metric("test3"), &Counter(30)),
-        ].iter());
+        ].into_iter());
         assert_eq!(backlog.age, 2);
         assert_eq!(backlog.values.len(), 3);
     }

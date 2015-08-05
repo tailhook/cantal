@@ -234,6 +234,15 @@ impl<T:Int> DeltaBuf<T> {
         }
         return Err(counter);
     }
+    pub fn bytes<'x>(&'x self) -> DequeIter<'x, u8> {
+        self.0.iter()
+    }
+}
+
+impl<T:Int> From<Vec<u8>> for DeltaBuf<T> {
+    fn from(vec: Vec<u8>) -> DeltaBuf<T> {
+        DeltaBuf(vec.into_iter().collect(), PhantomData)
+    }
 }
 
 

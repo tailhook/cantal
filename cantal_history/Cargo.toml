@@ -13,6 +13,7 @@ log = "0.3"
 num = "0.1"
 rustc-serialize = "0.3"
 cbor-codec = "0.1"
+byteorder = "0.3"
 
 [dependencies.cantal_values]
 path = "../cantal_values"

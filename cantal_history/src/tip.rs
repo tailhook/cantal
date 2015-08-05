@@ -7,8 +7,9 @@ use values::Value as TipValue;
 
 #[derive(Debug)]
 pub struct Tip {
-    latest_timestamp: (u64, u32),
-    values: HashMap<Key, (u64, TipValue)>,
+    // Made pub for serializer, may be fix it?
+    pub latest_timestamp: (u64, u32),
+    pub values: HashMap<Key, (u64, TipValue)>,
 }
 
 impl Tip {
