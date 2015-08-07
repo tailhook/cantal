@@ -18,8 +18,11 @@ mod serde;
 pub use backlog::Backlog;
 pub use tip::Tip;
 pub use merge::ValueSet;
-pub use chunk::HistoryChunk;
+pub use chunk::HistoryChunk as Chunk;
 
+pub type TimeStamp = u64;  // Milliseconds
+pub type TimeDelta = u32;  // Milliseconds
+pub type SnapTime = (TimeStamp, TimeDelta);
 
 #[derive(Debug)]
 pub struct History {

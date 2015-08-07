@@ -15,13 +15,13 @@ use mio::{EventLoop, Token};
 use mio::tcp::TcpStream;
 use mio::util::Slab;
 
+use query::{Filter, Rule, query_history};
 use super::p2p;
 use super::http;
 use super::staticfiles;
 use super::respond;
 use super::remote;
 use super::websock;
-use super::rules;
 use super::ioutil::Poll;
 use super::stats::Stats;
 use super::error::Error;
@@ -61,7 +61,7 @@ struct WebSocket {
     sock: TcpStream,
     input: Vec<u8>,
     output: Vec<u8>,
-    subscriptions: HashSet<rules::RawRule>,
+    subscriptions: HashSet<Filter>,
 }
 
 #[derive(Clone, Debug, Copy, PartialEq, Eq)]
@@ -210,10 +210,6 @@ fn resolve(req: &Request, context: &mut Context)
         => respond::serve_remote_stats(req, context),
         (&Post, &P(ref x)) if &x[..] == "/query.json"
         => respond::serve_query(req, context),
-        (&Post, &P(ref x)) if &x[..] == "/query_raw.json"
-        => respond::serve_query_raw(req, context),
-        (&Post, &P(ref x)) if &x[..] == "/remote/query_raw.json"
-        => remote::respond::serve_query_raw(req, context),
         (&Post, &P(ref x)) if &x[..] == "/remote/query_by_host.json"
         => remote::respond::serve_query_by_host(req, context),
         (&Post, &P(ref x)) if &x[..] == "/add_host.json"
@@ -405,9 +401,14 @@ impl Handler {
                                 debug!("Websock input {:?}", msg);
                                 match msg {
                                     InputMessage::Subscribe(sub, depth) => {
-                                        if depth != 0 {
-                                            let val = rules::query_raw(
-                                                vec![&sub].into_iter(), depth,
+                                        // TODO(tailhook) move it to remote
+                                        if depth != 0 { // not sure check is ok
+                                            let val = query_history(
+                                                Rule {
+                                                    series: sub,
+                                                    extract: remote::EXTRACT,
+                                                    functions: Vec::new(),
+                                                },
                                                 &context.deps.read::<Stats>()
                                                     .history);
                                             let msg = json::encode(
@@ -540,10 +541,12 @@ impl mio::Handler for Handler {
                         }
                         if wsock.output.len() < MAX_OUTPUT_BUFFER {
                             let start = wsock.output.len() == 0;
-                            let val = rules::query_raw(
-                                wsock.subscriptions.iter(), 1, &stats.history);
+                            let buf = Vec::new();
+                            for sub in wsock.subscriptions.iter() {
+                                buf.push(query_history(sub, 1, &stats.history));
+                            }
                             let msg = json::encode(
-                                &OutputMessage::Stats(val)
+                                &OutputMessage::Stats(buf)
                                 ).unwrap();
 
                             websock::write_text(&mut wsock.output, &msg);

@@ -11,6 +11,7 @@ use rand::thread_rng;
 use rand::distributions::{IndependentSample, Range};
 use rustc_serialize::json;
 
+use query::{Filter, Extract};
 use super::server::Context;
 use super::scan::time_ms;
 use super::websock::{Beacon, write_text};
@@ -21,7 +22,6 @@ use super::server::Timer::{ReconnectPeer, ResetPeer};
 use super::p2p::GossipStats;
 use super::p2p;
 use self::owebsock::WebSocket;
-use super::rules::{RawRule};
 use super::history::History;
 use super::ioutil::Poll;
 use super::server::Timer::{RemoteCollectGarbage};
@@ -37,7 +37,8 @@ const HANDSHAKE_TIMEOUT: u64 = 30000;
 const MESSAGE_TIMEOUT: u64 = 15000;
 const GARBAGE_COLLECTOR_INTERVAL: u64 = 60_000;
 const SUBSCRIPTION_LIFETIME: i64 = 3 * 60_000;
-const DATA_POINTS: usize = 150;  // five minutes
+const DATA_POINTS: usize = 150;  // ~ five minutes ~ 150px of graph
+const EXTRACT: Extract = Extract::HistoryByNum(DATA_POINTS);
 
 
 #[allow(unused)] // start_time will be used later
@@ -47,7 +48,7 @@ pub struct Peers {
     pub connected: usize,
     pub addresses: HashMap<SocketAddr, Token>,
     pub peers: Slab<Peer>,
-    subscriptions: HashMap<RawRule, SteadyTime>,
+    subscriptions: HashMap<Filter, SteadyTime>,
 }
 
 pub struct Peer {

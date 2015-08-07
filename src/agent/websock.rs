@@ -12,6 +12,7 @@ use hyper::header::ConnectionOption::ConnectionHeader;
 use websocket::header::{WebSocketVersion, WebSocketKey};
 use rustc_serialize::json;
 
+use query::{Filter, Dataset};
 use super::http;
 use super::scan::time_ms;
 use super::remote::Peers;
@@ -21,7 +22,6 @@ use super::util::Consume;
 use super::server::{Context};
 use super::stats::Stats;
 use super::deps::{Dependencies, LockedDeps};
-use super::rules;
 
 
 #[derive(RustcEncodable, RustcDecodable, Debug, Clone)]
@@ -47,13 +47,13 @@ pub struct Beacon {
 pub enum OutputMessage {
     Beacon(Beacon),
     NewPeer(String),
-    Stats(rules::RawResult),
+    Stats(Vec<Dataset>),
 }
 
 #[derive(RustcEncodable, RustcDecodable, Debug)]
 pub enum InputMessage {
-    Subscribe(rules::RawRule, usize),
-    Unsubscribe(rules::RawRule),
+    Subscribe(Filter, usize),
+    Unsubscribe(Filter),
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]

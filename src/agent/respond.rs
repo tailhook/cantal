@@ -4,10 +4,10 @@ use std::collections::HashMap;
 use rustc_serialize::json;
 use rustc_serialize::json::ToJson;
 
+use query::{Rule, query_history};
 use super::http;
 use super::scan;
 use super::storage::{StorageStats};
-use super::rules::{Query, query, RawQuery, query_raw};
 use super::http::{Request, BadRequest};
 use super::server::Context;
 use super::stats::Stats;
@@ -142,6 +142,10 @@ pub fn serve_remote_stats(_req: &Request, context: &mut Context)
 pub fn serve_query(req: &Request, context: &mut Context)
     -> Result<http::Response, Box<http::Error>>
 {
+    #[derive(RustcDecodable)]
+    struct Query {
+        rules: HashMap<String, Rule>,
+    }
     let stats: &Stats = &*context.deps.read();
     let h = &stats.history;
     from_utf8(&req.body)
@@ -149,27 +153,8 @@ pub fn serve_query(req: &Request, context: &mut Context)
        .and_then(|s| json::decode::<Query>(s)
        .map_err(|_| BadRequest::err("Failed to decode query")))
        .and_then(|r| {
-           Ok(http::Response::json(&vec![
-            (String::from("dataset"), try!(query(&r, &*stats))),
-            (String::from("tip_timestamp"), h.tip_timestamp.to_json()),
-            (String::from("fine_timestamps"), h.fine_timestamps
-                .iter().cloned().collect::<Vec<_>>().to_json()),
-            (String::from("coarse_timestamps"), h.coarse_timestamps
-                .iter().cloned().collect::<Vec<_>>().to_json()),
-           ].into_iter().collect::<HashMap<_,_>>().to_json()))
-        })
-}
-
-pub fn serve_query_raw(req: &Request, context: &mut Context)
-    -> Result<http::Response, Box<http::Error>>
-{
-    let stats: &Stats = &*context.deps.read();
-    from_utf8(&req.body)
-       .map_err(|_| BadRequest::err("Bad utf-8 encoding"))
-       .and_then(|s| json::decode::<RawQuery>(s)
-       .map_err(|_| BadRequest::err("Failed to decode query")))
-       .and_then(|r| {
-           Ok(http::Response::json(&query_raw(
-                r.rules.iter(), r.limit, &stats.history)))
+           Ok(http::Response::json(r.rules.into_iter().map(|(key, rule)| {
+                (key, query_history(rule, h))
+           }).collect()))
         })
 }

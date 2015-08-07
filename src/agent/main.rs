@@ -21,6 +21,7 @@ extern crate fern;
 
 extern crate cantal_values as cantal;
 extern crate cantal_history as history;
+extern crate cantal_query as query;
 
 use std::env;
 use std::thread;
@@ -46,7 +47,6 @@ mod scanner;
 mod scan;
 mod mountpoints;
 mod storage;
-mod rules;
 mod p2p;
 mod http;
 mod websock;

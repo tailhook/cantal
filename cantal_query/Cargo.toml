@@ -1,0 +1,25 @@
+[package]
+
+name = "cantal_query"
+description = "The query language and processor for cantal statistics"
+license = "MIT"
+keywords = ["monitoring", "statistics"]
+homepage = "http://github.com/tailhook/cantal"
+version = "0.1.0"
+authors = ["paul@colomiets.name"]
+
+[dependencies]
+log = "0.3"
+cbor-codec = "0.1"
+rustc-serialize = "0.3"
+regex = "0.1"
+
+[dependencies.cantal_values]
+path = "../cantal_values"
+
+[dependencies.cantal_history]
+path = "../cantal_history"
+
+[lib]
+name = "cantal_query"
+path = "src/lib.rs"
