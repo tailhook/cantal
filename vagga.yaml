@@ -69,7 +69,7 @@ containers:
     - !NpmInstall [jade, babel, uglify-js, webpack, babel-loader]
 
     - !TarInstall
-      url: "http://static.rust-lang.org/dist/rust-1.1.0-x86_64-unknown-linux-gnu.tar.gz"
+      url: "http://static.rust-lang.org/dist/rust-1.2.0-x86_64-unknown-linux-gnu.tar.gz"
       script: "./install.sh --prefix=/usr --components=rustc,cargo"
 
     - !GitInstall
