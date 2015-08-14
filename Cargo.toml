@@ -30,6 +30,10 @@ log = "0.3"
 matches = "0.1"
 mio = "0.4"
 
+[dependencies.probor]
+path = "target/probor/rust"
+features = ["regex_serde"]
+
 [dependencies.cantal_values]
 path = "cantal_values"
 

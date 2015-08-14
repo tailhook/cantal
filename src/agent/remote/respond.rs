@@ -1,9 +1,9 @@
 use std::str::from_utf8;
-use std::collections::{HashMap, BTreeMap};
+use std::collections::{HashMap};
 
 use time::{SteadyTime};
+use probor;
 use rustc_serialize::json;
-use rustc_serialize::json::{Json, ToJson};
 
 use query::{Rule, query_history};
 use super::super::stats::Stats;
@@ -15,7 +15,7 @@ use super::{Peers, ensure_started};
 use super::{DATA_POINTS};
 use super::super::server::{MAX_OUTPUT_BUFFER};
 use super::super::websock::InputMessage as OutputMessage;
-use super::super::websock::{write_text};
+use super::super::websock::{write_binary};
 use super::super::deps::LockedDeps;
 use super::super::ioutil::Poll;
 
@@ -40,13 +40,14 @@ pub fn serve_query_by_host(req: &Request, context: &mut Context)
 
             for (_, rule) in query.rules.iter() {
                 let ts = SteadyTime::now();
-                if let Some(ts_ref) = peers.subscriptions.get_mut(&rule) {
+                if let Some(ts_ref) = peers.subscriptions.get_mut(&rule.series) {
                     *ts_ref = ts;
                     continue;
                 }
                 // TODO(tailhook) may optimize this rule.clone()
-                let subscr = OutputMessage::Subscribe(rule.clone(), DATA_POINTS);
-                let msg = json::encode(&subscr).unwrap();
+                let subscr = OutputMessage::Subscribe(
+                    rule.series.clone(), DATA_POINTS);
+                let msg = probor::to_buf(&subscr);
                 let ref mut addresses = &mut peers.addresses;
                 let ref mut peerlist = &mut peers.peers;
                 let ref mut eloop = context.eloop;
@@ -59,7 +60,7 @@ pub fn serve_query_by_host(req: &Request, context: &mut Context)
                                 return None;
                             }
                             let start = wsock.output.len() == 0;
-                            write_text(&mut wsock.output, &msg);
+                            write_binary(&mut wsock.output, &msg);
                             if start {
                                 eloop.modify(&wsock.sock, *tok, true, true);
                             }
@@ -67,22 +68,21 @@ pub fn serve_query_by_host(req: &Request, context: &mut Context)
                         Some(peer)
                     }).unwrap()
                 }
-                peers.subscriptions.insert(rule, ts);
+                peers.subscriptions.insert(rule.series.clone(), ts);
             }
-            aggregate::query(&query, peers)
+            aggregate::query(&query.rules, peers)
         };
 
         {
             let stats = context.deps.read::<Stats>();
-            let mut dict = BTreeMap::new();
+            let mut dict = HashMap::new();
             for (name, ref rule) in query.rules.iter() {
                 dict.insert(name.clone(), query_history(rule, &stats.history));
             }
             // TODO(tailhook) find myself ip addr
-            resp.as_object_mut().unwrap()
-                .insert("myself".to_string(), dict);
+            resp.insert("myself".to_string(), dict);
         }
 
-        Ok(http::Response::json(&resp))
+        Ok(http::Response::probor(&resp))
     })
 }

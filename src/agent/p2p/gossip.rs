@@ -1,4 +1,4 @@
-use std::net::{SocketAddr};
+use std::net::{SocketAddr, SocketAddrV4};
 use std::collections::HashMap;
 
 use mio::Sender;
@@ -118,15 +118,17 @@ impl Context {
                      friends: Vec<FriendInfo>, source: SocketAddr)
     {
         for friend in friends.into_iter() {
-            let addr: SocketAddr = if let Ok(val) = friend.addr.parse() {
-                val
-            } else {
-                continue;
-            };
+            let v4: SocketAddrV4 =
+                if let Ok(SocketAddr::V4(val)) = friend.addr.parse() {
+                    val
+                } else {
+                    continue;
+                };
+            let addr = SocketAddr::V4(v4);
             let peer = stats.peers.entry(addr)
                 .or_insert_with(|| {
                     self.deps.get::<Sender<_>>().unwrap()
-                        .send(NewHost(addr))
+                        .send(NewHost(*v4.ip(), v4.port()))
                         .map_err(|_| error!("Error sending NewHost msg"))
                         .ok();
                     Peer::new(addr)
@@ -151,6 +153,12 @@ impl Context {
     }
     pub fn send_gossip(&self, addr: SocketAddr, stats: &mut GossipStats)
     {
+        let v4: SocketAddrV4 =
+            if let SocketAddr::V4(val) = addr {
+                val
+            } else {
+                return;
+            };
         debug!("Sending gossip to {}", addr);
         let mut buf = ByteBuf::mut_with_capacity(1024);
         {
@@ -172,7 +180,7 @@ impl Context {
                 let peer = stats.peers.entry(addr)
                     .or_insert_with(|| {
                         self.deps.get::<Sender<_>>().unwrap()
-                            .send(NewHost(addr))
+                            .send(NewHost(*v4.ip(), v4.port()))
                             .map_err(|_| error!("Error sending NewHost msg"))
                             .ok();
                         Peer::new(addr)
@@ -187,6 +195,12 @@ impl Context {
 
     pub fn consume_gossip(&self, packet: Packet, addr: SocketAddr) {
         let tm = time_ms();
+        let v4: SocketAddrV4 =
+            if let SocketAddr::V4(val) = addr {
+                val
+            } else {
+                return;
+            };
 
         let mut statsguard = self.deps.write::<GossipStats>();
         let ref mut stats = &mut *statsguard;
@@ -196,7 +210,7 @@ impl Context {
                     let peer = stats.peers.entry(addr)
                         .or_insert_with(|| {
                             self.deps.get::<Sender<_>>().unwrap()
-                                .send(NewHost(addr))
+                                .send(NewHost(*v4.ip(), v4.port()))
                                 .map_err(|_| error!(
                                     "Error sending NewHost msg"))
                                 .ok();
@@ -234,7 +248,7 @@ impl Context {
                     let peer = stats.peers.entry(addr)
                         .or_insert_with(|| {
                             self.deps.get::<Sender<_>>().unwrap()
-                                .send(NewHost(addr))
+                                .send(NewHost(*v4.ip(), v4.port()))
                                 .map_err(|_| error!(
                                     "Error sending NewHost msg"))
                                 .ok();

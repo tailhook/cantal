@@ -1,10 +1,6 @@
-use std::hash::{Hasher};
 use std::default::Default;
-use std::collections::BTreeMap;
 
 use libc::pid_t;
-use rustc_serialize::json::{Json, ToJson, as_json};
-use rustc_serialize::{Decodable, Encodable, Encoder, Decoder, json};
 
 use super::scan::time_ms;
 use super::scan;

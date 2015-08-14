@@ -4,7 +4,8 @@ use std::collections::HashMap;
 use rustc_serialize::json;
 use rustc_serialize::json::ToJson;
 
-use query::{Rule, query_history};
+use query::{Rule, query_history, Dataset};
+use probor;
 use super::http;
 use super::scan;
 use super::storage::{StorageStats};
@@ -56,15 +57,32 @@ pub fn serve_processes(_req: &Request, context: &mut Context)
 pub fn serve_metrics(_req: &Request, context: &mut Context)
     -> Result<http::Response, Box<http::Error>>
 {
+    struct Response<'x> {
+        values: Vec<(&'x Key, TimeStamp, Value)>,
+    }
+    impl<'x> probor::Encodable for Response<'x> {
+        fn encode<W: probor::Output>(&self, e: &mut probor::Encoder<W>)
+            -> Result<(), probor::EncodeError>
+        {
+            probor_enc_struct!(e, self, {
+                values => (),
+            });
+            Ok(())
+        }
+    }
+    use history::{Key, TimeStamp};
+    use cantal::Value;
     let stats: &Stats = &*context.deps.read();
-    Ok(http::Response::json(
-            &stats.history.tip.iter()
-            .chain(stats.history.fine.iter())
-            .chain(stats.history.coarse.iter())
-            .map(|(k, v)| (k, v.tip()))
-            .collect::<Vec<_>>()
-            .to_json()
-        ))
+    let ref fts = stats.history.fine.timestamps;
+    let fage = stats.history.fine.age;
+    let vec: Vec<(&Key, TimeStamp, Value)> =
+        stats.history.tip.values.iter().map(|(k, &(ts, ref v))| (k, ts, v.clone()))
+        .chain(stats.history.fine.values.iter().map(
+            |(k, v)| (k, fts[(fage - v.age()) as usize].0, v.tip_value())))
+        .collect();
+    Ok(http::Response::probor(&Response {
+        values: vec,
+    }))
 }
 
 pub fn serve_peers(_req: &Request, context: &mut Context)
@@ -146,6 +164,23 @@ pub fn serve_query(req: &Request, context: &mut Context)
     struct Query {
         rules: HashMap<String, Rule>,
     }
+
+    struct Response {
+        values: HashMap<String, Dataset>,
+    }
+
+    impl<'x> probor::Encodable for Response {
+        fn encode<W: probor::Output>(&self, e: &mut probor::Encoder<W>)
+            -> Result<(), probor::EncodeError>
+        {
+            probor_enc_struct!(e, self, {
+                values => (),
+            });
+            Ok(())
+        }
+    }
+
+
     let stats: &Stats = &*context.deps.read();
     let h = &stats.history;
     from_utf8(&req.body)
@@ -153,8 +188,10 @@ pub fn serve_query(req: &Request, context: &mut Context)
        .and_then(|s| json::decode::<Query>(s)
        .map_err(|_| BadRequest::err("Failed to decode query")))
        .and_then(|r| {
-           Ok(http::Response::json(r.rules.into_iter().map(|(key, rule)| {
-                (key, query_history(rule, h))
-           }).collect()))
-        })
+           Ok(http::Response::probor(&Response {
+                values: r.rules.into_iter()
+                    .map(|(key, rule)| (key, query_history(&rule, h)))
+                    .collect(),
+           }))
+       })
 }

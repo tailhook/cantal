@@ -1,8 +1,9 @@
 use std::iter::repeat;
 use std::ops::Deref;
-use std::net::SocketAddr;
+use std::net::{Ipv4Addr};
 
 use libc::pid_t;
+use probor;
 use unicase::UniCase;
 use byteorder::{BigEndian, ByteOrder};
 use hyper::header::{Upgrade, ProtocolName};
@@ -10,7 +11,6 @@ use hyper::header::{Connection};
 use hyper::version::HttpVersion as Version;
 use hyper::header::ConnectionOption::ConnectionHeader;
 use websocket::header::{WebSocketVersion, WebSocketKey};
-use rustc_serialize::json;
 
 use query::{Filter, Dataset};
 use super::http;
@@ -24,37 +24,50 @@ use super::stats::Stats;
 use super::deps::{Dependencies, LockedDeps};
 
 
-#[derive(RustcEncodable, RustcDecodable, Debug, Clone)]
+// This structure does not need to be compact
+probor_struct!(
+#[derive(Debug, Clone, RustcEncodable)]
 pub struct Beacon {
-    pub version: String,
-    pub pid: pid_t,
-    pub current_time: u64,
-    pub startup_time: u64,
-    pub boot_time: Option<u64>,
-    pub scan_time: u64,
-    pub scan_duration: u32,
-    pub processes: usize,
-    pub values: usize,
-    pub peers: usize,
-    pub fine_history_length: usize,
-    pub history_age: u64,
-    pub remote_total: Option<usize>,
-    pub remote_connected: Option<usize>,
-    pub peers_with_remote: usize,
-}
+    pub version: String => (),
+    pub pid: pid_t => (),
+    pub current_time: u64 => (),
+    pub startup_time: u64 => (),
+    pub boot_time: Option<u64> => (optional),
+    pub scan_time: u64 => (),
+    pub scan_duration: u32 => (),
+    pub processes: usize => (),
+    pub values: usize => (),
+    pub peers: usize => (),
+    pub fine_history_length: usize => (),
+    pub history_age: u64 => (),
+    pub remote_total: Option<usize> => (optional),
+    pub remote_connected: Option<usize> => (optional),
+    pub peers_with_remote: usize => (),
+});
 
-#[derive(RustcEncodable, RustcDecodable, Debug)]
+#[derive(Debug)]
 pub enum OutputMessage {
     Beacon(Beacon),
-    NewPeer(String),
+    NewIPv4Peer(u32, u16),
     Stats(Vec<Dataset>),
 }
 
-#[derive(RustcEncodable, RustcDecodable, Debug)]
+probor_enum_encoder_decoder!(OutputMessage {
+    #0 Beacon(beacon #1),
+    #1 NewIPv4Peer(ip #1, port #2),
+    #2 Stats(stats #1),
+});
+
+#[derive(Debug)]
 pub enum InputMessage {
     Subscribe(Filter, usize),
     Unsubscribe(Filter),
 }
+
+probor_enum_encoder_decoder!(InputMessage {
+    #1 Subscribe(filter #1, backlog #2),
+    #2 Unsubscribe(filter #1),
+});
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Opcode {
@@ -180,6 +193,7 @@ pub fn parse_message<F, T>(buf: &mut Vec<u8>, context: &mut Context, cb: F)
     result
 }
 
+#[allow(dead_code)]
 pub fn write_text(buf: &mut Vec<u8>, chunk: &str) {
     // TODO(tailhook) implement masking for client websock
     // as it should be required (by spec)
@@ -203,7 +217,29 @@ pub fn write_text(buf: &mut Vec<u8>, chunk: &str) {
     buf.extend(bytes.iter().cloned());
 }
 
-pub fn beacon(deps: &Dependencies) -> String {
+pub fn write_binary(buf: &mut Vec<u8>, bytes: &[u8]) {
+    // TODO(tailhook) implement masking for client websock
+    // as it should be required (by spec)
+    buf.push(0b10000010);  // binary message
+    if bytes.len() > 65535 {
+        buf.push(127);
+        let start = buf.len();
+        buf.extend(repeat(0).take(8));
+        BigEndian::write_u64(&mut buf[start ..],
+                             bytes.len() as u64);
+    } else if bytes.len() > 125 {
+        buf.push(126);
+        let start = buf.len();
+        buf.extend(repeat(0).take(2));
+        BigEndian::write_u16(&mut buf[start ..],
+                             bytes.len() as u16);
+    } else {
+        buf.push(bytes.len() as u8);
+    }
+    buf.extend(bytes.iter().cloned());
+}
+
+pub fn beacon(deps: &Dependencies) -> Vec<u8> {
     // Lock one by one, to avoid deadlocks
     let (pid,
          startup_time,
@@ -221,10 +257,9 @@ pub fn beacon(deps: &Dependencies) -> String {
                 st.last_scan,
                 st.scan_duration,
                 st.processes.len(),
-                st.history.tip.len() + st.history.fine.len() +
-                       st.history.coarse.len(),
-                st.history.fine_timestamps.len(),
-                st.history.age)
+                st.history.tip.values.len() + st.history.fine.values.len(),
+                st.history.fine.timestamps.len(),
+                st.history.fine.age)
     };
     let (gossip_peers, peers_with_remote) = {
         let gossip = deps.read::<GossipStats>();
@@ -236,7 +271,7 @@ pub fn beacon(deps: &Dependencies) -> String {
         } else {
             (None, None)
         };
-    json::encode(&OutputMessage::Beacon(Beacon {
+    probor::to_buf(&OutputMessage::Beacon(Beacon {
         version: include_str!("../../version.txt").to_string(),
         pid: pid,
         current_time: time_ms(),
@@ -252,9 +287,15 @@ pub fn beacon(deps: &Dependencies) -> String {
         remote_total: remote_total,
         remote_connected: remote_connected,
         peers_with_remote: peers_with_remote,
-    })).unwrap()
+    }))
 }
 
-pub fn new_peer(peer: SocketAddr) -> String {
-    json::encode(&OutputMessage::NewPeer(format!("{}", peer))).unwrap()
+fn ip_to_u32(ip: Ipv4Addr) -> u32 {
+    let o = ip.octets();
+    (((o[0] as u32) << 24) | ((o[1] as u32) << 16) |
+     ((o[2] as u32) << 8) | (o[3] as u32))
+}
+
+pub fn new_peer(host: Ipv4Addr, port: u16) -> Vec<u8> {
+    probor::to_buf(&OutputMessage::NewIPv4Peer(ip_to_u32(host), port))
 }

@@ -3,11 +3,12 @@ use std::sync::{Arc, RwLock};
 use std::mem::replace;
 use std::str::from_utf8;
 use std::io::{Read, Write};
-use std::net::{SocketAddr, SocketAddrV4};
+use std::net::{SocketAddr,Ipv4Addr, SocketAddrV4};
 use std::collections::{HashMap, HashSet};
 
 use rustc_serialize::json;
 use rustc_serialize::json::ToJson;
+use probor;
 use mio;
 use mio::Sender;
 use mio::{EventSet, PollOpt};
@@ -266,7 +267,7 @@ pub enum Timer {
 #[derive(Debug)]
 pub enum Message {
     ScanComplete,
-    NewHost(SocketAddr),
+    NewHost(Ipv4Addr, u16),
 }
 
 impl Handler {
@@ -327,7 +328,7 @@ impl Handler {
             // Send beacon at start
             let mut buf = Vec::new();
             let beacon = websock::beacon(&context.deps);
-            websock::write_text(&mut buf, &beacon);
+            websock::write_binary(&mut buf, &beacon);
 
             let ntok = self.websockets.insert(WebSocket {
                 sock: sock,
@@ -384,15 +385,11 @@ impl Handler {
                             msg = websock::parse_message(&mut wsock.input,
                                 &mut context,
                                 |opcode, msg, _ctx| {
-                                    if opcode == websock::Opcode::Text {
-                                        from_utf8(msg)
-                                            .map_err(|e| error!(
-                                                "Error decoding utf8 {:?}", e))
-                                        .ok().and_then(|m|
-                                            json::decode(m)
-                                            .map_err(|e| error!(
-                                                "Error decoding msg {:?}", e))
-                                            .ok())
+                                    if opcode == websock::Opcode::Binary {
+                                        probor::from_slice(msg)
+                                        .map_err(|e| error!(
+                                            "Error decoding msg {:?}", e))
+                                        .ok()
                                     } else {
                                         None
                                     }
@@ -404,18 +401,18 @@ impl Handler {
                                         // TODO(tailhook) move it to remote
                                         if depth != 0 { // not sure check is ok
                                             let val = query_history(
-                                                Rule {
-                                                    series: sub,
+                                                &Rule {
+                                                    series: sub.clone(),
                                                     extract: remote::EXTRACT,
                                                     functions: Vec::new(),
                                                 },
                                                 &context.deps.read::<Stats>()
                                                     .history);
-                                            let msg = json::encode(
-                                                &OutputMessage::Stats(val)
-                                                ).unwrap();
+                                            let msg = probor::to_buf(
+                                                &OutputMessage::Stats(
+                                                    vec![val]));
                                             let start = wsock.output.len() == 0;
-                                            websock::write_text(
+                                            websock::write_binary(
                                                 &mut wsock.output, &msg);
                                             if start {
                                                 context.eloop.modify(
@@ -461,13 +458,13 @@ impl Handler {
         remote::try_io(tok, ev, &mut context)
     }
 
-    fn send_all(&mut self, eloop: &mut EventLoop<Handler>, msg: &str) {
+    fn send_all(&mut self, eloop: &mut EventLoop<Handler>, msg: &[u8]) {
         for tok in (1+MAX_HTTP_CLIENTS .. 1+MAX_HTTP_CLIENTS+MAX_WEBSOCK_CLIENTS) {
             let tok = Token(tok);
             if let Some(ref mut wsock) = self.websockets.get_mut(tok) {
                 if wsock.output.len() < MAX_OUTPUT_BUFFER {
                     let start = wsock.output.len() == 0;
-                    websock::write_text(&mut wsock.output, msg);
+                    websock::write_binary(&mut wsock.output, msg);
                     if start {
                         eloop.modify(&wsock.sock, tok, true, true);
                     }
@@ -541,15 +538,18 @@ impl mio::Handler for Handler {
                         }
                         if wsock.output.len() < MAX_OUTPUT_BUFFER {
                             let start = wsock.output.len() == 0;
-                            let buf = Vec::new();
+                            let mut buf = Vec::new();
                             for sub in wsock.subscriptions.iter() {
-                                buf.push(query_history(sub, 1, &stats.history));
+                                buf.push(query_history(&Rule {
+                                    series: sub.clone(),
+                                    extract: remote::EXTRACT_ONE,
+                                    functions: Vec::new(),
+                                }, &stats.history));
                             }
-                            let msg = json::encode(
-                                &OutputMessage::Stats(buf)
-                                ).unwrap();
+                            let msg = probor::to_buf(
+                                &OutputMessage::Stats(buf));
 
-                            websock::write_text(&mut wsock.output, &msg);
+                            websock::write_binary(&mut wsock.output, &msg);
                             if start {
                                 eloop.modify(&wsock.sock, tok, true, true);
                             }
@@ -563,15 +563,17 @@ impl mio::Handler for Handler {
                     self.websockets.remove(tok);
                 }
             }
-            Message::NewHost(addr) => {
+            Message::NewHost(ip, port) => {
                 {
                     let mut context = Context {
                         deps: &mut self.deps,
                         eloop: eloop,
                     };
-                    remote::add_peer(addr, &mut context);
+                    remote::add_peer(
+                        SocketAddr::V4(SocketAddrV4::new(ip, port)),
+                        &mut context);
                 }
-                let new_peer = websock::new_peer(addr);
+                let new_peer = websock::new_peer(ip, port);
                 self.send_all(eloop, &new_peer);
             }
         }

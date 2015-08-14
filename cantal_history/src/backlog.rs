@@ -21,6 +21,42 @@ pub enum Value {
     Float(Inner<f64, VecDeque<f64>>),
 }
 
+probor_enum_encoder_decoder!(Value {
+    #0 Counter(inner #1),
+    #1 Integer(inner #1),
+    #2 Float(inner #1),
+});
+
+
+#[derive(Debug)]
+pub struct Backlog {
+    // Made pub for serializer, may be fix it?
+    pub age: u64,
+    pub timestamps: VecDeque<(u64, u32)>,
+    pub values: HashMap<Key, Value>,
+}
+
+// Named fields are ok since we don't store lots of History objects
+probor_struct_encoder_decoder!(Backlog {
+    age => (),
+    timestamps => (),
+    values => (),
+});
+
+#[derive(Clone, PartialEq, Eq, Copy, Debug)]
+enum HState {
+    Skip(u64),
+    Tip,
+    Diff,
+}
+
+#[derive(Clone)]
+pub struct DeltaHistory<'a, T:Int> {
+    state: HState,
+    iter: DeltaIter<'a, T>,
+    tip: T,
+}
+
 impl Value {
     fn new(value: &TipValue, age: u64) -> Value {
         use self::Value as V;
@@ -73,28 +109,23 @@ impl Value {
             &mut V::Float(ref mut b) => b.truncate(age),
         }
     }
-}
-
-#[derive(Debug)]
-pub struct Backlog {
-    // Made pub for serializer, may be fix it?
-    pub age: u64,
-    pub timestamps: VecDeque<(u64, u32)>,
-    pub values: HashMap<Key, Value>,
-}
-
-#[derive(Clone, PartialEq, Eq, Copy, Debug)]
-enum HState {
-    Skip(u64),
-    Tip,
-    Diff,
-}
-
-#[derive(Clone)]
-pub struct DeltaHistory<'a, T:Int> {
-    state: HState,
-    iter: DeltaIter<'a, T>,
-    tip: T,
+    pub fn age(&self) -> u64 {
+        use self::Value::*;
+        match self {
+            &Counter(ref b) => b.age(),
+            &Integer(ref b) => b.age(),
+            &Float(ref b) => b.age(),
+        }
+    }
+    pub fn tip_value(&self) -> TipValue {
+        use self::Value as S;
+        use values::Value as D;
+        match self {
+            &S::Counter(ref b) => D::Counter(b.tip()),
+            &S::Integer(ref b) => D::Integer(b.tip()),
+            &S::Float(ref b) => D::Float(b.tip()),
+        }
+    }
 }
 
 pub trait ValueBuf<T> {
@@ -251,11 +282,135 @@ impl Backlog {
     }
 }
 
+mod serde {
+    use std::io::Cursor;
+    use std::collections::VecDeque;
+    use probor::{Decodable, Decoder, DecodeError, Input};
+    use probor::{Encodable, Encoder, EncodeError, Output};
+    use byteorder::{WriteBytesExt, BigEndian, ReadBytesExt};
+    use cbor::types::Type;
+    use super::Inner;
+    use super::super::deltabuf::{DeltaBuf, Int};
+
+    fn type_len<W:Output>(w: &mut W, t: Type, x: u64) {
+        match x {
+            0...23
+            => w.write_u8(t.major() << 5 | x as u8).unwrap(),
+            24...0xFF
+            => w.write_u8(t.major() << 5 | 24).and(w.write_u8(x as u8)).unwrap(),
+            0x100...0xFFFF
+            => w.write_u8(t.major() << 5 | 25)
+               .and(w.write_u16::<BigEndian>(x as u16)).unwrap(),
+            0x100000...0xFFFFFFFF
+            => w.write_u8(t.major() << 5 | 26)
+               .and(w.write_u32::<BigEndian>(x as u32)).unwrap(),
+            _
+            => w.write_u8(t.major() << 5 | 27)
+               .and(w.write_u64::<BigEndian>(x)).unwrap(),
+        }
+    }
+
+
+    fn write_bytes<W:Output, F>(e: &mut Encoder<W>, num: usize, mut fun: F)
+        where F: FnMut(&mut W)
+    {
+        let mut v = e.get_mut();
+        type_len(v, Type::Bytes, num as u64);
+        fun(&mut v);
+    }
+    struct Bytes(Vec<u8>);
+    impl Decodable for Bytes {
+        fn decode_opt<R:Input>(d: &mut Decoder<R>)
+            -> Result<Option<Self>, DecodeError>
+        {
+            d.bytes().map(Bytes).map(Some)
+            .map_err(|e| DecodeError::WrongType("expected bytes", e))
+        }
+    }
+
+    impl<T:Decodable+Int> Decodable for Inner<T, DeltaBuf<T>> {
+        fn decode_opt<R:Input>(d: &mut Decoder<R>)
+            -> Result<Option<Self>, DecodeError>
+        {
+            probor_dec_struct!(d, {
+                tip => (#0),
+                age => (#1),
+                buf => (#2),
+            });
+            let Bytes(buf) = buf;
+            Ok(Some(Inner::unpack(tip, age, buf)))
+        }
+    }
+
+    impl<T:Encodable+Int> Encodable for Inner<T, DeltaBuf<T>> {
+        fn encode<W:Output>(&self, e: &mut Encoder<W>)
+            -> Result<(), EncodeError>
+        {
+            try!(e.array(3));  // {tip, age, buf}
+            try!(self.tip().encode(e));  // #0
+            try!(self.age().encode(e));  // #1
+            write_bytes(e, self.buf().bytes().len(), |buf| {  // #2
+                // I hope this crap will be optimized
+                for &i in self.buf().bytes() {
+                    buf.write_all(&[i]).unwrap()
+                }
+            });
+            Ok(())
+        }
+    }
+
+
+    impl Decodable for Inner<f64, VecDeque<f64>> {
+        fn decode_opt<R:Input>(d: &mut Decoder<R>)
+            -> Result<Option<Self>, DecodeError>
+        {
+            probor_dec_struct!(d, {
+                tip => (#0),
+                age => (#1),
+                buf => (#2),
+            });
+            let mut deque = VecDeque::new();
+            let Bytes(buf) = buf;
+            if buf.len() % 8 > 0 {
+                return Err(DecodeError::WrongValue("length of f64 buffer \
+                    should be multiple of 8"));
+            }
+            let num = buf.len() / 8;
+            let mut cur = Cursor::new(buf);
+            for _ in 0..num {
+                deque.push_back(
+                    cur.read_f64::<BigEndian>().unwrap());
+            }
+            Ok(Some(Inner::unpack(tip, age, deque)))
+        }
+    }
+
+    impl Encodable for Inner<f64, VecDeque<f64>> {
+        fn encode<W:Output>(&self, e: &mut Encoder<W>)
+            -> Result<(), EncodeError>
+        {
+            try!(e.array(3));  // {tip, age, buf}
+            try!(self.tip().encode(e));  // #0
+            try!(self.age().encode(e));  // #1
+            write_bytes(e, self.buf().len()*8, |buf| {  // #2
+                for val in self.buf().iter() {
+                    buf.write_f64::<BigEndian>(*val).unwrap();
+                }
+            });
+            Ok(())
+        }
+    }
+
+}
+
 #[cfg(test)]
 mod test {
-    use {Backlog, Key, ValueSet};
+    use std::io::Cursor;
+    use {Backlog, Key};
+    use super::{Value, Inner};
     use values::Value::Counter;
     use std::collections::{HashMap, HashSet};
+    use probor::{Encodable, Decodable, Encoder, Decoder, Config, decode};
 
 
     #[test]
@@ -271,5 +426,24 @@ mod test {
         ].into_iter());
         assert_eq!(backlog.age, 2);
         assert_eq!(backlog.values.len(), 3);
+    }
+
+    fn roundtrip<T:Encodable+Decodable>(v: &T) -> T {
+        let mut e = Encoder::new(Vec::new());
+        v.encode(&mut e).unwrap();
+        let val = &e.into_writer()[..];
+        println!("Serialized {:?}", val);
+        decode(&mut Decoder::new(Config::default(), Cursor::new(val))).unwrap()
+    }
+
+    #[test]
+    fn test_serde() {
+        let mut value = Value::Counter(Inner::unpack(10, 1, vec![]));
+        value.push(&Counter(20), 2);
+        let nval:Value = roundtrip(&value);
+        if let Value::Counter(inner) = nval {
+            assert_eq!(inner.tip(), 20);
+            assert_eq!(inner.age(), 2);
+        }
     }
 }

@@ -12,6 +12,12 @@ pub struct Tip {
     pub values: HashMap<Key, (u64, TipValue)>,
 }
 
+// Named fields are ok since we don't store lots of History objects
+probor_struct_encoder_decoder!(Tip {
+    latest_timestamp => (),
+    values => (),
+});
+
 impl Tip {
     pub fn new() -> Tip {
         Tip {

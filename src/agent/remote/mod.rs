@@ -1,20 +1,20 @@
 use std::mem::replace;
-use std::net::{SocketAddr};
+use std::net::{SocketAddr, SocketAddrV4, Ipv4Addr};
 use std::ops::DerefMut;
 use std::sync::{Arc, RwLock};
 use std::collections::HashMap;
 
 use mio::{Token, Timeout, EventSet, Sender};
 use mio::util::Slab;
+use probor;
 use time::{SteadyTime, Duration};
 use rand::thread_rng;
 use rand::distributions::{IndependentSample, Range};
-use rustc_serialize::json;
 
 use query::{Filter, Extract};
 use super::server::Context;
 use super::scan::time_ms;
-use super::websock::{Beacon, write_text};
+use super::websock::{Beacon, write_binary};
 use super::websock::InputMessage as OutputMessage;
 use super::websock::OutputMessage as InputMessage;
 use super::deps::{LockedDeps};
@@ -38,7 +38,8 @@ const MESSAGE_TIMEOUT: u64 = 15000;
 const GARBAGE_COLLECTOR_INTERVAL: u64 = 60_000;
 const SUBSCRIPTION_LIFETIME: i64 = 3 * 60_000;
 const DATA_POINTS: usize = 150;  // ~ five minutes ~ 150px of graph
-const EXTRACT: Extract = Extract::HistoryByNum(DATA_POINTS);
+pub const EXTRACT: Extract = Extract::HistoryByNum(DATA_POINTS);
+pub const EXTRACT_ONE: Extract = Extract::HistoryByNum(1);  // just latest one
 
 
 #[allow(unused)] // start_time will be used later
@@ -202,22 +203,20 @@ pub fn try_io(tok: Token, ev: EventSet, ctx: &mut Context) -> bool
                         InputMessage::Beacon(b) => {
                             peer.last_beacon = Some((time_ms(), b));
                         }
-                        InputMessage::NewPeer(pstr) => {
+                        InputMessage::NewIPv4Peer(ip, port) => {
                             // TODO(tailhook) process it
-                            debug!("New peer from websock {:?}", pstr);
-                            pstr.parse()
-                            .map(|addr| ctx.deps.get::<Sender<p2p::Command>>()
-                                        .unwrap().send(
-                                            p2p::Command::AddGossipHost(addr)
-                                        ).unwrap())
-                            .map_err(|_|
-                                error!("Bad host addr in NewPeer: {:?}", pstr))
-                            .ok();
+                            let ip = Ipv4Addr::from(ip);
+                            debug!("New peer from websock {:?}", ip);
+                            ctx.deps.get::<Sender<p2p::Command>>().unwrap()
+                            .send(p2p::Command::AddGossipHost(
+                                  SocketAddr::V4(SocketAddrV4::new(ip, port))))
+                            .unwrap()
                         }
                         InputMessage::Stats(stats) => {
                             debug!("New stats from peer {:?}", peer.addr);
                             trace!("Stat values {:?}: {:?}", peer.addr, stats);
-                            peer.history.update_chunks(stats);
+                            unimplemented!();
+                            //peer.history.update_chunks(stats);
                         }
                     }
                 }
@@ -235,8 +234,8 @@ pub fn try_io(tok: Token, ev: EventSet, ctx: &mut Context) -> bool
                     for rule in data.subscriptions.keys() {
                         let subscr = OutputMessage::Subscribe(
                             rule.clone(), DATA_POINTS);
-                        let msg = json::encode(&subscr).unwrap();
-                        write_text(&mut wsock.output, &msg);
+                        let msg = probor::to_buf(&subscr);
+                        write_binary(&mut wsock.output, &msg);
                     }
                     ctx.eloop.modify(&wsock.sock, tok, true, true);
                 }
@@ -276,7 +275,9 @@ pub fn garbage_collector(ctx: &mut Context) {
         .collect();
 
     for peer in peers.peers.iter_mut() {
-        peer.history.truncate_by_num(DATA_POINTS);
+        // TODO(tailhook) Is it ok to truncate by time? Do we want some
+        // stale data to be around on ocassion?
+        peer.history.truncate_by_time((DATA_POINTS as u64)*2000+2000);
     }
 
     peers.gc_timer = ctx.eloop.timeout_ms(RemoteCollectGarbage,

@@ -9,6 +9,13 @@ pub enum HistoryChunk {
     Float(Vec<Option<f64>>),
 }
 
+probor_enum_encoder_decoder!(HistoryChunk {
+    #0 State(pair #1),
+    #1 Counter(items #1),
+    #2 Integer(items #1),
+    #3 Float(items #1),
+});
+
 pub struct HistoryChunkIter<'a> {
     chunk: &'a HistoryChunk,
     start_index: usize,

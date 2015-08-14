@@ -11,6 +11,7 @@ extern crate rand;
 extern crate num;
 #[macro_use] extern crate mime;
 #[macro_use] extern crate matches;
+#[macro_use] extern crate probor;
 extern crate httparse;
 extern crate unicase;
 extern crate hyper;
@@ -25,6 +26,7 @@ extern crate cantal_query as query;
 
 use std::env;
 use std::thread;
+use std::io::BufReader;
 use std::fs::File;
 use std::str::FromStr;
 use std::path::PathBuf;
@@ -32,8 +34,6 @@ use std::sync::{RwLock,Arc};
 use std::process::exit;
 use std::error::Error;
 
-use rustc_serialize::Decodable;
-use cbor::{Decoder};
 use argparse::{ArgumentParser, Store, ParseOption, StoreOption};
 
 use deps::{Dependencies, LockedDeps};
@@ -120,9 +120,19 @@ fn run() -> Result<(), Box<Error>> {
         let mydeps = deps.clone();
         let result = File::open(&path.join("current.cbor"))
             .map_err(|e| error!("Error reading old data: {}. Ignoring...", e))
-            .and_then(|f| history::History::decode(f)
-                .map_err(|()| error!("Error parsing old data. Ignoring...")
-                ));
+            .map(BufReader::new)
+            .map(|f| probor::Decoder::new(probor::Config::default(), f))
+            .and_then(|mut dec| {
+                let v: history::VersionInfo = try!(probor::decode(&mut dec)
+                    .map_err(|_| error!("Can't decode version info. \
+                        Ignoring...")));
+                if v != history::VersionInfo::current() {
+                    error!("Old version of history data. Ignoring...");
+                    return Err(());
+                }
+                probor::decode(&mut dec)
+                .map_err(|_| error!("Error parsing old data. Ignoring..."))
+            });
         if let Ok(history) = result {
             mydeps.write::<stats::Stats>().history = history;
         }

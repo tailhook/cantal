@@ -2,8 +2,9 @@ use std::fmt::Debug;
 use std::borrow::{Cow};
 
 use mio::tcp::TcpStream;
-use mime::{Mime};
+use mime::{Mime, TopLevel, SubLevel};
 use httparse;
+use probor;
 use unicase::UniCase;
 use hyper::error::Error as HyperError;
 use hyper::status::StatusCode;
@@ -156,6 +157,16 @@ impl Response {
             ContentType(mime!(Application/Json; Charset=Utf8)));
         res.status = StatusCode::Ok;
         res.body = Cow::Owned(format!("{}", as_json(body)).into_bytes());
+        return res;
+    }
+    pub fn probor<T: probor::Encodable>(body: &T) -> Response
+    {
+        let mut res = Response::new();
+        res.headers.set(ContentType(
+            Mime(TopLevel::Application,
+                 SubLevel::Ext("x-probor".to_string()), Vec::new())));
+        res.status = StatusCode::Ok;
+        res.body = Cow::Owned(probor::to_buf(body));
         return res;
     }
     pub fn is_websock(&self) -> bool {

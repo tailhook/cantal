@@ -1,12 +1,11 @@
 use std::io;
-use std::str::from_utf8;
 use std::mem::replace;
 use std::net::SocketAddr;
 
 use httparse;
 use mio::{EventLoop, Token, PollOpt, EventSet};
 use mio::tcp::TcpStream;
-use rustc_serialize::json;
+use probor;
 
 use super::super::server::Handler;
 use super::super::server::Context;
@@ -106,15 +105,11 @@ impl WebSocket {
                         let msg: Option<InputMessage>;
                         msg = websock::parse_message(&mut self.input, ctx,
                             |opcode, msg, _ctx| {
-                                if opcode == websock::Opcode::Text {
-                                    from_utf8(msg)
-                                        .map_err(|e| error!(
-                                            "Error decoding utf8 {:?}", e))
-                                    .ok().and_then(|m|
-                                        json::decode(m)
-                                        .map_err(|e| error!(
-                                            "Error decoding msg {:?}", e))
-                                        .ok())
+                                if opcode == websock::Opcode::Binary {
+                                    probor::from_slice(msg)
+                                    .map_err(|e| error!(
+                                        "Error decoding msg {:?}", e))
+                                    .ok()
                                 } else {
                                     debug!("Wrong opcode. Skipping");
                                     None

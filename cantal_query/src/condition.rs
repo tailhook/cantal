@@ -15,6 +15,16 @@ pub enum Condition {
     Has(String),
 }
 
+probor_enum_encoder_decoder!(Condition {
+    #0 Eq(left #1, right #2),
+    #1 NotEq(left #1, right #2),
+    #2 RegexLike(left #1, right #2),
+    #3 And(left #1, right #2),
+    #4 Or(left #1, right #2),
+    #5 Not(val #1),
+    #6 Has(field #1),
+});
+
 impl Decodable for Condition {
     fn decode<D: Decoder>(d: &mut D) -> Result<Condition, D::Error> {
         use self::Condition::*;

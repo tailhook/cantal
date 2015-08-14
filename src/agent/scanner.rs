@@ -4,7 +4,7 @@ use std::io::Write;
 use mio;
 use nix::unistd::getpid;
 use libc::usleep;
-use cbor::Encoder as Mencoder;
+use probor::{Encoder, Encodable};
 
 use super::server;
 use super::stats::Stats;
@@ -17,6 +17,7 @@ use super::util::Cell;
 use super::storage::Buffer;
 use super::deps::{Dependencies, LockedDeps};
 use cantal::Value;
+use history::VersionInfo;
 
 
 const SNAPSHOT_INTERVAL: u64 = 60000;
@@ -31,6 +32,7 @@ pub fn scan_loop(deps: Dependencies)
     let mut last_hourly = last_store / 3_600_000;
     let mut process_cache = processes::ReadCache::new();
     let mut values_cache = values::ReadCache::new();
+    let mut last_buffer_size = 16 << 10;
     stats.write().map(|mut s| { s.pid = getpid(); })
         .ok().expect("Stats must be readable still");
     loop {
@@ -53,9 +55,9 @@ pub fn scan_loop(deps: Dependencies)
             // TODO(tailhook) use drain-style iterator and push to both
             // at once, so we don't need clone (each metric)
             stats.history.fine.push((start, scan_duration), tip.map.iter()
-                .filter(|&(k, v)| matches!(v, &Value::State(_, _))));
+                .filter(|&(_, v)| matches!(v, &Value::State(_, _))));
             stats.history.tip.push((start, scan_duration), tip.map.iter()
-                .filter(|&(k, v)| !matches!(v, &Value::State(_, _))));
+                .filter(|&(_, v)| !matches!(v, &Value::State(_, _))));
 
             stats.last_scan = start;
             stats.boot_time = boot_time.or(stats.boot_time);
@@ -70,13 +72,26 @@ pub fn scan_loop(deps: Dependencies)
                     snapshot = Some(format!("hourly-{}", hourly));
                     last_hourly = hourly;
                 }
-                if let Some(cell) = cell {
-                    cell.put(Buffer {
-                        timestamp: start,
-                        snapshot: snapshot,
-                        data: stats.history.encode(),
-                    });
-                }
+
+                // Preallocate a buffer of same size as previous one, since
+                // it's expected about same size. But add few kb, so that
+                // 99% of the time no further allocations are necessary
+                let mut enc = Encoder::new(
+                    Vec::with_capacity(last_buffer_size + 16384));
+                VersionInfo::current().encode(&mut enc)
+                .and_then(|()| stats.history.encode(&mut enc))
+                .map(|()| {
+                    let buf = enc.into_writer();
+                    last_buffer_size = buf.len();
+
+                    if let Some(cell) = cell {
+                        cell.put(Buffer {
+                            timestamp: start,
+                            snapshot: snapshot,
+                            data: buf.into_boxed_slice(),
+                        });
+                    }
+                }).map_err(|e| error!("Can't encode history: {}", e)).ok();
             }
         }
         server_msg.send(server::Message::ScanComplete)

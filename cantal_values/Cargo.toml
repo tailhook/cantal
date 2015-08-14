@@ -13,6 +13,7 @@ byteorder = "0.3"
 rustc-serialize = "0.3"
 log = "0.3"
 libc = "0.1"
+probor = "*"
 
 [[bin]]
 name = "cantal"

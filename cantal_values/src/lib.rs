@@ -4,6 +4,7 @@
 extern crate rustc_serialize;
 extern crate libc;
 #[macro_use] extern crate log;
+#[macro_use] extern crate probor;
 extern crate byteorder;
 
 use std::fmt::Display;
@@ -19,7 +20,7 @@ use std::path::Path;
 use std::error::Error;
 use std::convert::From;
 use rustc_serialize::json;
-use rustc_serialize::json::{Json, ToJson};
+use rustc_serialize::json::{Json};
 use byteorder::{NativeEndian, ReadBytesExt};
 
 use itertools::NextValue;
@@ -36,6 +37,13 @@ pub enum Value {
     Float(f64),
     State(u64, String),
 }
+
+probor_enum_encoder_decoder!(Value {
+    #0 Counter(value #1),
+    #1 Integer(value #1),
+    #2 Float(value #1),
+    #3 State(timestamp #1, value #2),
+});
 
 #[derive(Debug, Clone, Copy)]
 pub enum LevelType {
@@ -288,33 +296,6 @@ impl Type {
             Type::State(len) => len as usize,
             Type::Pad(len) => len as usize,
             Type::Unknown(len) => len as usize,
-        }
-    }
-}
-
-impl ToJson for Value {  // Matching to default encode generator
-    fn to_json(&self) -> Json {
-        use self::Value::*;
-        use rustc_serialize::json::Json::*;
-        match self {
-            &Counter(x) => Object(vec![
-                ("variant".to_string(), String("Counter".to_string())),
-                ("fields".to_string(), Array(vec![U64(x)])),
-                ].into_iter().collect()),
-            &Integer(x) => Object(vec![
-                ("variant".to_string(), String("Integer".to_string())),
-                ("fields".to_string(), Array(vec![I64(x)])),
-                ].into_iter().collect()),
-            &Float(x) => Object(vec![
-                ("variant".to_string(), String("Float".to_string())),
-                ("fields".to_string(), Array(vec![F64(x)])),
-                ].into_iter().collect()),
-            &State(ts, ref val) => Object(vec![
-                ("variant".to_string(), String("State".to_string())),
-                ("fields".to_string(), Array(vec![
-                    U64(ts), String(val.to_string())
-                ])),
-                ].into_iter().collect()),
         }
     }
 }
