@@ -5,6 +5,11 @@ commands:
     container: ubuntu
     run: [make]
 
+  cargo: !Command
+    description: Run arbitrary cargo command
+    container: ubuntu
+    run: [cargo]
+
   watch: !Command
     description: Build and watch javascripts
     container: ubuntu
@@ -60,7 +65,6 @@ commands:
 containers:
 
   ubuntu:
-    # The container to build lithos ubuntu package
     setup:
     - !Ubuntu trusty
     - !UbuntuUniverse ~
