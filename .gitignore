@@ -1,4 +1,6 @@
 /.vagga
+/.vagrant
+/.cargo
 /cantal
 /cantal-agent
 /libcantal.rlib
@@ -9,3 +11,4 @@
 /target
 /cantal_values/target
 /cantal_history/target
+Cargo.lock

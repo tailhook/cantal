@@ -7,6 +7,7 @@ extern crate cantal_history as history;
 extern crate cantal_values as values;
 #[macro_use] extern crate probor;
 
+#[macro_use] mod jsondecoder;
 mod condition;
 mod rule;
 mod dataset;

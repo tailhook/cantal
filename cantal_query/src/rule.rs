@@ -1,7 +1,7 @@
 use history::{TimeStamp, TimeDelta};
 use Condition;
 
-#[derive(RustcEncodable, RustcDecodable, Debug, Clone, Copy)]
+#[derive(RustcDecodable, Debug, Clone, Copy)]
 #[derive(PartialEq, Eq, Hash)]
 pub enum Source {
     Tip,
@@ -14,14 +14,14 @@ probor_enum_encoder_decoder!(Source {
 });
 
 probor_struct!(
-#[derive(RustcDecodable, RustcEncodable, Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(RustcDecodable, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Filter {
     source: Source => (#0),
     condition: Condition => (#1),
 });
 
 
-#[derive(RustcDecodable, RustcEncodable, Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(RustcDecodable, Debug, Clone, PartialEq, Eq, Hash)]
 pub enum MetricKind {
     Counter,
     Level,
@@ -34,7 +34,7 @@ probor_enum_encoder_decoder!(MetricKind {
     #2 State(),
 });
 
-#[derive(RustcDecodable, RustcEncodable, Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Expectation {
     SingleSeries(MetricKind),
     MultiSeries(MetricKind),
@@ -53,7 +53,15 @@ probor_enum_encoder_decoder!(Expectation {
     #300 Chart(),
 });
 
-#[derive(RustcDecodable, RustcEncodable, Debug, Clone, PartialEq, Eq, Hash)]
+json_enum_decoder!(Expectation {
+    SingleSeries(kind),
+    MultiSeries(kind),
+    SingleTip(kind),
+    MultiTip(kind),
+    Chart(),
+});
+
+#[derive(RustcDecodable, Debug, Clone, PartialEq, Eq, Hash)]
 pub enum UndefFilter {
     Ignore,
     // TODO(tailhook) add more filter modes
@@ -63,7 +71,7 @@ probor_enum_encoder_decoder!(UndefFilter {
     #0 Ignore(),
 });
 
-#[derive(RustcDecodable, RustcEncodable, Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(RustcDecodable, Debug, Clone, PartialEq, Eq, Hash)]
 // Is it useful enough?
 pub enum ExtractTime {
     Mean,
@@ -77,7 +85,7 @@ probor_enum_encoder_decoder!(ExtractTime {
     #2 Last(),
 });
 
-#[derive(RustcDecodable, RustcEncodable, Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Function {
     Expect(Expectation),
     NonNegativeDerivative,
@@ -96,7 +104,16 @@ probor_enum_encoder_decoder!(Function {
     #5 StateChart(distinct_num #1),
 });
 
-#[derive(RustcDecodable, RustcEncodable, Debug, Clone, PartialEq, Eq, Hash)]
+json_enum_decoder!(Function {
+    Expect(kind),
+    NonNegativeDerivative(),
+    ScaleToSeconds(),
+    Sum(undef_filter),
+    SumBy(fields, undef_filter),
+    StateChart(distinct_num),
+});
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Extract {
     Tip,
     DiffToAtMost(usize),
@@ -111,11 +128,19 @@ probor_enum_encoder_decoder!(Extract {
     #3 HistoryByTime(seconds #1),
 });
 
+json_enum_decoder!(Extract {
+    Tip(),
+    DiffToAtMost(limit),
+    HistoryByNum(limit),
+    HistoryByTime(seconds),
+});
+
 
 probor_struct!(
-#[derive(RustcDecodable, RustcEncodable, Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(RustcDecodable, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Rule {
     pub series: Filter => (#0),
     pub extract: Extract => (#1),
     pub functions: Vec<Function> => (#2),
 });
+

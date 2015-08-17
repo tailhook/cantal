@@ -1,14 +1,19 @@
+use std::ops::Deref;
 use std::hash::{Hash, Hasher};
 
+use probor;
 use regex::Regex;
-use rustc_serialize::{Encodable, Decodable, Encoder, Decoder};
+use rustc_serialize;
 
+/// A shim type to deserialize regex and hash it
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct RegexWrap(Regex);
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Condition {
     Eq(String, String),
     NotEq(String, String),
-    RegexLike(String, Regex),
+    RegexLike(String, RegexWrap),
     And(Box<Condition>, Box<Condition>),
     Or(Box<Condition>, Box<Condition>),
     Not(Box<Condition>),
@@ -25,95 +30,55 @@ probor_enum_encoder_decoder!(Condition {
     #6 Has(field #1),
 });
 
-impl Decodable for Condition {
-    fn decode<D: Decoder>(d: &mut D) -> Result<Condition, D::Error> {
-        use self::Condition::*;
-        d.read_seq(|d, len| {
-            let s = try!(d.read_str());
-            let norm_len = if s == "not" || s == "has" { 2 } else { 3 };
-            if norm_len != len {
-                return Err(d.error("Bad tuple length condition"));
-            }
-            match &s[..] {
-                "not" => Ok(Not(Box::new(try!(Decodable::decode(d))))),
-                "has" => Ok(Has(try!(Decodable::decode(d)))),
-                "and" => Ok(And(
-                    Box::new(try!(Decodable::decode(d))),
-                    Box::new(try!(Decodable::decode(d))),
-                    )),
-                "or" => Ok(Or(
-                    Box::new(try!(Decodable::decode(d))),
-                    Box::new(try!(Decodable::decode(d))),
-                    )),
-                "eq" => Ok(Eq(try!(d.read_str()), try!(d.read_str()))),
-                "not-eq" => Ok(NotEq(try!(d.read_str()), try!(d.read_str()))),
-                "regex-like" => Ok(RegexLike(
-                    try!(d.read_str()),
-                    try!(Regex::new(&try!(d.read_str())[..])
-                         .map_err(|_| d.error("Error compiling regex"))))),
-                _ => Err(d.error("Bad condition type")),
-            }
-        })
-    }
-}
+json_enum_decoder!(Condition {
+    Eq(left, right),
+    NotEq(left, right),
+    RegexLike(left, right),
+    And(left, right),
+    Or(left, right),
+    Not(val),
+    Has(field),
+});
 
-impl Encodable for Condition {
-    fn encode<E: Encoder>(&self, e: &mut E) -> Result<(), E::Error> {
-        use self::Condition::*;
-        let len = match self {
-            &Not(_) => 1,
-            &Has(_) => 1,
-            _ => 2,
-        };
-        e.emit_seq(len, |e| {
-            try!(e.emit_seq_elt(0, |e| (match self {
-                &Eq(_, _) => "eq",
-                &NotEq(_, _) => "not-eq",
-                &RegexLike(_, _) => "regex-like",
-                &And(_, _) => "and",
-                &Or(_, _) => "or",
-                &Not(_) => "not",
-                &Has(_) => "has",
-            }).encode(e)));
-            try!(e.emit_seq_elt(1, |e| match self {
-                &Eq(ref x, _) => x.encode(e),
-                &NotEq(ref x, _) => x.encode(e),
-                &RegexLike(ref x, _) => x.encode(e),
-                &And(ref x, _) => x.encode(e),
-                &Or(ref x, _) => x.encode(e),
-                &Not(ref x) => x.encode(e),
-                &Has(ref x) => x.encode(e),
-            }));
-            if len >= 2 {
-                try!(e.emit_seq_elt(2, |e| match self {
-                    &Eq(_, ref x) => x.encode(e),
-                    &NotEq(_, ref x) => x.encode(e),
-                    &RegexLike(_, ref x) => x.as_str().encode(e),
-                    &And(_, ref x) => x.encode(e),
-                    &Or(_, ref x) => x.encode(e),
-                    _ => unreachable!(),
-                }));
-            }
-            Ok(())
-        })
-    }
-}
-
-impl Hash for Condition {
+impl Hash for RegexWrap {
     fn hash<H>(&self, s: &mut H) where H: Hasher {
-        use self::Condition::*;
-        match self {
-            &Eq(ref a, ref b) => { "eq".hash(s); a.hash(s); b.hash(s); },
-            &NotEq(ref a, ref b) => { "not-eq".hash(s); a.hash(s); b.hash(s); },
-            &RegexLike(ref a, ref b) => {
-                "regex-like".hash(s);
-                a.hash(s);
-                b.as_str().hash(s);
+        self.as_str().hash(s);
+    }
+}
+
+impl Deref for RegexWrap {
+    type Target = Regex;
+    fn deref<'x>(&'x self) -> &'x Regex {
+        &self.0
+    }
+}
+
+impl probor::Encodable for RegexWrap {
+    fn encode<W:probor::Output>(&self, e: &mut probor::Encoder<W>)
+        -> Result<(), probor::EncodeError>
+    {
+        self.0.encode(e)
+    }
+}
+
+impl probor::Decodable for RegexWrap {
+    fn decode_opt<R:probor::Input>(e: &mut probor::Decoder<R>)
+        -> Result<Option<RegexWrap>, probor::DecodeError>
+    {
+        probor::Decodable::decode_opt(e).map(|x| x.map(RegexWrap))
+    }
+}
+
+impl rustc_serialize::Decodable for RegexWrap {
+    fn decode<D: ::rustc_serialize::Decoder>(d: &mut D)
+        -> Result<RegexWrap, D::Error>
+    {
+        match d.read_str() {
+            Ok(x) => match Regex::new(&x) {
+                Ok(r) => Ok(RegexWrap(r)),
+                Err(_) => Err(d.error("Invalid regex")),
             },
-            &And(ref a, ref b) => { "and".hash(s); a.hash(s); b.hash(s); }
-            &Or(ref a, ref b) => { "or".hash(s); a.hash(s); b.hash(s); }
-            &Not(ref a) => { "not".hash(s); a.hash(s); }
-            &Has(ref a) => { "has".hash(s); a.hash(s); }
+            Err(e) => Err(e),
         }
     }
 }

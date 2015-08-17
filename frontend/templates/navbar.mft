@@ -129,33 +129,33 @@ html render(current_page):
           .navbar-right.bg-danger?(!websock.connected)
             store query = new Query(2000, {
                 'self': {
+                  'series': {
                     'source': 'Fine',
-                    'condition': ['eq', 'pid', String(beacon.pid)],
-                    'key': ['metric'],
-                    'aggregation': 'None',
-                    'limit': 2
-                    },
+                    'condition': ['Eq', 'pid', String(beacon.pid)]},
+                  'extract': ['Tip'],
+                  'functions': []
+                },
                 'memory': {
+                  'series': {
                     'source': 'Fine',
-                    'condition': ['regex-like', 'metric', '^memory\\.'],
-                    'key': ['metric'],
-                    'aggregation': 'None',
-                    'limit': 1
-                    },
+                    'condition': ['RegexLike', 'metric', '^memory\\.']},
+                  'extract': ['Tip'],
+                  'functions': []
+                },
                 'cpu_sum': {
+                  'series': {
                     'source': 'Fine',
-                    'condition': ['regex-like', 'metric', '^cpu\\.'],
-                    'key': [],
-                    'aggregation': 'CasualSum',
-                    'limit': 120
-                    },
+                    'condition': ['RegexLike', 'metric', '^cpu\\.']},
+                  'extract': ['HistoryByNum', 120],
+                  'functions': [['Sum', 'Ignore']]
+                },
                 'cpu': {
+                  'series': {
                     'source': 'Fine',
-                    'condition': ['regex-like', 'metric', '^cpu\\.'],
-                    'key': ['metric'],
-                    'aggregation': 'None',
-                    'limit': 120
-                    }
+                    'condition': ['RegexLike', 'metric', '^cpu\\.']},
+                  'extract': ['HistoryByNum', 120],
+                  'functions': [['SumBy', ['metric'] , 'Ignore']]
+                }
             })
             "("
             =icon('hdd')
