@@ -5,7 +5,7 @@ import {Stream} from 'util/streams'
 
 
 
-export class JsonQuery  {
+export class CborQuery  {
     constructor() {
         this._timer = null
         this.owner_destroyed = new Stream('query_remote_destroyed')
@@ -46,36 +46,35 @@ export class JsonQuery  {
                 return;
             }
             try {
-                var json = JSON.parse(req.responseText)
+                var data = CBOR.decode(req.response)
             } catch(e) {
                 console.error("Error parsing json at", this.url, e)
                 this.error = Error("Bad Json")
                 return;
             }
-            if(!json || typeof(json) != "object") {
-                console.error("Returned json is not an object", this.url, req);
-                this.error = Error("Bad Json")
-                return;
-            }
-            this.apply(json)
+            console.log("DATA", data)
+            // TODO(tailhook)
+            //this.apply(json)
             update();
         }
         const post_data = this.post_data
         if(post_data) {
             req.open('POST', this.url, true)
+            req.responseType = "arraybuffer";
             req.send(post_data)
         } else {
             req.open('GET', this.url, true)
+            req.responseType = "arraybuffer";
             req.send();
         }
     }
 }
 
-export class QueryRemote extends JsonQuery {
+export class QueryRemote extends CborQuery {
     constructor(rules) {
         super()
         this.rules = rules
-        this.url = '/remote/query_by_host.json'
+        this.url = '/remote/query_by_host.cbor'
         this.interval = 5000
         this.post_data = JSON.stringify({
             'rules': this.rules,
@@ -95,11 +94,11 @@ export class QueryRemote extends JsonQuery {
     }
 }
 
-export class Query extends JsonQuery {
+export class Query extends CborQuery {
     constructor(interval, rules) {
         super()
         this.rules = rules
-        this.url = '/query.json'
+        this.url = '/query.cbor'
         this.interval = interval || 5000
         this.post_data = JSON.stringify({
             'rules': this.rules,
@@ -115,7 +114,7 @@ export class Query extends JsonQuery {
     }
 }
 
-export class RemoteStats extends JsonQuery {
+export class RemoteStats extends CborQuery {
     constructor(interval) {
         super()
         this.url = '/remote_stats.json'
@@ -127,7 +126,7 @@ export class RemoteStats extends JsonQuery {
     }
 }
 
-export class PeersRequest extends JsonQuery {
+export class PeersRequest extends CborQuery {
     constructor(only_remote, interval) {
         super()
         this.url = '/peers_with_remote.json'

@@ -75,7 +75,6 @@ mod test {
             (&Key::metric("test1"), &Counter(10)),
             (&Key::metric("test2"), &Counter(20)),
         ].into_iter());
-        /*
         h.fine.push((2000, 10), vec![
             (&Key::metric("test2"), &Counter(20)),
             (&Key::metric("test3"), &Counter(30)),
@@ -84,7 +83,6 @@ mod test {
             (&Key::metric("st1"), &State(1500, "hello".to_string())),
             (&Key::metric("st2"), &Counter(30)),
         ].into_iter());
-        */
         let mut e = Encoder::new(Vec::new());
         h.encode(&mut e).unwrap();
         let h: History = decode(&mut Decoder::new(Config::default(),

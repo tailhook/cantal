@@ -1,5 +1,6 @@
 use std::mem::replace;
 use std::collections::{HashMap, VecDeque};
+use std::collections::vec_deque::Iter as VecDequeIter;
 use num::{Float};
 
 use values::Value as TipValue;
@@ -47,13 +48,20 @@ probor_struct_encoder_decoder!(Backlog {
 enum HState {
     Skip(u64),
     Tip,
-    Diff,
+    Next,
 }
 
 #[derive(Clone)]
 pub struct DeltaHistory<'a, T:Int> {
     state: HState,
     iter: DeltaIter<'a, T>,
+    tip: T,
+}
+
+#[derive(Clone)]
+pub struct FloatHistory<'a, T:Float+Copy+'static> {
+    state: HState,
+    iter: VecDequeIter<'a, T>,
     tip: T,
 }
 
@@ -153,15 +161,6 @@ impl<T: Copy, U:ValueBuf<T>> Inner<T, U> {
         self.age = age;
         return true;
     }
-    /*
-    fn history<'x>(&'x self, current_age: u64) -> ValueHistory<'x> {
-        return DeltaHistory {
-            state: if age_diff > 0 { Skip(age_diff) } else { Tip },
-            iter: self.buf.deltas(),
-            tip: self.tip,
-        }
-    }
-    */
     fn truncate(&mut self, trim_age: u64) -> bool {
         if self.age <= trim_age {
             return false;
@@ -187,8 +186,8 @@ impl<'a, T:Int> Iterator for DeltaHistory<'a, T> {
         let (res, nstate) = match self.state {
             Skip(1) => (Some(None), Tip),
             Skip(x) => (Some(None), Skip(x-1)),
-            Tip => (Some(Some(self.tip)), Diff),
-            Diff => {
+            Tip => (Some(Some(self.tip)), Next),
+            Next => {
                 let res = match self.iter.next() {
                     Some(Delta::Positive(x)) => {
                         self.tip = self.tip - x;
@@ -202,7 +201,26 @@ impl<'a, T:Int> Iterator for DeltaHistory<'a, T> {
                     Some(Delta::Skip) => Some(None),
                     None => None
                 };
-                (res, Diff)
+                (res, Next)
+            }
+        };
+        self.state = nstate;
+        return res;
+    }
+}
+
+impl<'a, T:Float> Iterator for FloatHistory<'a, T> {
+    type Item = Option<T>;
+    fn next(&mut self) -> Option<Option<T>> {
+        use self::HState::*;
+        let (res, nstate) = match self.state {
+            Skip(1) => (Some(None), Tip),
+            Skip(x) => (Some(None), Skip(x-1)),
+            Tip => (Some(Some(self.tip)), Next),
+            Next => {
+                let val = self.iter.next()
+                    .map(|x| if x.is_nan() { None } else { Some(*x) });
+                (val, Next)
             }
         };
         self.state = nstate;
@@ -216,6 +234,31 @@ impl<T:Int> ValueBuf<T> for DeltaBuf<T> {
     }
     fn truncate(&mut self, limit: usize) {
         DeltaBuf::truncate(self, limit.saturating_sub(1));
+    }
+}
+
+impl <T:Int> Inner<T, DeltaBuf<T>> {
+    pub fn history<'x>(&'x self, current_age: u64) -> DeltaHistory<'x, T> {
+        use self::HState::*;
+        let age_diff = current_age.saturating_sub(self.age());
+        return DeltaHistory {
+            state: if age_diff > 0 { Skip(age_diff) } else { Tip },
+            iter: self.buf.deltas(),
+            tip: self.tip,
+        }
+    }
+}
+
+
+impl<T: Float> Inner<T, VecDeque<T>> {
+    pub fn history<'x>(&'x self, current_age: u64) -> FloatHistory<'x, T> {
+        use self::HState::*;
+        let age_diff = current_age.saturating_sub(self.age());
+        return FloatHistory {
+            state: if age_diff > 0 { Skip(age_diff) } else { Tip },
+            iter: self.buf.iter(),
+            tip: self.tip,
+        }
     }
 }
 

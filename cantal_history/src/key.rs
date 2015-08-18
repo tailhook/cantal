@@ -1,8 +1,9 @@
+use std::io::Cursor;
 use std::collections::BTreeMap;
 use std::marker::PhantomData;
 use std::iter::Peekable;
 
-use cbor::{Encoder};
+use cbor::{Encoder, Decoder, Config};
 use serialize::json::Json;
 
 use Key;
@@ -108,6 +109,22 @@ impl Key {
     pub fn as_bytes<'x>(&'x self) -> &'x [u8] {
         return &self.0[..]
     }
+
+    pub fn get_with<'x, F, T>(&'x self, name: &str, f: F) -> Option<T>
+        where F: FnOnce(&str) -> T
+    {
+        let mut d = Decoder::new(Config::default(), Cursor::new(&self.0[..]));
+        let num = d.object().unwrap();
+        for _ in 0..num {
+            if d.text_borrow().unwrap() == name {
+                // TODO(tailhook) other types may work in future
+                return Some(f(d.text_borrow().unwrap()));
+            } else {
+                d.skip().unwrap();
+            }
+        }
+        return None;
+    }
 }
 
 mod serde {
@@ -121,8 +138,8 @@ mod serde {
         let num = try!(d.object().map_err(|_| "Invalid key"));
         for _ in 0..num {
             // TODO(tailhook) other types may work in future
-            try!(d.text().map_err(|_| "Invalid key"));
-            try!(d.text().map_err(|_| "Invalid key"));
+            try!(d.text_borrow().map_err(|_| "Invalid key"));
+            try!(d.text_borrow().map_err(|_| "Invalid key"));
         }
         if d.into_reader().position() as usize != val.len() {
             return Err("Invalid key: extra data");
@@ -167,9 +184,10 @@ mod std_trait {
                 .map_err(|_| Error));
             for _ in 0..num {
                 // TODO(tailhook) other types may work in future
-                try!(write!(f, "{}: {}",
-                    try!(d.text().map_err(|_| Error)),
-                    try!(d.text().map_err(|_| Error))));
+                try!(write!(f, "{}: ",
+                    try!(d.text_borrow().map_err(|_| Error))));
+                try!(write!(f, "{}",
+                    try!(d.text_borrow().map_err(|_| Error))));
             }
             try!(write!(f, "}}"));
             Ok(())

@@ -1,9 +1,5 @@
-use std::ops::Deref;
-use std::hash::{Hash, Hasher};
-
-use probor;
 use regex::Regex;
-use rustc_serialize;
+use history::Key;
 
 /// A shim type to deserialize regex and hash it
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -40,45 +36,75 @@ json_enum_decoder!(Condition {
     Has(field),
 });
 
-impl Hash for RegexWrap {
-    fn hash<H>(&self, s: &mut H) where H: Hasher {
-        self.as_str().hash(s);
-    }
-}
-
-impl Deref for RegexWrap {
-    type Target = Regex;
-    fn deref<'x>(&'x self) -> &'x Regex {
-        &self.0
-    }
-}
-
-impl probor::Encodable for RegexWrap {
-    fn encode<W:probor::Output>(&self, e: &mut probor::Encoder<W>)
-        -> Result<(), probor::EncodeError>
-    {
-        self.0.encode(e)
-    }
-}
-
-impl probor::Decodable for RegexWrap {
-    fn decode_opt<R:probor::Input>(e: &mut probor::Decoder<R>)
-        -> Result<Option<RegexWrap>, probor::DecodeError>
-    {
-        probor::Decodable::decode_opt(e).map(|x| x.map(RegexWrap))
-    }
-}
-
-impl rustc_serialize::Decodable for RegexWrap {
-    fn decode<D: ::rustc_serialize::Decoder>(d: &mut D)
-        -> Result<RegexWrap, D::Error>
-    {
-        match d.read_str() {
-            Ok(x) => match Regex::new(&x) {
-                Ok(r) => Ok(RegexWrap(r)),
-                Err(_) => Err(d.error("Invalid regex")),
+impl Condition {
+    pub fn matches(&self, key: &Key) -> bool {
+        use self::Condition::*;
+        match self {
+            &Eq(ref name, ref value) => {
+                key.get_with(name, |x| x == value).unwrap_or(false)
             },
-            Err(e) => Err(e),
+            &NotEq(ref name, ref value) => {
+                key.get_with(name, |x| x != value).unwrap_or(false)
+            }
+            &RegexLike(ref name, ref regex) => {
+                key.get_with(name, |x| regex.is_match(x)).unwrap_or(false)
+            }
+            &And(ref a, ref b) => a.matches(key) && b.matches(key),
+            &Or(ref a, ref b) => a.matches(key) || b.matches(key),
+            &Not(ref x) => !x.matches(key),
+            &Has(ref name) => key.get_with(name, |_| ()).is_some(),
+        }
+    }
+}
+
+mod regex_wrap {
+    use std::ops::Deref;
+    use std::hash::{Hash, Hasher};
+    use super::RegexWrap;
+    use rustc_serialize;
+    use probor;
+    use regex::Regex;
+
+    impl Hash for RegexWrap {
+        fn hash<H>(&self, s: &mut H) where H: Hasher {
+            self.as_str().hash(s);
+        }
+    }
+
+    impl Deref for RegexWrap {
+        type Target = Regex;
+        fn deref<'x>(&'x self) -> &'x Regex {
+            &self.0
+        }
+    }
+
+    impl probor::Encodable for RegexWrap {
+        fn encode<W:probor::Output>(&self, e: &mut probor::Encoder<W>)
+            -> Result<(), probor::EncodeError>
+        {
+            self.0.encode(e)
+        }
+    }
+
+    impl probor::Decodable for RegexWrap {
+        fn decode_opt<R:probor::Input>(e: &mut probor::Decoder<R>)
+            -> Result<Option<RegexWrap>, probor::DecodeError>
+        {
+            probor::Decodable::decode_opt(e).map(|x| x.map(RegexWrap))
+        }
+    }
+
+    impl rustc_serialize::Decodable for RegexWrap {
+        fn decode<D: ::rustc_serialize::Decoder>(d: &mut D)
+            -> Result<RegexWrap, D::Error>
+        {
+            match d.read_str() {
+                Ok(x) => match Regex::new(&x) {
+                    Ok(r) => Ok(RegexWrap(r)),
+                    Err(_) => Err(d.error("Invalid regex")),
+                },
+                Err(e) => Err(e),
+            }
         }
     }
 }

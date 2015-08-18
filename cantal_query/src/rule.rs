@@ -1,4 +1,4 @@
-use history::{TimeStamp, TimeDelta};
+use history::{TimeDelta};
 use Condition;
 
 #[derive(RustcDecodable, Debug, Clone, Copy)]
@@ -16,8 +16,8 @@ probor_enum_encoder_decoder!(Source {
 probor_struct!(
 #[derive(RustcDecodable, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Filter {
-    source: Source => (#0),
-    condition: Condition => (#1),
+    pub source: Source => (#0),
+    pub condition: Condition => (#1),
 });
 
 
@@ -125,14 +125,14 @@ probor_enum_encoder_decoder!(Extract {
     #0 Tip(),
     #1 DiffToAtMost(limit #1),
     #2 HistoryByNum(limit #1),
-    #3 HistoryByTime(seconds #1),
+    #3 HistoryByTime(millis #1),
 });
 
 json_enum_decoder!(Extract {
     Tip(),
     DiffToAtMost(limit),
     HistoryByNum(limit),
-    HistoryByTime(seconds),
+    HistoryByTime(millis),
 });
 
 

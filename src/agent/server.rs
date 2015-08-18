@@ -209,7 +209,7 @@ fn resolve(req: &Request, context: &mut Context)
         => respond::serve_peers_with_remote(req, context),
         (&Get, &P(ref x)) if &x[..] == "/remote_stats.json"
         => respond::serve_remote_stats(req, context),
-        (&Post, &P(ref x)) if &x[..] == "/query.json"
+        (&Post, &P(ref x)) if &x[..] == "/query.cbor"
         => respond::serve_query(req, context),
         (&Post, &P(ref x)) if &x[..] == "/remote/query_by_host.json"
         => remote::respond::serve_query_by_host(req, context),
