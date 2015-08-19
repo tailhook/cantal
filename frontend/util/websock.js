@@ -31,7 +31,7 @@ class Beacon extends Message {
     }
 }
 
-Beacon.probor_protocol = new Reflect()
+Beacon.probor_enum_protocol = [new Reflect()]
 
 // We only need beacon for client websockets for now
 Message.probor_protocol = new Enum({0: Beacon})

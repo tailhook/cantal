@@ -2,7 +2,25 @@ import {from_ms} from 'util/time'
 import {update} from 'util/render'
 import {HTTPError} from 'util/request'
 import {Stream} from 'util/streams'
+import {
+    Struct, Enum, Dict, List, Str, Int, Tuple, Simple, SimpleStruct,
+    decode, Proto, Float as FloatProto
+    } from 'util/probor'
 
+class Key extends Proto {
+    decode(val) {
+        return CBOR.decode(val.buffer.slice(val.byteOffset,
+                                            val.byteOffset + val.byteLength))
+    }
+}
+
+class Timestamp extends Proto {
+    decode(val) {
+        const dt = new Date()
+        dt.setTime(val)
+        return val
+    }
+}
 
 
 export class CborQuery  {
@@ -46,9 +64,9 @@ export class CborQuery  {
                 return;
             }
             try {
-                var data = CBOR.decode(req.response)
+                var data = decode(this.schema, req.response)
             } catch(e) {
-                console.error("Error parsing json at", this.url, e)
+                console.error("Error parsing cbor at", this.url, e.stack)
                 this.error = Error("Bad Json")
                 return;
             }
@@ -94,6 +112,127 @@ export class QueryRemote extends CborQuery {
     }
 }
 
+
+let chunk = new Enum(function() {
+    class State {
+        constructor([ts, value]) {
+            this.ts = ts
+            this.value = value
+        }
+    }
+    State.probor_enum_protocol = [new Tuple(new Timestamp(), new Str())]
+
+    class Counter {
+        constructor(values) {
+            this.values = values
+        }
+    }
+    Counter.probor_enum_protocol = [new List(new Int())]
+    class Integer {
+        constructor(values) {
+            this.values = values
+        }
+    }
+    Integer.probor_enum_protocol = [new List(new Int())]
+    class Float {
+        constructor(values) {
+            this.values = values
+        }
+    }
+    Float.probor_enum_protocol = [new List(new FloatProto())]
+
+    return {
+        0: State,
+        1: Counter,
+        2: Integer,
+        3: Float,
+    }}())
+
+let tip = new Enum(function() {
+    class State {
+        constructor([ts, value]) {
+            this.ts = ts
+            this.value = value
+        }
+    }
+    State.probor_enum_protocol = [new Timestamp(), new Str()]
+
+    class Counter {
+        constructor(values) {
+            this.values = values
+        }
+    }
+    Counter.probor_enum_protocol = [new Int()]
+    class Integer {
+        constructor(values) {
+            this.values = values
+        }
+    }
+    Integer.probor_enum_protocol = [new Int()]
+    class Float {
+        constructor(values) {
+            this.values = values
+        }
+    }
+    Float.probor_enum_protocol = [new FloatProto()]
+
+    return {
+        0: State,
+        1: Counter,
+        2: Integer,
+        3: Float,
+    }}())
+
+class SingleSeries {
+    constructor(chunk) {
+        this.chunk = chunk
+    }
+}
+SingleSeries.probor_enum_protocol = [chunk]
+
+class MultiSeries {
+    constructor(chunks) {
+        this.chunks = chunks
+    }
+}
+MultiSeries.probor_enum_protocol = [new List(new Tuple(new Key(), chunk))]
+
+class SingleTip {
+    constructor(key, value) {
+        this.key = key
+        this.value = value
+    }
+}
+SingleTip.probor_enum_protocol = [new Key(), tip]
+
+class MultiTip {
+    constructor(values) {
+        this.values = values
+    }
+}
+MultiTip.probor_enum_protocol = [new List(new Tuple(new Key(), tip))]
+
+class Chart {
+    constructor(chart) {
+        this.chart = chart
+    }
+}
+Chart.probor_enum_protocol = [new Dict(new Str(), new Int())]
+
+let dataset = new Enum({
+    100: SingleSeries,
+    101: MultiSeries,
+    200: SingleTip,
+    201: MultiTip,
+    300: Chart,
+})
+
+class QueryResponse extends SimpleStruct { }
+QueryResponse.probor_protocol = new Struct([
+    ["values", null, new Dict(new Str(), dataset)],
+    ])
+
+
 export class Query extends CborQuery {
     constructor(interval, rules) {
         super()
@@ -103,6 +242,7 @@ export class Query extends CborQuery {
         this.post_data = JSON.stringify({
             'rules': this.rules,
         })
+        this.schema = QueryResponse
         this.start()
     }
     apply(json) {

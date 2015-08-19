@@ -39,10 +39,10 @@ pub enum Value {
 }
 
 probor_enum_encoder_decoder!(Value {
-    #0 Counter(value #1),
-    #1 Integer(value #1),
-    #2 Float(value #1),
-    #3 State(timestamp #1, value #2),
+    #0 State(timestamp #1, value #2),
+    #1 Counter(value #1),
+    #2 Integer(value #1),
+    #3 Float(value #1),
 });
 
 #[derive(Debug, Clone, Copy)]
