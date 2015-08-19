@@ -1,4 +1,4 @@
-use history::{History, Value, Chunk, Backlog};
+use history::{History, Value, Chunk, Backlog, TimeStamp};
 use values::Value as TipValue;
 
 use {Rule, Source, Dataset, Extract};
@@ -36,7 +36,7 @@ pub fn query_history(rule: &Rule, history: &History) -> Dataset {
                 if rule.series.condition.matches(key) {
                     extract_multi(
                         value, &history.fine, &rule.extract)
-                    .map(|v| result.push((key.clone(), v)));
+                    .map(|(v, t)| result.push((key.clone(), v, t)));
                     // TODO(tailhook) if extract_multi returns None what we
                     //                should do?
                 }
@@ -91,7 +91,7 @@ pub fn extract_single(value: &Value, bl: &Backlog, extract: &Extract)
 }
 
 pub fn extract_multi(value: &Value, bl: &Backlog, extract: &Extract)
-    -> Option<Chunk>
+    -> Option<(Chunk, Vec<TimeStamp>)>
 {
     use Extract::*;
     use history::Value as B;
@@ -101,14 +101,17 @@ pub fn extract_multi(value: &Value, bl: &Backlog, extract: &Extract)
         &Tip => None,
         &DiffToAtMost(_) => None,
         &HistoryByNum(n) => Some({
-            match value {
+            let timestamps = bl.timestamps.iter()
+                .take(n).map(|&(x, _)| x).collect();
+            let values = match value {
                 &B::Counter(ref x)
                 => C::Counter(x.history(bl.age).take(n).collect()),
                 &B::Integer(ref x)
                 => C::Integer(x.history(bl.age).take(n).collect()),
                 &B::Float(ref x)
                 => C::Float(x.history(bl.age).take(n).collect()),
-            }
+            };
+            (values, timestamps)
         }),
         &HistoryByTime(time_delta) => Some({
             if bl.timestamps.len() < 1 {
@@ -122,14 +125,17 @@ pub fn extract_multi(value: &Value, bl: &Backlog, extract: &Extract)
                     break;
                 }
             }
-            match value {
+            let timestamps = bl.timestamps.iter()
+                .take(num).map(|&(x, _)| x).collect();
+            let values = match value {
                 &B::Counter(ref x)
                 => C::Counter(x.history(bl.age).take(num).collect()),
                 &B::Integer(ref x)
                 => C::Integer(x.history(bl.age).take(num).collect()),
                 &B::Float(ref x)
                 => C::Float(x.history(bl.age).take(num).collect()),
-            }
+            };
+            (values, timestamps)
         }),
     }
 }

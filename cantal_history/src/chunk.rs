@@ -1,9 +1,10 @@
 use values::Value as TipValue;
+use {TimeStamp};
 
 
 #[derive(Debug, Clone)]
 pub enum HistoryChunk {
-    State((u64, String)),
+    State((TimeStamp, String)),
     Counter(Vec<Option<u64>>),
     Integer(Vec<Option<i64>>),
     Float(Vec<Option<f64>>),

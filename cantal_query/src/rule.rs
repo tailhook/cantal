@@ -71,20 +71,6 @@ probor_enum_encoder_decoder!(UndefFilter {
     #0 Ignore(),
 });
 
-#[derive(RustcDecodable, Debug, Clone, PartialEq, Eq, Hash)]
-// Is it useful enough?
-pub enum ExtractTime {
-    Mean,
-    First,
-    Last,
-}
-
-probor_enum_encoder_decoder!(ExtractTime {
-    #0 Mean(),
-    #1 First(),
-    #2 Last(),
-});
-
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Function {
     Expect(Expectation),

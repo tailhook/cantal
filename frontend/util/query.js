@@ -3,7 +3,7 @@ import {update} from 'util/render'
 import {HTTPError} from 'util/request'
 import {Stream} from 'util/streams'
 import {
-    Struct, Enum, Dict, List, Str, Int, Tuple, Simple, SimpleStruct,
+    Struct, Enum, Dict, List, Str, Int, Tuple, Simple, SimpleStruct, Optional,
     decode, Proto, Float as FloatProto
     } from 'util/probor'
 
@@ -127,19 +127,19 @@ let chunk = new Enum(function() {
             this.values = values
         }
     }
-    Counter.probor_enum_protocol = [new List(new Int())]
+    Counter.probor_enum_protocol = [new List(new Optional(new Int()))]
     class Integer {
         constructor(values) {
             this.values = values
         }
     }
-    Integer.probor_enum_protocol = [new List(new Int())]
+    Integer.probor_enum_protocol = [new List(new Optional(new Int()))]
     class Float {
         constructor(values) {
             this.values = values
         }
     }
-    Float.probor_enum_protocol = [new List(new FloatProto())]
+    Float.probor_enum_protocol = [new List(new Optional(new FloatProto()))]
 
     return {
         0: State,
@@ -188,14 +188,16 @@ class SingleSeries {
         this.chunk = chunk
     }
 }
-SingleSeries.probor_enum_protocol = [chunk]
+SingleSeries.probor_enum_protocol = [
+    new Key(), chunk, new List(new Timestamp())]
 
 class MultiSeries {
     constructor(chunks) {
         this.chunks = chunks
     }
 }
-MultiSeries.probor_enum_protocol = [new List(new Tuple(new Key(), chunk))]
+MultiSeries.probor_enum_protocol = [new List(
+    new Tuple(new Key(), chunk, new List(new Timestamp())))]
 
 class SingleTip {
     constructor(key, value) {

@@ -155,6 +155,20 @@ export class Struct extends Proto {
     }
 }
 
+export class Optional extends Proto {
+    constructor(typ) {
+        super()
+        this.type = typ
+    }
+    decode(val, typ) {
+        if(val == null) {
+            return null
+        } else {
+            return decode_value(this.type, val)
+        }
+    }
+}
+
 export class DecodeError extends Error {
     constructor(...args) {
         super()
@@ -171,9 +185,14 @@ export function decode(typ, buf) {
 }
 
 function decode_value(typ, val) {
-    if(typ instanceof Proto) {
-        return typ.decode(val)
-    } else {
-        return typ.probor_protocol.decode(val, typ)
+    //console.log("TYPE", typ, val)
+    try {
+        if(typ instanceof Proto) {
+            return typ.decode(val)
+        } else {
+            return typ.probor_protocol.decode(val, typ)
+        }
+    } finally {
+        //console.log("ENDTYPE", typ, val)
     }
 }
