@@ -70,9 +70,7 @@ export class CborQuery  {
                 this.error = Error("Bad Json")
                 return;
             }
-            console.log("DATA", data)
-            // TODO(tailhook)
-            //this.apply(json)
+            this.apply(data)
             update();
         }
         const post_data = this.post_data
@@ -99,15 +97,7 @@ export class QueryRemote extends CborQuery {
         })
         this.start()
     }
-    apply(json) {
-        const obj = {}
-        for(let i in json) {
-            const old = json[i]
-            obj[i] = {
-                "fine_timestamps": old.fine_timestamps.map(from_ms),
-                "fine_metrics": old.fine_metrics,
-                }
-        }
+    apply(obj) {
         this.response = obj
     }
 }
@@ -158,20 +148,20 @@ let tip = new Enum(function() {
     State.probor_enum_protocol = [new Timestamp(), new Str()]
 
     class Counter {
-        constructor(values) {
-            this.values = values
+        constructor(value) {
+            this.value = value
         }
     }
     Counter.probor_enum_protocol = [new Int()]
     class Integer {
-        constructor(values) {
-            this.values = values
+        constructor(value) {
+            this.value = value
         }
     }
     Integer.probor_enum_protocol = [new Int()]
     class Float {
-        constructor(values) {
-            this.values = values
+        constructor(value) {
+            this.value = value
         }
     }
     Float.probor_enum_protocol = [new FloatProto()]
@@ -211,6 +201,23 @@ class MultiTip {
     constructor(values) {
         this.values = values
     }
+    to_dict(prop, prefix) {
+        let res = {};
+        if(prefix) {
+            let prefix_len = prefix.length
+            for(let [key, value] of this.values) {
+                let rkey = key[prop]
+                if(rkey.substr(0, prefix.length) == prefix) {
+                    res[rkey.substr(prefix.length)] = value.value
+                }
+            }
+        } else {
+            for(let [key, value] of this.values) {
+                res[key[prop]] = value.value
+            }
+        }
+        return res
+    }
 }
 MultiTip.probor_enum_protocol = [new List(new Tuple(new Key(), tip))]
 
@@ -247,12 +254,8 @@ export class Query extends CborQuery {
         this.schema = QueryResponse
         this.start()
     }
-    apply(json) {
-        this.response = {
-            "fine_timestamps": json.fine_timestamps
-                .map(([ts, _]) => from_ms(ts)),
-            "fine_metrics": json.dataset,
-        }
+    apply(response) {
+        this.values = response.values
     }
 }
 
@@ -263,8 +266,8 @@ export class RemoteStats extends CborQuery {
         this.interval = interval || 5000
         this.start()
     }
-    apply(json) {
-        this.response = json
+    apply(response) {
+        this.values = response.values
     }
 }
 

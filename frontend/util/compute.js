@@ -19,25 +19,22 @@ const MEM_ORDER = {
 }
 
 export function mem_chart(metrics) {
-    metrics['memory.Used'] = [[metrics['memory.MemTotal'][0][0]
-                    - metrics['memory.MemFree'][0][0]
-                    - metrics['memory.Buffers'][0][0]
-                    - metrics['memory.Cached'][0][0]]]
-    metrics['memory.SwapUsed'] = [[metrics['memory.SwapTotal'][0][0]
-                    - metrics['memory.SwapFree'][0][0]]]
+    metrics = metrics.to_dict('metric', 'memory.')
+    metrics.Used = (metrics.MemTotal - metrics.MemFree - metrics.Buffers
+                    - metrics.Cached)
+    metrics.SwapUsed = metrics.SwapTotal - metrics.SwapFree
     return {
         title: 'Memory',
         unit: 'MiB',
-        total: metrics['memory.MemTotal'][0][0],
+        total: metrics.MemTotal,
         items: Object.keys(metrics).map(metricname => {
-            var value = metrics[metricname][0][0];
-            let key = metricname.substr('memory.'.length);
+            var value = metrics[metricname]
             return {
-                color: MEM_COLORS[key],
-                title: key,
+                color: MEM_COLORS[metricname],
+                title: metricname,
                 value: value,
                 text: (value/1048576).toFixed(1),
-                collapsed: MEM_ORDER[key] === undefined,
+                collapsed: MEM_ORDER[metricname] === undefined,
             }
         }).sort((a, b) => (MEM_ORDER[a.title] || 10000) -
                           (MEM_ORDER[b.title] || 10000))
@@ -47,6 +44,7 @@ export function mem_chart(metrics) {
 
 
 export function cpu_chart(cpu_total, parts) {
+    console.log("CPU", cpu_total, parts)
     parts['cpu.usage'] = parts['cpu.idle'][0].map((x, i) => cpu_total[i] - x)
     return parts
 }

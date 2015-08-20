@@ -31,7 +31,7 @@ css:
 html icon(name):
   span.glyphicon[class="glyphicon-{name}"]
 
-html render_self(beacon, connected, stats):
+html render_self(beacon, connected, self):
   span.pointer[title="Uptime of the cantal agent itself"]
     " up "
     =format_uptime(till_now_ms(from_ms(beacon.startup_time)))
@@ -41,20 +41,18 @@ html render_self(beacon, connected, stats):
   " "
   span.pointer[title="Time it takes for cantal to read all stats once"]
     "{beacon.scan_duration:d}ms"
-  if stats:
+  if self:
     " "
-    =bytes_formatter()(stats.fine_metrics.self.rss[0][0])
+    =bytes_formatter()(self.rss)
     "/"
-    =already_percent_formatter()(
-      stats.fine_metrics.self.user_time[0][0] +
-      stats.fine_metrics.self.system_time[0][0])
+    =already_percent_formatter()(self.user_time + self.system_time)
 
 html render_machine(beacon, stats):
   span.pointer[title="Uptime of the box running cantal"]
     "up "
     =format_uptime(till_now_ms(from_ms(beacon.boot_time)))
   " "
-  if stats and stats.fine_metrics:
+  if stats:
     span
       let cpu_yaxis = {
         height: 40,
@@ -70,18 +68,17 @@ html render_machine(beacon, stats):
         ]
       }
 
-      let mem = mem_chart(stats.fine_metrics.memory)
+      let mem = mem_chart(stats.get('memory'))
       .donut
         =donut.render(mem.items, 40, 40, mem.total)
 
-      let cpu = cpu_chart(stats.fine_metrics.cpu_sum,
-                          stats.fine_metrics.cpu)
-      .sparkline
-        =sparkline.render(120, stats.fine_timestamps, [{
-            'title': 'Cpu',
-            'values': cpu['cpu.usage'],
-            'yaxis': cpu_yaxis
-            }])
+      #let cpu = cpu_chart(stats.get('cpu_sum'), stats.get('cpu'))
+      #.sparkline
+      #  =sparkline.render(120, stats.cpu.timestamps, [{
+      #      'title': 'Cpu',
+      #      'values': cpu['cpu.usage'],
+      #      'yaxis': cpu_yaxis
+      #      }])
 
 
 html render(current_page):
@@ -161,9 +158,10 @@ html render(current_page):
             =icon('hdd')
             " "
             if beacon:
-              =render_machine(beacon, query.response)
+              =render_machine(beacon, query.values)
             ") ("
             =icon('scale')
             if beacon:
-              =render_self(beacon, websock.connected, query.response)
+              =render_self(beacon, websock.connected,
+                query.values and query.values.get('self').to_dict('metric'))
             ") "
