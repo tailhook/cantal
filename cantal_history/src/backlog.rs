@@ -357,7 +357,7 @@ mod serde {
     fn write_bytes<W:Output, F>(e: &mut Encoder<W>, num: usize, mut fun: F)
         where F: FnMut(&mut W)
     {
-        let mut v = e.get_mut();
+        let mut v = e.writer();
         type_len(v, Type::Bytes, num as u64);
         fun(&mut v);
     }
