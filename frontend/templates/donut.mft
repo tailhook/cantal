@@ -25,7 +25,7 @@ html render(items, width, height, total):
         }]
       let paths = donut.with_paths(items, total, width)
       g
-        for item of paths:
+        for item of paths key item.title:
           path[fill=item.color, title=item.title, d=item.path]
             link mouseenter = item -> tooltip.enter
             link {mouseleave} = tooltip
