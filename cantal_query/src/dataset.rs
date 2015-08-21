@@ -9,16 +9,18 @@ pub type TimeSlice = (TimeStamp, TimeStamp);
 #[derive(Debug)]
 pub enum Conflict {
     CantSumChart,
-    CantSumDissimilar,
+    Dissimilar,
     CantSumTimestamps,
     CantSumStates,
+    CantDerive,
 }
 
 probor_enum_encoder_decoder!(Conflict {
     #100 CantSumChart(),
-    #101 CantSumDissimilar(),
+    #101 Dissimilar(),
     #102 CantSumTimestamps(),
     #103 CantSumStates(),
+    #104 CantDerive(),
 });
 
 #[derive(Debug)]

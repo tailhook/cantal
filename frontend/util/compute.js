@@ -43,8 +43,7 @@ export function mem_chart(metrics) {
 
 
 
-export function cpu_chart(cpu_total, parts) {
-    console.log("CPU", cpu_total, parts)
-    parts['cpu.usage'] = parts['cpu.idle'][0].map((x, i) => cpu_total[i] - x)
-    return parts
+export function cpu_usage(cpu_total, parts) {
+    let dict = parts.to_dict('metric', 'cpu.')
+    return dict['idle'].values.map((x, i) => cpu_total.chunk.values[i] - x)
 }

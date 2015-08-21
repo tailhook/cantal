@@ -6,7 +6,7 @@ import {already_percent_formatter, bytes_formatter} from 'util/format'
 import {percent_formatter} from 'util/format'
 import sparkline from 'templates/charts/sparkline.mft'
 import donut from 'templates/donut.mft'
-import {cpu_chart, mem_chart} from 'util/compute'
+import {cpu_usage, mem_chart} from 'util/compute'
 
 css:
   .pointer
@@ -71,13 +71,13 @@ html render_machine(beacon, stats):
       .donut
         =donut.render(mem.items, 40, 40, mem.total)
 
-      #let cpu = cpu_chart(stats.get('cpu_sum'), stats.get('cpu'))
-      #.sparkline
-      #  =sparkline.render(120, stats.cpu.timestamps, [{
-      #      'title': 'Cpu',
-      #      'values': cpu['cpu.usage'],
-      #      'yaxis': cpu_yaxis
-      #      }])
+      let usage = cpu_usage(stats.get('cpu_sum'), stats.get('cpu'))
+      .sparkline
+        =sparkline.render(120, stats.get('cpu_sum').timestamps, [{
+            'title': 'Cpu',
+            'values': usage,
+            'yaxis': cpu_yaxis
+            }])
 
 
 html render(current_page):
@@ -152,14 +152,14 @@ html render(current_page):
                     'source': 'Fine',
                     'condition': ['RegexLike', 'metric', '^cpu\\.']},
                   'extract': ['HistoryByNum', 120],
-                  'functions': [['Sum', 'Ignore']]
+                  'functions': [['NonNegativeDerivative'], ['Sum', 'Ignore']]
                 },
-                'cpu': {
+                'cpu': {  # TODO(tailhook) only idle is needed for now
                   'series': {
                     'source': 'Fine',
                     'condition': ['RegexLike', 'metric', '^cpu\\.']},
                   'extract': ['HistoryByNum', 120],
-                  'functions': [] #['SumBy', ['metric'] , 'Ignore']]
+                  'functions': [['NonNegativeDerivative']]
                 }
             })
             "("

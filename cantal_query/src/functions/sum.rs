@@ -36,7 +36,9 @@ pub fn sum_series(mut src: Vec<(Key, Chunk, Vec<TimeStamp>)>) -> Dataset {
         }
     }
     let data_points = src[0].2.len();
-    let chunk = match ChunkSet::merge(src.iter().map(|&(_, ref chunk, _)| chunk)) {
+    let chunk = match
+        ChunkSet::merge(src.iter().map(|&(_, ref chunk, _)| chunk))
+    {
         S::Empty => return Dataset::Empty,
         S::Counters(lst) => C::Counter(lst.iter()
             .fold(vec![None; data_points], vec_sum)),
@@ -45,7 +47,7 @@ pub fn sum_series(mut src: Vec<(Key, Chunk, Vec<TimeStamp>)>) -> Dataset {
         S::Floats(lst) => C::Float(lst.iter()
             .fold(vec![None; data_points], vec_sum)),
         S::States(_) => return Dataset::Incompatible(Conflict::CantSumStates),
-        S::Conflict => return Dataset::Incompatible(Conflict::CantSumDissimilar),
+        S::Conflict => return Dataset::Incompatible(Conflict::Dissimilar),
     };
     let key = Key::intersection(src.iter().map(|&(ref k, _, _)| k));
     Dataset::SingleSeries(key, chunk, src.pop().unwrap().2)
@@ -90,13 +92,15 @@ pub fn sum_tip(mut src: Vec<(Key, Value, TimeSlice)>) -> Dataset {
             return Dataset::Incompatible(Conflict::CantSumTimestamps);
         }
     }
-    let value = match ValueSet::merge(src.iter().map(|&(_, ref chunk, _)| chunk)) {
+    let value = match
+        ValueSet::merge(src.iter().map(|&(_, ref chunk, _)| chunk))
+    {
         S::Empty => return Dataset::Empty,
         S::Counters(lst) => V::Counter(sum_iter(lst.into_iter())),
         S::Integers(lst) => V::Integer(sum_iter(lst.into_iter())),
         S::Floats(lst) => V::Float(sum_iter(lst.into_iter())),
         S::States(_) => return Dataset::Incompatible(Conflict::CantSumStates),
-        S::Conflict => return Dataset::Incompatible(Conflict::CantSumDissimilar),
+        S::Conflict => return Dataset::Incompatible(Conflict::Dissimilar),
     };
     let key = Key::intersection(src.iter().map(|&(ref k, _, _)| k));
     Dataset::SingleTip(key, value, src.pop().unwrap().2)

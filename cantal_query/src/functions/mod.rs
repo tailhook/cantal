@@ -1,4 +1,5 @@
 mod sum;
+mod derive;
 
 use {Function, Dataset, UndefFilter};
 
@@ -9,8 +10,7 @@ impl Function {
         use Function::*;
         match func {
             &Expect(_) => unimplemented!(),
-            &NonNegativeDerivative => unimplemented!(),
-            &ScaleToSeconds => unimplemented!(),
+            &NonNegativeDerivative => derive::non_negative_derivative(d),
             &Sum(UndefFilter::Ignore) => sum::sum(d),
             &SumBy(_, UndefFilter::Ignore) => unimplemented!(),
             &StateChart(_num) => unimplemented!(),

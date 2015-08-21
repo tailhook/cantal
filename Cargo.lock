@@ -96,6 +96,7 @@ dependencies = [
  "cantal_values 0.1.0",
  "cbor-codec 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "num 0.1.26 (registry+https://github.com/rust-lang/crates.io-index)",
  "probor 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "regex 0.1.41 (registry+https://github.com/rust-lang/crates.io-index)",
  "rustc-serialize 0.3.15 (registry+https://github.com/rust-lang/crates.io-index)",

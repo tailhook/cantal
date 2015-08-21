@@ -175,8 +175,10 @@ let tip = new Enum(function() {
     }}())
 
 class SingleSeries {
-    constructor(chunk) {
+    constructor(key, chunk, timestamps) {
+        this.key = key
         this.chunk = chunk
+        this.timestamps = timestamps
     }
 }
 SingleSeries.probor_enum_protocol = [
@@ -185,6 +187,23 @@ SingleSeries.probor_enum_protocol = [
 class MultiSeries {
     constructor(chunks) {
         this.chunks = chunks
+    }
+    to_dict(prop, prefix) {
+        let res = {};
+        if(prefix) {
+            let prefix_len = prefix.length
+            for(let [key, value] of this.chunks) {
+                let rkey = key[prop]
+                if(rkey.substr(0, prefix.length) == prefix) {
+                    res[rkey.substr(prefix.length)] = value
+                }
+            }
+        } else {
+            for(let [key, value] of this.chunks) {
+                res[key[prop]] = value
+            }
+        }
+        return res
     }
 }
 MultiSeries.probor_enum_protocol = [new List(
@@ -239,9 +258,10 @@ Empty.probor_enum_protocol = []
 class Incompatible { }
 Incompatible.probor_enum_protocol = [new Enum({
     100: "CantSumChart",
-    101: "CantSumDissimilar",
+    101: "Dissimilar",
     102: "CantSumTimestamps",
     103: "CantSumStates",
+    104: "CantDerive",
 })]
 
 let dataset = new Enum({

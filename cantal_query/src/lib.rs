@@ -3,6 +3,7 @@
 extern crate log;
 extern crate rustc_serialize;
 extern crate regex;
+extern crate num;
 extern crate cantal_history as history;
 extern crate cantal_values as values;
 #[macro_use] extern crate probor;
