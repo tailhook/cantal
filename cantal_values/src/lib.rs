@@ -35,11 +35,11 @@ pub enum Value {
     Counter(u64),
     Integer(i64),
     Float(f64),
-    State(u64, String),
+    State((u64, String)),
 }
 
 probor_enum_encoder_decoder!(Value {
-    #0 State(timestamp #1, value #2),
+    #0 State(item #1),
     #1 Counter(value #1),
     #2 Integer(value #1),
     #3 Float(value #1),
@@ -197,7 +197,7 @@ impl Metadata {
                         }
                     };
                     try!(stream.seek(Current((len-8) as i64)));
-                    Value::State(time_ms, text)
+                    Value::State((time_ms, text))
                 }
                 Type::Pad(x) => {
                     try!(stream.seek(Current(x as i64)));

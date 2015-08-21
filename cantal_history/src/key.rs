@@ -41,6 +41,7 @@ impl<'a, A, B> ExactSizeIterator for Merge<'a, A, B>
     }
 }
 
+
 impl Key {
     /// Note: caller must ensure that order is Okay
     fn from_iter<'x, I>(pairs: I) -> Key
@@ -124,6 +125,35 @@ impl Key {
             }
         }
         return None;
+    }
+
+    pub fn intersection<'x, I:Iterator<Item=&'x Key>>(_iter: I) -> Key {
+        let enc = Encoder::new(Vec::new());
+        let cnt = 0;
+        /*
+        let decoders = iter
+            .map(|&k| Decoder::new(Config::default(), Cursor::new(&k.0[..])))
+            .collect::<Vec<_>>();
+
+        for c in decoders {
+            // TODO(tailhook) implement real intersection
+        }
+        */
+
+        let mut buf = enc.into_writer();
+        let bytes;
+        let mut lenbuf = [0u8; 8];
+        {
+            let mut enc = Encoder::new(Cursor::new(&mut lenbuf[..]));
+            enc.object(cnt).unwrap();
+            bytes = enc.into_writer().position() as usize;
+        }
+        // It's almost never more than 1 byte so we don't care it's
+        // theoretically very slow
+        for &b in lenbuf[..bytes].iter().rev() {
+            buf.insert(0, b);
+        }
+        return Key(buf.into_boxed_slice());
     }
 }
 
@@ -214,5 +244,17 @@ mod test {
             ).unwrap();
         assert_eq!(&key.0[..],
             &b"\xa3fmetricdtestcpidd1234czooebasic"[..]);
+    }
+
+    fn intersection() {
+        let key1 = Key::from_json(&json::Json::from_str(
+            r#"{"a": 1, "b": 2, "c": 3, "d": 4}"#));
+        let key2 = Key::from_json(&json::Json::from_str(
+            r#"{"a": 1, "b": 2, "c": 3, "e": 4}"#));
+        let key3 = Key::from_json(&json::Json::from_str(
+            r#"{"a": 5, "b": 2, "c": 3, "e": 4}"#));
+        let key = Key::intersection(key1, key2, key3);
+        assert_eq!(&key.0[..],
+            &b"\xa2ab\x02ac\x03"[..]);
     }
 }

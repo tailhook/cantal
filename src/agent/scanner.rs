@@ -55,9 +55,9 @@ pub fn scan_loop(deps: Dependencies)
             // TODO(tailhook) use drain-style iterator and push to both
             // at once, so we don't need clone (each metric)
             stats.history.tip.push((start, scan_duration), tip.map.iter()
-                .filter(|&(_, v)| matches!(v, &Value::State(_, _))));
+                .filter(|&(_, v)| matches!(v, &Value::State(_))));
             stats.history.fine.push((start, scan_duration), tip.map.iter()
-                .filter(|&(_, v)| !matches!(v, &Value::State(_, _))));
+                .filter(|&(_, v)| !matches!(v, &Value::State(_))));
 
             stats.last_scan = start;
             stats.boot_time = boot_time.or(stats.boot_time);

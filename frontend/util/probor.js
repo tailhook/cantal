@@ -20,7 +20,11 @@ export class Enum extends Proto {
                 this.named_options[k] = typ
             } else {
                 this.numeric_options[n] = typ
-                this.named_options[typ.name] = typ
+                if(typeof typ == 'string') {
+                    this.named_options[typ] = typ
+                } else {
+                    this.named_options[typ.name] = typ
+                }
             }
         }
     }
@@ -32,6 +36,8 @@ export class Enum extends Proto {
         if(typ === undefined) {
             throw new DecodeError(
                 `Unknown enum value ${val[0]} for ${base_type}`)
+        } else if(typeof typ == 'string') {
+            return typ
         }
         let args = []
         let proto = typ.probor_enum_protocol;

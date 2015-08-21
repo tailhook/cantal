@@ -7,7 +7,6 @@ import {percent_formatter} from 'util/format'
 import sparkline from 'templates/charts/sparkline.mft'
 import donut from 'templates/donut.mft'
 import {cpu_chart, mem_chart} from 'util/compute'
-import {self_cpu} from 'util/navbar'
 
 css:
   .pointer
@@ -31,7 +30,7 @@ css:
 html icon(name):
   span.glyphicon[class="glyphicon-{name}"]
 
-html render_self(beacon, connected, self):
+html render_self(beacon, connected, cpu, mem):
   span.pointer[title="Uptime of the cantal agent itself"]
     " up "
     =format_uptime(till_now_ms(from_ms(beacon.startup_time)))
@@ -41,11 +40,11 @@ html render_self(beacon, connected, self):
   " "
   span.pointer[title="Time it takes for cantal to read all stats once"]
     "{beacon.scan_duration:d}ms"
-  if self:
+  if cpu and mem:
     " "
-    =bytes_formatter()(self.rss)
+    =bytes_formatter()(mem.rss)
     "/"
-    =already_percent_formatter()(self.user_time + self.system_time)
+    =already_percent_formatter()(cpu.value.value / cpu.delta_sec())
 
 html render_machine(beacon, stats):
   span.pointer[title="Uptime of the box running cantal"]
@@ -125,10 +124,19 @@ html render(current_page):
         if beacon:
           .navbar-right.bg-danger?(!websock.connected)
             store query = new Query(2000, {
-                'self': {
+                'self_cpu': {
                   'series': {
                     'source': 'Fine',
-                    'condition': ['Eq', 'pid', String(beacon.pid)]},
+                    'condition': ['And', ['Eq', 'pid', String(beacon.pid)],
+                                         ['RegexLike', 'metric', '_time$']]},
+                  'extract': ['DiffToAtMost', 1],
+                  'functions': [['Sum', 'Ignore']]
+                },
+                'self_mem': {
+                  'series': {
+                    'source': 'Fine',
+                    'condition': ['And', ['Eq', 'pid', String(beacon.pid)],
+                                         ['Eq', 'metric', 'rss']]},
                   'extract': ['Tip'],
                   'functions': []
                 },
@@ -151,7 +159,7 @@ html render(current_page):
                     'source': 'Fine',
                     'condition': ['RegexLike', 'metric', '^cpu\\.']},
                   'extract': ['HistoryByNum', 120],
-                  'functions': [['SumBy', ['metric'] , 'Ignore']]
+                  'functions': [] #['SumBy', ['metric'] , 'Ignore']]
                 }
             })
             "("
@@ -163,5 +171,6 @@ html render(current_page):
             =icon('scale')
             if beacon:
               =render_self(beacon, websock.connected,
-                query.values and query.values.get('self').to_dict('metric'))
+                query.values and query.values.get('self_cpu'),
+                query.values and query.values.get('self_mem').to_dict('metric'))
             ") "

@@ -85,7 +85,7 @@ impl Value {
                 age: age,
                 buf: VecDeque::new(),
             }),
-            &T::State(_, _) => unreachable!(),
+            &T::State(_) => unreachable!(),
         }
     }
     fn push(&mut self, value: &TipValue, age: u64) -> bool {

@@ -1,16 +1,16 @@
 use history::{History, Value, Chunk, Backlog, TimeStamp};
 use values::Value as TipValue;
 
-use {Rule, Source, Dataset, Extract};
+use {Rule, Source, Dataset, Extract, Function, TimeSlice};
 
 pub fn query_history(rule: &Rule, history: &History) -> Dataset {
     let dset = match rule.series.source {
         Source::Tip => {
             let mut result = Vec::new();
             // TODO(tailhook) do not duplicate keys and values
-            for (key, &(_, ref value)) in history.tip.values.iter() {
+            for (key, &(ts, ref value)) in history.tip.values.iter() {
                 if rule.series.condition.matches(key) {
-                    result.push((key.clone(), value.clone()));
+                    result.push((key.clone(), value.clone(), (ts, ts)));
                 }
             }
             Dataset::MultiTip(result)
@@ -22,7 +22,7 @@ pub fn query_history(rule: &Rule, history: &History) -> Dataset {
                 if rule.series.condition.matches(key) {
                     extract_single(
                         value, &history.fine, &rule.extract)
-                    .map(|v| result.push((key.clone(), v)));
+                    .map(|(v, tslc)| result.push((key.clone(), v, tslc)));
                     // TODO(tailhook) if extract_single returns None what we
                     //                should do?
                 }
@@ -44,8 +44,7 @@ pub fn query_history(rule: &Rule, history: &History) -> Dataset {
             Dataset::MultiSeries(result)
         }
     };
-    // TODO apply Functions
-    dset
+    rule.functions.iter().fold(dset, Function::exec)
 }
 
 pub fn single_value(extract: &Extract) -> bool {
@@ -59,7 +58,7 @@ pub fn single_value(extract: &Extract) -> bool {
 }
 
 pub fn extract_single(value: &Value, bl: &Backlog, extract: &Extract)
-    -> Option<TipValue>
+    -> Option<(TipValue, TimeSlice)>
 {
     use Extract::*;
     use history::Value as B;
@@ -67,24 +66,54 @@ pub fn extract_single(value: &Value, bl: &Backlog, extract: &Extract)
     match extract {
         &Tip => Some({
             match value {
-                &B::Counter(ref x) => V::Counter(x.tip()),
-                &B::Integer(ref x) => V::Integer(x.tip()),
-                &B::Float(ref x) => V::Float(x.tip()),
+                &B::Counter(ref x) => {
+                    let ts = bl.timestamps[(bl.age - x.age()) as usize].0;
+                    (V::Counter(x.tip()), (ts, ts))
+                },
+                &B::Integer(ref x) => {
+                    let ts = bl.timestamps[(bl.age - x.age()) as usize].0;
+                    (V::Integer(x.tip()), (ts, ts))
+                }
+                &B::Float(ref x) => {
+                    let ts = bl.timestamps[(bl.age - x.age()) as usize].0;
+                    (V::Float(x.tip()), (ts, ts))
+                }
             }
         }),
-        &DiffToAtMost(n) => Some({
+        &DiffToAtMost(n) => {
             match value {
-                &B::Counter(ref x) => V::Counter(x.tip().saturating_sub(
-                    x.history(bl.age).take(n)
-                     .filter_map(|x| x).last().unwrap())),
-                &B::Integer(ref x) => V::Integer(x.tip().saturating_sub(
-                    x.history(bl.age).take(n)
-                     .filter_map(|x| x).last().unwrap())),
-                &B::Float(ref x) => V::Float(x.tip() -
-                    x.history(bl.age).take(n)
-                     .filter_map(|x| x).last().unwrap()),
+                &B::Counter(ref hist) => {
+                    hist.history(bl.age).enumerate().skip(1).take(n)
+                     .filter_map(|(idx, x)| x.map(|y| (idx, y))).last()
+                     .map(|(idx, x)| {
+                        let cur = (bl.age - hist.age()) as usize;
+                        assert!(idx >= cur);
+                        (V::Counter(hist.tip().saturating_sub(x)),
+                            (bl.timestamps[cur].0, bl.timestamps[idx].0))
+                    })
+                }
+                &B::Integer(ref hist) => {
+                    hist.history(bl.age).enumerate().skip(1).take(n)
+                     .filter_map(|(idx, x)| x.map(|y| (idx, y))).last()
+                     .map(|(idx, x)| {
+                        let cur = (bl.age - hist.age()) as usize;
+                        assert!(idx >= cur);
+                        (V::Integer(hist.tip().saturating_sub(x)),
+                            (bl.timestamps[cur].0, bl.timestamps[idx].0))
+                    })
+                }
+                &B::Float(ref hist) => {
+                    hist.history(bl.age).enumerate().skip(1).take(n)
+                     .filter_map(|(idx, x)| x.map(|y| (idx, y))).last()
+                     .map(|(idx, x)| {
+                        let cur = (bl.age - hist.age()) as usize;
+                        assert!(idx >= cur);
+                        (V::Float(hist.tip() - x),
+                            (bl.timestamps[cur].0, bl.timestamps[idx].0))
+                    })
+                }
             }
-        }),
+        },
         &HistoryByNum(_) => None,
         &HistoryByTime(_) => None,
     }

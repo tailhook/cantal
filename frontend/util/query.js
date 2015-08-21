@@ -70,6 +70,7 @@ export class CborQuery  {
                 this.error = Error("Bad Json")
                 return;
             }
+            console.log("Query returned", data)
             this.apply(data)
             update();
         }
@@ -190,12 +191,17 @@ MultiSeries.probor_enum_protocol = [new List(
     new Tuple(new Key(), chunk, new List(new Timestamp())))]
 
 class SingleTip {
-    constructor(key, value) {
+    constructor(key, value, timestamps) {
         this.key = key
         this.value = value
+        this.timestamps = timestamps
+    }
+    delta_sec() {
+        return (this.timestamps[0] - this.timestamps[1]) / 1000
     }
 }
-SingleTip.probor_enum_protocol = [new Key(), tip]
+SingleTip.probor_enum_protocol = [new Key(), tip,
+                                  new Tuple(new Timestamp(), new Timestamp())]
 
 class MultiTip {
     constructor(values) {
@@ -219,7 +225,8 @@ class MultiTip {
         return res
     }
 }
-MultiTip.probor_enum_protocol = [new List(new Tuple(new Key(), tip))]
+MultiTip.probor_enum_protocol = [new List(
+    new Tuple(new Key(), tip, new Tuple(new Timestamp(), new Timestamp())))]
 
 class Chart {
     constructor(chart) {
@@ -227,6 +234,15 @@ class Chart {
     }
 }
 Chart.probor_enum_protocol = [new Dict(new Str(), new Int())]
+class Empty { }
+Empty.probor_enum_protocol = []
+class Incompatible { }
+Incompatible.probor_enum_protocol = [new Enum({
+    100: "CantSumChart",
+    101: "CantSumDissimilar",
+    102: "CantSumTimestamps",
+    103: "CantSumStates",
+})]
 
 let dataset = new Enum({
     100: SingleSeries,
@@ -234,7 +250,10 @@ let dataset = new Enum({
     200: SingleTip,
     201: MultiTip,
     300: Chart,
+    998: Empty,
+    999: Incompatible,
 })
+
 
 class QueryResponse extends SimpleStruct { }
 QueryResponse.probor_protocol = new Struct([

@@ -52,7 +52,7 @@ impl<'a> Iterator for HistoryChunkIter<'a> {
         }
         self.start_index += 1;
         Some(match self.chunk {
-            &S::State((ts, ref val)) => Some(D::State(ts, val.clone())),
+            &S::State((ts, ref val)) => Some(D::State((ts, val.clone()))),
             &S::Counter(ref slc) => slc[idx].map(D::Counter),
             &S::Integer(ref slc) => slc[idx].map(D::Integer),
             &S::Float(ref slc) => slc[idx].map(D::Float),
@@ -72,7 +72,7 @@ impl<'a> DoubleEndedIterator for HistoryChunkIter<'a> {
         }
         self.end_index -= 1;
         Some(match self.chunk {
-            &S::State((ts, ref val)) => Some(D::State(ts, val.clone())),
+            &S::State((ts, ref val)) => Some(D::State((ts, val.clone()))),
             &S::Counter(ref slc) => slc[self.end_index].map(D::Counter),
             &S::Integer(ref slc) => slc[self.end_index].map(D::Integer),
             &S::Float(ref slc) => slc[self.end_index].map(D::Float),

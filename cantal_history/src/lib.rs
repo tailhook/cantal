@@ -18,7 +18,7 @@ mod serde;
 
 pub use backlog::{Backlog, Value};
 pub use tip::Tip;
-pub use merge::ValueSet;
+pub use merge::{ChunkSet, ValueSet};
 pub use chunk::HistoryChunk as Chunk;
 pub use serde::VersionInfo;
 

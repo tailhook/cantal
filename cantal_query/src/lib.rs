@@ -12,9 +12,10 @@ mod condition;
 mod rule;
 mod dataset;
 mod query;
+mod functions;
 
 pub use condition::Condition;
 pub use rule::{Source, Filter, Extract, Rule};
 pub use rule::{MetricKind, UndefFilter, Function};
-pub use dataset::Dataset;
+pub use dataset::{Dataset, Conflict, TimeSlice};
 pub use query::query_history;
