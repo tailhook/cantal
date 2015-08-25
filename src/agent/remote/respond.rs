@@ -30,6 +30,7 @@ pub fn serve_query_by_host(req: &Request, context: &mut Context)
     from_utf8(&req.body)
     .map_err(|_| BadRequest::err("Bad utf-8 encoding"))
     .and_then(|s| json::decode::<Query>(s)
+    .map_err(|e| debug!("Decoding error {}", e))
     .map_err(|_| BadRequest::err("Failed to decode query")))
     .and_then(|query| {
         ensure_started(context);
