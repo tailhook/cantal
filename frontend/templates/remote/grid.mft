@@ -28,26 +28,19 @@ html render(peer_map):
   div
     store grid_query = new QueryRemote({
       'memory': {
+        'series': {
           'source': 'Fine',
-          'condition': ['regex-like', 'metric', '^memory\\.'],
-          'key': ['metric'],
-          'aggregation': 'None',
-          'limit': 150   # Equals datapoints, but unused actually
-          },
-      'cpu_sum': {
-          'source': 'Fine',
-          'condition': ['regex-like', 'metric', '^cpu\\.'],
-          'key': [],
-          'aggregation': 'CasualSum',
-          'limit': 150   # Equals datapoints, but unused actually
-          },
+          'condition': ['RegexLike', 'metric', '^memory\\.']
+        },
+        "extract": ['Tip'],
+        "functions": []},
       'cpu': {
+        'series': {
           'source': 'Fine',
-          'condition': ['regex-like', 'metric', '^cpu\\.'],
-          'key': ['metric'],
-          'aggregation': 'None',
-          'limit': 150   # Equals datapoints, but unused actually
-          }
+          'condition': ['RegexLike', 'metric', '^cpu\\.']},
+        "extract": ['HistoryByNum', 1100],
+        'functions': [['NonNegativeDerivative'],
+                      ['SumBy', 'metric', 'Ignore', true]]}
     })
     let cpu_yaxis = {
       height: 40,

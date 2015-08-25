@@ -29,11 +29,17 @@ class Timestamp extends Proto {
 }
 
 
-export class CborQuery  {
-    constructor() {
+export class BaseQuery {
+    constructor(url, post_data=null,
+        response_type='json', interval=2000)
+    {
         this._timer = null
         this.owner_destroyed = new Stream('query_remote_destroyed');
         this.owner_destroyed.handle(this.stop.bind(this));
+        this.url = url
+        this.interval = interval
+        this.post_data = post_data
+        this.response_type = response_type
     }
     start() {
         if(this._timer) {
@@ -69,13 +75,7 @@ export class CborQuery  {
                 this.error = Error(`Status ${req.status}`)
                 return;
             }
-            try {
-                var data = decode(this.schema, req.response)
-            } catch(e) {
-                console.error("Error parsing cbor at", this.url, e.stack)
-                this.error = Error("Bad Json")
-                return;
-            }
+            var data = this.decode(req.response)
             console.log("Query returned", data)
             this.apply(data)
             update();
@@ -83,25 +83,46 @@ export class CborQuery  {
         const post_data = this.post_data
         if(post_data) {
             req.open('POST', this.url, true)
-            req.responseType = "arraybuffer";
+            req.responseType = this.response_type;
             req.send(post_data)
         } else {
             req.open('GET', this.url, true)
-            req.responseType = "arraybuffer";
+            req.responseType = this.response_type;
             req.send();
         }
     }
 }
 
+export class CborQuery extends BaseQuery {
+    constructor(url, schema, post_data=null, interval=2000) {
+        super(url, post_data, 'arraybuffer', interval)
+        this.schema = schema
+    }
+    decode(response) {
+        try {
+            return decode(this.schema, response)
+        } catch(e) {
+            console.error("Error parsing cbor at", this.url, e.stack)
+            this.error = Error("Bad Cbor")
+            return;
+        }
+    }
+}
+export class JsonQuery extends BaseQuery {
+    constructor(url, post_data=null, interval=2000) {
+        super(url, post_data, 'json', interval)
+    }
+    decode(data) {
+        console.log("DATA", data)
+        return data;
+    }
+}
+
 export class QueryRemote extends CborQuery {
     constructor(rules) {
-        super()
-        this.rules = rules
-        this.url = '/remote/query_by_host.cbor'
-        this.interval = 5000
-        this.post_data = JSON.stringify({
-            'rules': this.rules,
-        })
+        super('/remote/query_by_host.cbor', QueryResponse, JSON.stringify({
+            'rules': rules,
+        }), 6000)
         this.start()
     }
     apply(obj) {
@@ -291,14 +312,9 @@ QueryResponse.probor_protocol = new Struct([
 
 export class Query extends CborQuery {
     constructor(interval, rules) {
-        super()
-        this.rules = rules
-        this.url = '/query.cbor'
-        this.interval = interval || 5000
-        this.post_data = JSON.stringify({
-            'rules': this.rules,
-        })
-        this.schema = QueryResponse
+        super('/query.cbor', QueryResponse, JSON.stringify({
+            'rules': rules,
+        }), interval)
         this.start()
     }
     apply(response) {
@@ -306,23 +322,19 @@ export class Query extends CborQuery {
     }
 }
 
-export class RemoteStats extends CborQuery {
-    constructor(interval) {
-        super()
-        this.url = '/remote_stats.json'
-        this.interval = interval || 5000
+export class RemoteStats extends JsonQuery {
+    constructor(interval=5000) {
+        super('/remote_stats.json', null, interval)
         this.start()
     }
     apply(response) {
-        this.values = response.values
+        this.response = response
     }
 }
 
-export class PeersRequest extends CborQuery {
-    constructor(only_remote, interval) {
-        super()
-        this.url = '/peers_with_remote.json'
-        this.interval = interval || 5000
+export class PeersRequest extends JsonQuery {
+    constructor(only_remote, interval=5000) {
+        super('/peers_with_remote.json', null, interval)
         this.start()
     }
     apply(json) {
