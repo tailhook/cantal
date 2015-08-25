@@ -71,9 +71,10 @@ html render_machine(beacon, stats):
       .donut
         =donut.render(mem.items, 40, 40, mem.total)
 
-      let usage = cpu_usage(stats.get('cpu_sum'), stats.get('cpu'))
+      let usage = cpu_usage(stats.get('cpu_total').chunk,
+                            stats.get('cpu_idle').chunks[0][1])
       .sparkline
-        =sparkline.render(120, stats.get('cpu_sum').timestamps, [{
+        =sparkline.render(120, stats.get('cpu_total').timestamps, [{
             'title': 'Cpu',
             'values': usage,
             'yaxis': cpu_yaxis
@@ -147,17 +148,17 @@ html render(current_page):
                   'extract': ['Tip'],
                   'functions': []
                 },
-                'cpu_sum': {
+                'cpu_total': {
                   'series': {
                     'source': 'Fine',
                     'condition': ['RegexLike', 'metric', '^cpu\\.']},
                   'extract': ['HistoryByNum', 120],
                   'functions': [['NonNegativeDerivative'], ['Sum', 'Ignore']]
                 },
-                'cpu': {  # TODO(tailhook) only idle is needed for now
+                'cpu_idle': {
                   'series': {
                     'source': 'Fine',
-                    'condition': ['RegexLike', 'metric', '^cpu\\.']},
+                    'condition': ['Eq', 'metric', 'cpu.idle']},
                   'extract': ['HistoryByNum', 120],
                   'functions': [['NonNegativeDerivative']]
                 }

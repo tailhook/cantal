@@ -54,12 +54,12 @@ html render(width, timestamps, items):
     let xaxis = compact.xaxis(timestamps, width)
     .xaxis[style={'width': width+'px'}]
       svg[width="{width}", height="40"]
-        for tick of xaxis.ticks:
+        for tick of xaxis.ticks key tick.text:
           g[transform="translate({tick.x}, 40)"]
             line.tick[y2="-6", x2="0"]
             text.tick[y="-8"] "{tick.text}"
     div
-      for item of items:
+      for item of items key item.title:
         if item.values:
           .bar[style={'width': width + 'px'}]
             =compact.draw(xaxis, item.yaxis, item.values)

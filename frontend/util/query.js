@@ -7,10 +7,16 @@ import {
     decode, Proto, Float as FloatProto
     } from 'util/probor'
 
+export const EMPTY_KEY = {}
+
 class Key extends Proto {
     decode(val) {
-        return CBOR.decode(val.buffer.slice(val.byteOffset,
-                                            val.byteOffset + val.byteLength))
+        if(!val.length) {
+            return EMPTY_KEY
+        } else {
+            return CBOR.decode(val.buffer.slice(val.byteOffset,
+                                                val.byteOffset + val.byteLength))
+        }
     }
 }
 
@@ -18,7 +24,7 @@ class Timestamp extends Proto {
     decode(val) {
         const dt = new Date()
         dt.setTime(val)
-        return val
+        return dt
     }
 }
 
@@ -194,8 +200,10 @@ class MultiSeries {
             let prefix_len = prefix.length
             for(let [key, value] of this.chunks) {
                 let rkey = key[prop]
-                if(rkey.substr(0, prefix.length) == prefix) {
+                if(rkey && rkey.substr(0, prefix.length) == prefix) {
                     res[rkey.substr(prefix.length)] = value
+                } else if(key == EMPTY_KEY) {
+                    res.TOTAL = value
                 }
             }
         } else {

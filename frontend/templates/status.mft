@@ -6,6 +6,8 @@ import compact from 'templates/charts/compact.mft'
 import {last} from 'util/list'
 import {integral_formatter, bytes_formatter} from 'util/format'
 import {number_formatter, already_percent_formatter} from 'util/format'
+import {Query} from 'util/query'
+import {cpu_usage, mem_chart} from 'util/compute'
 
 css:
   .sample
@@ -13,49 +15,45 @@ css:
       width: 1em
       height: 1em
 
-html render(error, timestamps, data, mem_chart, cpu_chart):
-  .container
-    h1 "System Status"
-    if error:
-      div
-        "Error:"
-        =error
+html mem(mem):
+  h2 "Memory"
+  .row
+    .col-xs-4[style={'margin': '48px 24px'}]
+      =donut.render(mem.items, 256, 256, mem.total)
+    .col-xs-4
+      table.table.table-condensed.table-hover
+        store toggle = new Toggle()
+        thead
+          tr
+            th
+            th "Title"
+            th.text-right 'MiB'
+        tbody
+          for item of mem.items:
+            if toggle.visible or not item.collapsed:
+              tr
+                td
+                  if item.color:
+                    span.sample[style='background-color: {item.color}']
+                td "{item.title}"
+                td.text-right
+                  =item.text
+            else:
+              tr
+        tfoot
+          tr
+            td
+            td.text-center
+              button.btn.btn-default.btn-xs
+                link click = toggle.toggle
+                if toggle.visible:
+                  span.glyphicon.glyphicon-chevron-up
+                else:
+                  span.glyphicon.glyphicon-chevron-down
+            td
 
-    h2 "Memory"
-    .row
-      .col-xs-4[style={'margin': '48px 24px'}]
-        if mem_chart.items:
-          =donut.render(mem_chart.items, 256, 256, mem_chart.total)
-      .col-xs-4
-        table.table.table-condensed.table-hover
-          store toggle = new Toggle()
-          thead
-            tr
-              th
-              th "Title"
-              th.text-right 'MiB'
-          tbody
-            for item of mem_chart.items:
-              if toggle.visible or not item.collapsed:
-                tr
-                  td
-                    if item.color:
-                      span.sample[style='background-color: {item.color}']
-                  td "{item.title}"
-                  td.text-right
-                    =item.text
-          tfoot
-            tr
-              td
-              td.text-center
-                button.btn.btn-default.btn-xs
-                  link click = toggle.toggle
-                  if toggle.visible:
-                    span.glyphicon.glyphicon-chevron-up
-                  else:
-                    span.glyphicon.glyphicon-chevron-down
-              td
-
+html cpu(cpu, timestamps):
+  div
     let cpu_yaxis = {
       height: 40,
       bg_color: 'rgb(237,248,233)',
@@ -70,29 +68,31 @@ html render(error, timestamps, data, mem_chart, cpu_chart):
           ]
       }
     h2 "CPU"
-    if cpu_chart:
-      =compact.render(1100, timestamps, [{
-            'title': 'Cpu',
-            'values': cpu_chart['cpu.usage'],
-            'yaxis': cpu_yaxis
-            }, {
-            'title': 'User',
-            'values': cpu_chart['cpu.user'][0],
-            'yaxis': cpu_yaxis
-            }, {
-            'title': 'System',
-            'values': cpu_chart['cpu.system'][0],
-            'yaxis': cpu_yaxis
-            }, {
-            'title': 'I/O Wait',
-            'values': cpu_chart['cpu.iowait'][0],
-            'yaxis': cpu_yaxis
-            }, {
-            'title': 'IRQ',
-            'values': cpu_chart['cpu.irq'][0],
-            'yaxis': cpu_yaxis
-            }])
+    =compact.render(1100, timestamps, [{
+          'title': 'Cpu',
+          'values': cpu_usage(cpu.TOTAL, cpu.idle),
+          'yaxis': cpu_yaxis
+          }, {
+          'title': 'User',
+          'values': cpu.user.values,
+          'yaxis': cpu_yaxis
+          }, {
+          'title': 'System',
+          'values': cpu.system.values,
+          'yaxis': cpu_yaxis
+          }, {
+          'title': 'I/O Wait',
+          'values': cpu.iowait.values,
+          'yaxis': cpu_yaxis
+          }, {
+          'title': 'IRQ',
+          'values': cpu.irq.values,
+          'yaxis': cpu_yaxis
+          }])
 
+html net(net, timestamps):
+  div
+    h2 "Network"
     let net_yaxis = {
       height: 40,
       bg_color: 'rgb(237,248,233)',
@@ -106,18 +106,18 @@ html render(error, timestamps, data, mem_chart, cpu_chart):
           [1024*1024*1024*1024, "black"]
           ]
       }
-    h2 "Network"
-    if data.network:
-      =compact.render(1100, timestamps, [{
-            'title': 'Receive',
-            'values': data.network['net.interface.rx.bytes'],
-            'yaxis': net_yaxis
-            }, {
-            'title': 'Transfer',
-            'values': data.network['net.interface.tx.bytes'],
-            'yaxis': net_yaxis
-            }])
+    =compact.render(1100, timestamps, [{
+        'title': 'Receive',
+        'values': net['rx.bytes'].values,
+        'yaxis': net_yaxis
+        }, {
+        'title': 'Transfer',
+        'values': net['tx.bytes'].values,
+        'yaxis': net_yaxis
+        }])
 
+html disk(disk, disk_in_progress, timestamps):
+  div
     h2 "Disks"
     let bytes_yaxis = {
       height: 40,
@@ -158,25 +158,97 @@ html render(error, timestamps, data, mem_chart, cpu_chart):
           [1000, "black"]
           ]
       }
-    if data.disk:
-      =compact.render(1100, timestamps, [{
-            'title': 'Disk Read Ops',
-            'values': data.disk['disk.read.ops'],
-            'yaxis': ops_yaxis
-            }, {
-            'title': 'Disk Write Ops',
-            'values': data.disk['disk.write.ops'],
-            'yaxis': ops_yaxis
-            }, {
-            'title': 'Disk Read Bytes',
-            'values': data.disk['disk.read.bytes'],
-            'yaxis': bytes_yaxis
-            }, {
-            'title': 'Disk Write Bytes',
-            'values': data.disk['disk.write.bytes'],
-            'yaxis': bytes_yaxis
-            }, {
-            'title': 'Disk in Progress Ops',
-            'values': data.disk_in_progress['disk.in_progress'],
-            'yaxis': num_yaxis
-            }])
+    =compact.render(1100, timestamps, [{
+      'title': 'Disk Read Ops',
+      'values': disk['read.ops'].values,
+      'yaxis': ops_yaxis
+      }, {
+      'title': 'Disk Write Ops',
+      'values': disk['write.ops'].values,
+      'yaxis': ops_yaxis
+      }, {
+      'title': 'Disk Read Bytes',
+      'values': disk['read.bytes'].values,
+      'yaxis': bytes_yaxis
+      }, {
+      'title': 'Disk Write Bytes',
+      'values': disk['write.bytes'].values,
+      'yaxis': bytes_yaxis
+      }, {
+      'title': 'Disk in Progress Ops',
+      'values': disk_in_progress['in_progress'].values,
+      'yaxis': num_yaxis
+      }])
+
+html render():
+  .container
+    store query = new Query(2000, {
+      'memory': {
+        'series': {
+          'source': 'Fine',
+          'condition': ['RegexLike', 'metric', '^memory\\.']
+        },
+        "extract": ['Tip'],
+        "functions": []
+      },
+      'cpu': {
+        'series': {
+          'source': 'Fine',
+          'condition': ['RegexLike', 'metric', '^cpu\\.']
+        },
+        "extract": ['HistoryByNum', 1100],
+        'functions': [['NonNegativeDerivative'],
+                      ['SumBy', 'metric', 'Ignore', true]]
+      },
+      'network': {
+        'series': {
+          'source':'Fine',
+          'condition': ['And',
+              ['RegexLike', 'metric',
+               "^net.interface.[rt]x.bytes$"],
+              ['Not', ['Or',
+                  ['Eq', 'interface', 'lo'],
+                  ['RegexLike', 'interface', '^tun|^vboxnet']]]]
+        },
+        'extract': ['HistoryByNum', 1100],
+        'functions': [['NonNegativeDerivative'],
+                      ['SumBy', 'metric', 'Ignore', true]]
+      },
+      'disk': {
+        'series': {
+          'source':'Fine',
+          'condition': ['And',
+              ['RegexLike', 'metric',
+               "^disk\.(?:read|write)\.(:?ops|bytes)$"],
+              ['RegexLike', 'device',
+               "^sd[a-z]$"]]
+        },
+        'extract': ['HistoryByNum', 1100],
+        'functions': [['NonNegativeDerivative'],
+                      ['SumBy', 'metric', 'Ignore', true]]
+      },
+      'disk_in_progress': {
+        'series': {
+          'source':'Fine',
+          'condition': ['And',
+              ['RegexLike', 'metric',
+               "^disk\.in_progress$"],
+              ['RegexLike', 'device',
+               "^sd[a-z]$"]]
+        },
+        'extract': ['HistoryByNum', 1100],
+        'functions': [['NonNegativeDerivative'],
+                      ['SumBy', 'metric', 'Ignore', true]]
+      }
+    })
+    h1 "System Status"
+    if query.values:
+      =mem(mem_chart(query.values.get('memory')))
+      =cpu(query.values.get('cpu').to_dict('metric', 'cpu.'),
+           query.values.get('cpu').chunks[0][2])
+      =net(query.values.get('network').to_dict('metric', 'net.interface.'),
+           query.values.get('network').chunks[0][2])
+      =disk(query.values.get('disk').to_dict('metric', 'disk.'),
+           query.values.get('disk_in_progress').to_dict('metric', 'disk.'),
+           query.values.get('disk').chunks[0][2])
+
