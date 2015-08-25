@@ -211,7 +211,7 @@ fn resolve(req: &Request, context: &mut Context)
         => respond::serve_remote_stats(req, context),
         (&Post, &P(ref x)) if &x[..] == "/query.cbor"
         => respond::serve_query(req, context),
-        (&Post, &P(ref x)) if &x[..] == "/remote/query_by_host.json"
+        (&Post, &P(ref x)) if &x[..] == "/remote/query_by_host.cbor"
         => remote::respond::serve_query_by_host(req, context),
         (&Post, &P(ref x)) if &x[..] == "/add_host.json"
         => do_add_host(req, context),
