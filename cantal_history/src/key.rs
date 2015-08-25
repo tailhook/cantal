@@ -47,6 +47,9 @@ impl Key {
     fn from_iter<'x, I>(pairs: I) -> Key
         where I :Iterator<Item=(&'x str, &'x str)>+ExactSizeIterator
     {
+        if pairs.len() == 0 {
+            return Key(None);
+        }
         let mut e = Encoder::new(Vec::new());
         e.object(pairs.len()).unwrap();
         for (k, v) in pairs {
@@ -54,7 +57,7 @@ impl Key {
             // TODO(tailhook) optimize numbers
             e.text(&v).unwrap();
         }
-        Key(e.into_writer().into_boxed_slice())
+        Key(Some(e.into_writer().into_boxed_slice()))
     }
     /// Creates a key json object with additional pairs added
     ///
@@ -108,53 +111,31 @@ impl Key {
     }
 
     pub fn as_bytes<'x>(&'x self) -> &'x [u8] {
-        return &self.0[..]
+        self.0.as_ref().map(|x| &x[..]).unwrap_or(b"")
     }
 
     pub fn get_with<'x, F, T>(&'x self, name: &str, f: F) -> Option<T>
         where F: FnOnce(&str) -> T
     {
-        let mut d = Decoder::new(Config::default(), Cursor::new(&self.0[..]));
-        let num = d.object().unwrap();
-        for _ in 0..num {
-            if d.text_borrow().unwrap() == name {
-                // TODO(tailhook) other types may work in future
-                return Some(f(d.text_borrow().unwrap()));
-            } else {
-                d.skip().unwrap();
+        self.0.as_ref().and_then(|b| {
+            let mut d = Decoder::new(Config::default(), Cursor::new(&b[..]));
+            let num = d.object().unwrap();
+            for _ in 0..num {
+                if d.text_borrow().unwrap() == name {
+                    // TODO(tailhook) other types may work in future
+                    return Some(f(d.text_borrow().unwrap()));
+                } else {
+                    d.skip().unwrap();
+                }
             }
-        }
-        return None;
+            return None;
+        })
     }
 
-    pub fn intersection<'x, I:Iterator<Item=&'x Key>>(_iter: I) -> Key {
-        let enc = Encoder::new(Vec::new());
-        let cnt = 0;
-        /*
-        let decoders = iter
-            .map(|&k| Decoder::new(Config::default(), Cursor::new(&k.0[..])))
-            .collect::<Vec<_>>();
-
-        for c in decoders {
-            // TODO(tailhook) implement real intersection
-        }
-        */
-
-        let mut buf = enc.into_writer();
-        let bytes;
-        let mut lenbuf = [0u8; 8];
-        {
-            let mut enc = Encoder::new(Cursor::new(&mut lenbuf[..]));
-            enc.object(cnt).unwrap();
-            bytes = enc.into_writer().position() as usize;
-        }
-        // It's almost never more than 1 byte so we don't care it's
-        // theoretically very slow
-        for &b in lenbuf[..bytes].iter().rev() {
-            buf.insert(0, b);
-        }
-        return Key(buf.into_boxed_slice());
+    pub fn empty() -> Key {
+        Key(None)
     }
+
 }
 
 mod serde {
@@ -185,7 +166,7 @@ mod serde {
                 DecodeError::WrongType("bytes expected", e)));
             try!(validate_key(&value[..]).map_err(|e|
                 DecodeError::WrongValue(e)));
-            Ok(Some(Key(value.into_boxed_slice())))
+            Ok(Some(Key(Some(value.into_boxed_slice()))))
         }
     }
 
@@ -193,7 +174,7 @@ mod serde {
         fn encode<W:Output>(&self, e: &mut Encoder<W>)
             -> Result<(), EncodeError>
         {
-            e.bytes(&self.0[..])
+            e.bytes(self.as_bytes())
         }
     }
 }
@@ -207,8 +188,11 @@ mod std_trait {
     impl Debug for Key {
         fn fmt(&self, f: &mut Formatter) -> Result<(), Error>
         {
-            let mut d = Decoder::new(Config::default(),
-                Cursor::new(&self.0[..]));
+            let b = if let Some(ref b) = self.0 { b } else {
+                try!(write!(f, "Key {{}}"));
+                return Ok(());
+            };
+            let mut d = Decoder::new(Config::default(), Cursor::new(&b[..]));
             try!(write!(f, "Key {{"));
             let num = try!(d.object()
                 .map_err(|_| Error));
@@ -226,7 +210,8 @@ mod std_trait {
 
     impl Clone for Key {
         fn clone(&self) -> Key {
-            Key(self.0.to_vec().into_boxed_slice())
+            // Unfortunately Box<[u8]> doesn't support Clone
+            Key(self.0.as_ref().map(|x| x.to_vec().into_boxed_slice()))
         }
     }
 }
@@ -244,17 +229,5 @@ mod test {
             ).unwrap();
         assert_eq!(&key.0[..],
             &b"\xa3fmetricdtestcpidd1234czooebasic"[..]);
-    }
-
-    fn intersection() {
-        let key1 = Key::from_json(&json::Json::from_str(
-            r#"{"a": 1, "b": 2, "c": 3, "d": 4}"#));
-        let key2 = Key::from_json(&json::Json::from_str(
-            r#"{"a": 1, "b": 2, "c": 3, "e": 4}"#));
-        let key3 = Key::from_json(&json::Json::from_str(
-            r#"{"a": 5, "b": 2, "c": 3, "e": 4}"#));
-        let key = Key::intersection(key1, key2, key3);
-        assert_eq!(&key.0[..],
-            &b"\xa2ab\x02ac\x03"[..]);
     }
 }

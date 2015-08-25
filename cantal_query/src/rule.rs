@@ -76,7 +76,7 @@ pub enum Function {
     Expect(Expectation),
     NonNegativeDerivative,
     Sum(UndefFilter),
-    SumBy(Vec<String>, UndefFilter),
+    SumBy(String, UndefFilter, bool),
     StateChart(/* limit of distinct values */ usize),
 }
 
@@ -84,7 +84,7 @@ probor_enum_encoder_decoder!(Function {
     #0 Expect(kind #1),
     #1 NonNegativeDerivative(),
     #2 Sum(undef_filter #1),
-    #3 SumBy(fields #1, undef_filter #2),
+    #3 SumBy(field #1, undef_filter #2, total #3),
     #4 StateChart(distinct_num #1),
 });
 
@@ -92,7 +92,7 @@ json_enum_decoder!(Function {
     Expect(kind),
     NonNegativeDerivative(),
     Sum(undef_filter),
-    SumBy(fields, undef_filter),
+    SumBy(field, undef_filter, bool),
     StateChart(distinct_num),
 });
 

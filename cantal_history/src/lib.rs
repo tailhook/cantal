@@ -43,7 +43,7 @@ probor_struct_encoder_decoder!(History {
 ///
 /// This contains CBOR-encoded key-value pairs
 #[derive(Hash, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Key(Box<[u8]>);
+pub struct Key(Option<Box<[u8]>>);
 
 impl History {
     pub fn new() -> History {

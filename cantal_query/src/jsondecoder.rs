@@ -31,13 +31,19 @@ macro_rules! json_enum_decoder {
                             stringify!($variant) => {
                                 let cnt = _json_decode_count!($($fname)*) + 1;
                                 if cnt != len {
-                                    return Err(d.error("Bad tuple length"));
+                                    return Err(d.error(concat!(
+                                        "Bad tuple length for ",
+                                        stringify!($name),
+                                        "::",
+                                        stringify!($variant))));
                                 }
                                 Ok(_json_decode_variant_constructor!(
                                     d, $name, $variant, $($fname)*))
                             }
                         )*
-                        _ => Err(d.error("unknown constructor name")),
+                        _ => Err(d.error(concat!(
+                            "Unknown constructor name for ",
+                            stringify!($name)))),
                     }
                 })
             }

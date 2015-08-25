@@ -12,7 +12,8 @@ impl Function {
             &Expect(_) => unimplemented!(),
             &NonNegativeDerivative => derive::non_negative_derivative(d),
             &Sum(UndefFilter::Ignore) => sum::sum(d),
-            &SumBy(_, UndefFilter::Ignore) => unimplemented!(),
+            &SumBy(ref key, UndefFilter::Ignore, total)
+            =>  sum::sum_by(&key, total, d),
             &StateChart(_num) => unimplemented!(),
         }
     }
