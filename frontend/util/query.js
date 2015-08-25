@@ -32,8 +32,8 @@ class Timestamp extends Proto {
 export class CborQuery  {
     constructor() {
         this._timer = null
-        this.owner_destroyed = new Stream('query_remote_destroyed')
-            .handle(this.stop.bind(this));
+        this.owner_destroyed = new Stream('query_remote_destroyed');
+        this.owner_destroyed.handle(this.stop.bind(this));
     }
     start() {
         if(this._timer) {
