@@ -10,7 +10,9 @@ pub fn sum(src: Dataset) -> Dataset {
     use Dataset::*;
     match src {
         MultiSeries(mut vec) => {
-            if vec.len() == 1 {
+            if vec.len() == 0 {
+                Empty
+            } else if vec.len() == 1 {
                 let (k, v, t) = vec.pop().unwrap();
                 SingleSeries(k, v, t)
             } else {
