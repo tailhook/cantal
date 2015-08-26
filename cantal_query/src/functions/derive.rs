@@ -30,13 +30,16 @@ fn derive_vec<T:Sub<T, Output=T>+Copy+ToPrimitive>(
     vec: Vec<Option<T>>, timestamps: Vec<TimeStamp>)
     -> (Chunk, Vec<TimeStamp>)
 {
-    let first = vec.iter().zip(&timestamps)
-        .filter_map(|(v, t)| v.map(|x| (x, t)));
-    let second = vec.iter().zip(&timestamps)
-        .filter_map(|(v, t)| v.map(|x| (x, t))).skip(1);
-    let (nval, ts) = first.zip(second).map(|((a, ta), (b, tb))| {
-        (Some((a - b).to_f64().unwrap() * 1000. / (ta - tb) as f64), ta)
-    }).unzip();
+    let first = vec.iter().zip(&timestamps);
+    let second = vec.iter().zip(&timestamps).skip(1);
+    let (nval, ts) = first.zip(second).map(|((a, &ta), (b, &tb))|
+        match (a, b) {
+            (&Some(a), &Some(b)) => {
+                (Some((a - b).to_f64().unwrap() * 1000. / (ta - tb) as f64), ta)
+            }
+            _ => (None, ta),
+        }
+    ).unzip();
     (Chunk::Float(nval), ts)
 }
 
