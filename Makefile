@@ -24,7 +24,7 @@ js:
 install:
 	install -d $(DESTDIR)$(PREFIX)/bin
 	install -d $(DESTDIR)$(PREFIX)/lib/cantal
-	install -m 755 ./target/release/cantal $(DESTDIR)$(PREFIX)/bin/cantal
+	#install -m 755 ./target/release/cantal $(DESTDIR)$(PREFIX)/bin/cantal
 
 	install -m 755 ./target/release/cantal-agent $(DESTDIR)$(PREFIX)/lib/cantal/cantal-agent
 	ln -s ../lib/cantal/cantal-agent $(DESTDIR)$(PREFIX)/bin/cantal-agent
