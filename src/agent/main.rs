@@ -118,10 +118,18 @@ fn run() -> Result<(), Box<Error>> {
 
     let _storage = storage_dir.as_ref().map(|path| {
         let mydeps = deps.clone();
+        let cborcfg = probor::Config {
+            max_len_array: 100000,
+            max_len_bytes: 0x500000,
+            max_len_text: 0x500000,
+            max_size_map: 100000,
+            max_nesting: 16,
+            .. probor::Config::default()
+        };
         let result = File::open(&path.join("current.cbor"))
             .map_err(|e| error!("Error reading old data: {}. Ignoring...", e))
             .map(BufReader::new)
-            .map(|f| probor::Decoder::new(probor::Config::default(), f))
+            .map(|f| probor::Decoder::new(cborcfg, f))
             .and_then(|mut dec| {
                 let v: history::VersionInfo = try!(probor::decode(&mut dec)
                     .map_err(|_| error!("Can't decode version info. \
@@ -131,7 +139,8 @@ fn run() -> Result<(), Box<Error>> {
                     return Err(());
                 }
                 probor::decode(&mut dec)
-                .map_err(|_| error!("Error parsing old data. Ignoring..."))
+                    .map_err(|e| error!(
+                        "Error parsing old data: {}. Ignoring...", e))
             });
         if let Ok(history) = result {
             mydeps.write::<stats::Stats>().history = history;
