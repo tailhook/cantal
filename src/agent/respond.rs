@@ -58,14 +58,14 @@ pub fn serve_metrics(_req: &Request, context: &mut Context)
     -> Result<http::Response, Box<http::Error>>
 {
     struct Response<'x> {
-        values: Vec<(&'x Key, TimeStamp, Value)>,
+        metrics: Vec<(&'x Key, TimeStamp, Value)>,
     }
     impl<'x> probor::Encodable for Response<'x> {
         fn encode<W: probor::Output>(&self, e: &mut probor::Encoder<W>)
             -> Result<(), probor::EncodeError>
         {
             probor_enc_struct!(e, self, {
-                values => (),
+                metrics => (),
             });
             Ok(())
         }
@@ -81,7 +81,7 @@ pub fn serve_metrics(_req: &Request, context: &mut Context)
             |(k, v)| (k, fts[(fage - v.age()) as usize].0, v.tip_value())))
         .collect();
     Ok(http::Response::probor(&Response {
-        values: vec,
+        metrics: vec,
     }))
 }
 

@@ -113,7 +113,6 @@ export class JsonQuery extends BaseQuery {
         super(url, post_data, 'json', interval)
     }
     decode(data) {
-        console.log("DATA", data)
         return data;
     }
 }
@@ -324,6 +323,59 @@ export class QueryRemote extends CborQuery {
     }
     apply(obj) {
         this.response = obj
+    }
+}
+
+let value = new Enum(function() {
+    class State {
+        constructor([ts, value]) {
+            this.ts = ts
+            this.value = value
+        }
+    }
+    State.probor_enum_protocol = [new Tuple(new Timestamp(), new Str())]
+
+    class Counter {
+        constructor(v) {
+            this.value = v
+        }
+    }
+    Counter.probor_enum_protocol = [new Int()]
+    class Integer {
+        constructor(value) {
+            this.value = value
+        }
+    }
+    Integer.probor_enum_protocol = [new Int()]
+    class Float {
+        constructor(value) {
+            this.value = value
+        }
+    }
+    Float.probor_enum_protocol = [new FloatProto()]
+
+    return {
+        0: State,
+        1: Counter,
+        2: Integer,
+        3: Float,
+    }}())
+
+
+class MetricsResponse extends SimpleStruct { }
+MetricsResponse.probor_protocol = new Struct([
+    ["metrics", null, new List(new Tuple(new Key(), new Timestamp(), value))],
+    ])
+
+
+
+export class MetricsQuery extends CborQuery {
+    constructor(rules) {
+        super('/all_metrics.cbor', MetricsResponse, null, 120000)
+        this.start()
+    }
+    apply(obj) {
+        this.metrics = obj.metrics
     }
 }
 

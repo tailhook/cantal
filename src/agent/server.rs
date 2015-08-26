@@ -201,7 +201,7 @@ fn resolve(req: &Request, context: &mut Context)
         => respond::serve_status(req, context),
         (&Get, &P(ref x)) if &x[..] == "/all_processes.json"
         => respond::serve_processes(req, context),
-        (&Get, &P(ref x)) if &x[..] == "/all_metrics.json"
+        (&Get, &P(ref x)) if &x[..] == "/all_metrics.cbor"
         => respond::serve_metrics(req, context),
         (&Get, &P(ref x)) if &x[..] == "/all_peers.json"
         => respond::serve_peers(req, context),

@@ -1,18 +1,29 @@
-html render(metrics):
+import {MetricsQuery} from 'util/query'
+
+css:
+  .date
+    font-size: xx-small
+    float: right
+    position: absolute
+    right: 4px
+    bottom: 0px
+  pre
+    position: relative
+
+html render():
   .container
+    store query = new MetricsQuery()
     h1
       "All metrics"
-      if metrics:
-        " ({metrics.length})"
+      if query.metrics:
+        " ({query.metrics.length})"
     div
-      if metrics:
-        for m of metrics:
-          pre
+      if query.metrics:
+        for m of query.metrics:
+          pre.
+            .date "{m[1]}"
             code
               =JSON.stringify(m[0])
             code[style={'float': 'right'}]
-              if m[1].variant == "State":
-                "{m[1].variant}({m[1].fields[1]})"
-              else:
-                "{m[1].variant}({m[1].fields[0]})"
+              "{m[2].constructor.name} ({m[2].value})"
 
