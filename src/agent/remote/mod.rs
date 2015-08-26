@@ -28,6 +28,7 @@ use super::server::Timer::{RemoteCollectGarbage};
 
 mod owebsock;
 mod aggregate;
+mod update;
 pub mod respond;
 
 
@@ -215,8 +216,7 @@ pub fn try_io(tok: Token, ev: EventSet, ctx: &mut Context) -> bool
                         InputMessage::Stats(stats) => {
                             debug!("New stats from peer {:?}", peer.addr);
                             trace!("Stat values {:?}: {:?}", peer.addr, stats);
-                            unimplemented!();
-                            //peer.history.update_chunks(stats);
+                            update::update_history(&mut peer.history, stats);
                         }
                     }
                 }

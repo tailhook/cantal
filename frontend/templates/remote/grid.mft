@@ -1,5 +1,5 @@
 import {QueryRemote} from 'util/query'
-import {cpu_chart, mem_chart} from 'util/compute'
+import {cpu_usage, mem_chart} from 'util/compute'
 import donut from 'templates/donut.mft'
 import sparkline from 'templates/charts/sparkline.mft'
 import {number_formatter, already_percent_formatter} from 'util/format'
@@ -34,13 +34,20 @@ html render(peer_map):
         },
         "extract": ['Tip'],
         "functions": []},
-      'cpu': {
-        'series': {
-          'source': 'Fine',
-          'condition': ['RegexLike', 'metric', '^cpu\\.']},
-        "extract": ['HistoryByNum', 1100],
-        'functions': [['NonNegativeDerivative'],
-                      ['SumBy', 'metric', 'Ignore', true]]}
+        'cpu_total': {
+          'series': {
+            'source': 'Fine',
+            'condition': ['RegexLike', 'metric', '^cpu\\.']},
+          'extract': ['HistoryByNum', 150],
+          'functions': [['NonNegativeDerivative'], ['Sum', 'Ignore']]
+        },
+        'cpu_idle': {
+          'series': {
+            'source': 'Fine',
+            'condition': ['Eq', 'metric', 'cpu.idle']},
+          'extract': ['HistoryByNum', 150],
+          'functions': [['NonNegativeDerivative']]
+        }
     })
     let cpu_yaxis = {
       height: 40,
@@ -61,20 +68,20 @@ html render(peer_map):
         div
           let name = peer_map[peer] or peer.split(':')[0]
           let port = peer.split(':')[1]
-          if grid_query.response and grid_query.response[peer]:
+          if grid_query.response and grid_query.response.has(peer):
             .peer
-              let stats = grid_query.response[peer]
+              let stats = grid_query.response.get(peer)
 
-              let mem = mem_chart(stats.fine_metrics.memory)
+              let mem = mem_chart(stats.get('memory'))
               .donut-container
                 =donut.render(mem.items, 120, 120, mem.total)
 
-              let cpu = cpu_chart(stats.fine_metrics.cpu_sum,
-                                  stats.fine_metrics.cpu)
+              let usage = cpu_usage(stats.get('cpu_total').chunk,
+                                    stats.get('cpu_idle').chunks[0][1])
               .sparkline-container
-                =sparkline.render(150, stats.fine_timestamps, [{
+                =sparkline.render(150, stats.get('cpu_total').timestamps, [{
                       'title': 'Cpu',
-                      'values': cpu['cpu.usage'],
+                      'values': usage,
                       'yaxis': cpu_yaxis
                       }])
               .addr

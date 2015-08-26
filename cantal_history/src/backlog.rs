@@ -66,7 +66,7 @@ pub struct FloatHistory<'a, T:Float+Copy+'static> {
 }
 
 impl Value {
-    fn new(value: &TipValue, age: u64) -> Value {
+    pub fn new(value: &TipValue, age: u64) -> Value {
         use self::Value as V;
         use values::Value as T;
         match value {
@@ -88,7 +88,7 @@ impl Value {
             &T::State(_) => unreachable!(),
         }
     }
-    fn push(&mut self, value: &TipValue, age: u64) -> bool {
+    pub fn push(&mut self, value: &TipValue, age: u64) -> bool {
         use self::Value as V;
         use values::Value as T;
         // If entry exists and it's type matches

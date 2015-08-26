@@ -1,6 +1,6 @@
 #![crate_name="cantal_query"]
 
-extern crate log;
+#[macro_use] extern crate log;
 extern crate rustc_serialize;
 extern crate regex;
 extern crate num;

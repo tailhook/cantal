@@ -118,19 +118,6 @@ export class JsonQuery extends BaseQuery {
     }
 }
 
-export class QueryRemote extends CborQuery {
-    constructor(rules) {
-        super('/remote/query_by_host.cbor', QueryResponse, JSON.stringify({
-            'rules': rules,
-        }), 6000)
-        this.start()
-    }
-    apply(obj) {
-        this.response = obj
-    }
-}
-
-
 let chunk = new Enum(function() {
     class State {
         constructor([ts, value]) {
@@ -284,7 +271,11 @@ class Chart {
 Chart.probor_enum_protocol = [new Dict(new Str(), new Int())]
 class Empty { }
 Empty.probor_enum_protocol = []
-class Incompatible { }
+class Incompatible {
+    constructor(reason) {
+        this.reason = reason
+    }
+}
 Incompatible.probor_enum_protocol = [new Enum({
     100: "CantSumChart",
     101: "Dissimilar",
@@ -319,6 +310,20 @@ export class Query extends CborQuery {
     }
     apply(response) {
         this.values = response.values
+    }
+}
+
+var hosts_response = new Dict(new Str(), new Dict(new Str(), dataset))
+
+export class QueryRemote extends CborQuery {
+    constructor(rules) {
+        super('/remote/query_by_host.cbor', hosts_response, JSON.stringify({
+            'rules': rules,
+        }), 6000)
+        this.start()
+    }
+    apply(obj) {
+        this.response = obj
     }
 }
 

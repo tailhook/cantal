@@ -227,7 +227,7 @@ mod test {
                 ).unwrap(),
                 &[("pid", "1234")]
             ).unwrap();
-        assert_eq!(&key.0[..],
+        assert_eq!(&key.0.unwrap()[..],
             &b"\xa3fmetricdtestcpidd1234czooebasic"[..]);
     }
 }

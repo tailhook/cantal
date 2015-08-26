@@ -15,12 +15,14 @@ mod backlog;
 mod tip;
 mod merge;
 mod serde;
+mod tstamp;
 
 pub use backlog::{Backlog, Value};
 pub use tip::Tip;
 pub use merge::{ChunkSet, ValueSet};
 pub use chunk::HistoryChunk as Chunk;
 pub use serde::VersionInfo;
+pub use tstamp::compare_timestamps;
 
 pub type TimeStamp = u64;  // Milliseconds
 pub type TimeDelta = u32;  // Milliseconds
@@ -80,7 +82,7 @@ mod test {
             (&Key::metric("test3"), &Counter(30)),
         ].into_iter());
         h.tip.push((2000, 10), vec![
-            (&Key::metric("st1"), &State(1500, "hello".to_string())),
+            (&Key::metric("st1"), &State((1500, "hello".to_string()))),
             (&Key::metric("st2"), &Counter(30)),
         ].into_iter());
         let mut e = Encoder::new(Vec::new());

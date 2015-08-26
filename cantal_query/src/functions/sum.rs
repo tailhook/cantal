@@ -88,6 +88,7 @@ fn sum_series(src: &Vec<(Key, Chunk, Vec<TimeStamp>)>)
     let ts = src[0].2.clone();
     for &(_, _, ref nts) in &src[1..] {
         if &ts != nts {
+            error!("Incompatible timestamps: {:?} /// {:?}", ts, nts);
             return Err(Conflict::CantSumTimestamps);
         }
     }
