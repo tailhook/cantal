@@ -26,7 +26,8 @@ export class Remote extends Component {
                 peer_map = this.peer_map
             } else {
                 for(var peer of data.peers) {
-                    const name = peer.hostname || peer.addr.split(':')[0]
+                    const name = peer.name || peer.hostname ||
+                        peer.addr.split(':')[0]
                     peer_map[peer.addr] = name
                 }
             }

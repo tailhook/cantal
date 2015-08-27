@@ -14,6 +14,7 @@ pub struct Report {
 pub struct Peer {
     pub addr: SocketAddr,
     pub host: Option<String>,
+    pub name: Option<String>,
     pub last_probe: Option<u64>,
     pub last_roundtrip: Option<(u64, u64)>,
     pub random_peer_roundtrip: Option<(SocketAddr, u64, u64)>,
@@ -26,6 +27,7 @@ impl Peer {
         return Peer {
             addr: addr,
             host: None,
+            name: None,
             last_probe: None,
             report: None,
             last_report_direct: None,
@@ -40,7 +42,7 @@ impl ToJson for Peer {
         Json::Object(vec![
             ("addr", format!("{}", self.addr).to_json()),
             ("hostname", self.host.to_json()),
-
+            ("name", self.name.to_json()),
             ("report", self.report.as_ref()
                 .map(|&(x, _)| x).to_json()),
             ("peers", self.report.as_ref()

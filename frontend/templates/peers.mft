@@ -51,6 +51,7 @@ html render(peers, ctr):
               thead
                 tr
                   th "IP"
+                  th "Name"
                   th "Hostname"
                   th "Last Probe"
                   th "Last Report"
@@ -61,6 +62,15 @@ html render(peers, ctr):
                 for p of peers:
                   tr
                     td "{p.addr}"
+                    td .text-muted?(p.name == null)
+                      if p.name:
+                        "{p.name}"
+                      else:
+                        "unknown"
+                      " "
+                      let port = p.addr.split(':')[1]
+                      a.btn.btn-default.btn-xs[href="http://{p.name}:{port}"]
+                        span.glyphicon.glyphicon-play
                     td .text-muted?(p.hostname == null)
                       if p.hostname:
                         "{p.hostname}"

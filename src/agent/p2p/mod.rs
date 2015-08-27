@@ -8,7 +8,6 @@ use std::collections::{HashMap};
 use mio::{EventLoop, Token, Handler, EventSet, PollOpt};
 use mio::buf::ByteBuf;
 use mio::{udp};
-use nix::unistd::gethostname;
 use cbor::{Decoder};
 use rustc_serialize::Decodable;
 
@@ -23,19 +22,9 @@ mod gossip;
 const GOSSIP: Token = Token(0);
 
 
-fn hostname() -> String {
-    let mut buf = [0u8; 256];
-    gethostname(&mut buf).unwrap();
-    for (idx, &ch) in buf.iter().enumerate() {
-        if ch == 0 {
-            return String::from_utf8(buf[..idx].to_owned()).unwrap();
-        }
-    }
-    panic!("Bad hostname");
-}
 
-
-pub fn p2p_init(deps: &mut Dependencies, host: &str, port: u16)
+pub fn p2p_init(deps: &mut Dependencies, host: &str, port: u16,
+    hostname: String, name: String)
     -> Result<Init, Error>
 {
     let server = try!(udp::UdpSocket::bound(&SocketAddr::V4(
@@ -50,7 +39,8 @@ pub fn p2p_init(deps: &mut Dependencies, host: &str, port: u16)
 
     Ok(Init {
         sock: server,
-        hostname: hostname(),
+        hostname: hostname,
+        name: name,
         eloop: eloop,
     })
 }
@@ -63,6 +53,7 @@ pub fn p2p_loop(init: Init, deps: Dependencies)
         queue: Default::default(),
         sock: init.sock,
         hostname: init.hostname,
+        name: init.name,
         deps: deps,
     })
 }
@@ -82,6 +73,7 @@ pub enum Timer {
 pub struct Init {
     sock: udp::UdpSocket,
     hostname: String,
+    name: String,
     eloop: EventLoop<Context>,
 }
 
@@ -89,6 +81,7 @@ struct Context {
     sock: udp::UdpSocket,
     queue: Vec<SocketAddr>,
     hostname: String,
+    name: String,
     deps: Dependencies,
 }
 

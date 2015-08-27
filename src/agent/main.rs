@@ -33,6 +33,7 @@ use std::path::PathBuf;
 use std::sync::{RwLock,Arc};
 use std::process::exit;
 use std::error::Error;
+use nix::unistd::gethostname;
 
 use argparse::{ArgumentParser, Store, ParseOption, StoreOption};
 
@@ -57,6 +58,19 @@ mod deps;
 mod ioutil;
 
 
+fn hostname() -> String {
+    let mut buf = [0u8; 256];
+    gethostname(&mut buf).unwrap();
+    for (idx, &ch) in buf.iter().enumerate() {
+        if ch == 0 {
+            return String::from_utf8(buf[..idx].to_owned()).unwrap();
+        }
+    }
+    panic!("Bad hostname");
+}
+
+
+
 fn main() {
     match run() {
         Ok(()) => {}
@@ -69,6 +83,7 @@ fn main() {
 
 fn run() -> Result<(), Box<Error>> {
 
+    let mut name = None;
     let mut host = "127.0.0.1".to_string();
     let mut port = 22682u16;
     let mut storage_dir = None::<PathBuf>;
@@ -82,6 +97,13 @@ fn run() -> Result<(), Box<Error>> {
         ap.refer(&mut host)
             .add_option(&["-h", "--host"], Store,
                 "Host for http interface (default 127.0.0.1)");
+        ap.refer(&mut name)
+            .add_option(&["-n", "--node-name"], StoreOption, "
+                Node name to announce. It's used for descriptions and URLs all
+                communication is doing without resolving names. By default
+                `hostname` is used, but you may want to use fully qualified
+                domain name or some name that is visible behind proxy.
+            ");
         ap.refer(&mut storage_dir)
             .add_option(&["-d", "--storage-dir"], ParseOption,
                 "A directory to serialize data to");
@@ -108,10 +130,13 @@ fn run() -> Result<(), Box<Error>> {
         panic!("Failed to initialize global logger: {}", e);
     }
 
+    let hostname = hostname();
+    let name = name.unwrap_or(hostname.clone());
+
     let mut deps = Dependencies::new();
     deps.insert(Arc::new(RwLock::new(stats::Stats::new())));
 
-    let p2p_init = try!(p2p::p2p_init(&mut deps, &host, port));
+    let p2p_init = try!(p2p::p2p_init(&mut deps, &host, port, hostname, name));
     let server_init = try!(server::server_init(&mut deps, &host, port));
 
     deps.insert(Arc::new(util::Cell::<storage::Buffer>::new()));

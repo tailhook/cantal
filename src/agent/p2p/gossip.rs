@@ -36,6 +36,7 @@ pub enum Packet {
 #[derive(Debug, Clone, RustcEncodable, RustcDecodable)]
 pub struct MyInfo {
     host: String,
+    name: String,
     report: Report,
 }
 
@@ -43,6 +44,7 @@ pub struct MyInfo {
 pub struct FriendInfo {
     addr: String,
     host: Option<String>,
+    name: Option<String>,
     report: Option<(u64, Report)>,
     roundtrip: Option<(u64, u64)>,
 }
@@ -56,6 +58,7 @@ fn get_friends_for(peers: &HashMap<SocketAddr, Peer>, peer: SocketAddr)
     friends.into_iter().map(|(a, f)| FriendInfo {
         addr: a.to_string(),
         host: f.host.clone(),
+        name: f.name.clone(),
         report: f.report.clone(),
         roundtrip: f.last_roundtrip,
     }).collect()
@@ -137,12 +140,22 @@ impl Context {
                 &mut peer.report, friend.report);
             if peer.host != friend.host {
                 if friend.host.is_some() && peer.host.is_some() {
-                    debug!("Peer host is different for {} \
+                    warn!("Peer host is different for {} \
                             known {:?}, received {:?}",
                             addr, peer.host.as_ref().unwrap(),
                                   friend.host.as_ref().unwrap());
                 } else if friend.host.is_some() {
                     peer.host = friend.host;
+                }
+            }
+            if peer.name != friend.name {
+                if friend.name.is_some() && peer.name.is_some() {
+                    warn!("Peer name is different for {} \
+                            known {:?}, received {:?}",
+                            addr, peer.name.as_ref().unwrap(),
+                                  friend.name.as_ref().unwrap());
+                } else if friend.name.is_some() {
+                    peer.name = friend.name;
                 }
             }
             if friend.roundtrip.is_some() {
@@ -166,6 +179,7 @@ impl Context {
             e.encode(&[&Packet::Ping {
                 me: MyInfo {
                     host: self.hostname.clone(),
+                    name: self.name.clone(),
                     report: Report {
                         peers: stats.peers.len() as u32,
                         has_remote: stats.has_remote,
@@ -219,6 +233,7 @@ impl Context {
                     apply_report(&mut stats.num_having_remote,
                         &mut peer.report, Some((tm, info.report)));
                     peer.host = Some(info.host.clone());
+                    peer.name = Some(info.name.clone());
                     peer.last_report_direct = Some(tm);
                 }
                 self.apply_friends(&mut *stats, friends, addr);
@@ -228,6 +243,7 @@ impl Context {
                     e.encode(&[&Packet::Pong {
                         me: MyInfo {
                             host: self.hostname.clone(),
+                            name: self.name.clone(),
                             report: Report {
                                 peers: stats.peers.len() as u32,
                                 has_remote: stats.has_remote,
@@ -262,6 +278,7 @@ impl Context {
                             (tm, (tm - ping_time) as u64));
                     }
                     peer.host = Some(info.host.clone());
+                    peer.name = Some(info.name.clone());
                     peer.last_report_direct = Some(tm);
                 }
                 self.apply_friends(&mut *stats, friends, addr);
