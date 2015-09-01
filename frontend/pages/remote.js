@@ -28,7 +28,7 @@ export class Remote extends Component {
                 for(var peer of data.peers) {
                     const name = peer.name || peer.hostname ||
                         peer.addr.split(':')[0]
-                    peer_map[peer.addr] = name
+                    peer_map[peer.id] = name
                 }
             }
             return {error, enabled: data.enabled, peer_map: peer_map, latency}

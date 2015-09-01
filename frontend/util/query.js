@@ -76,7 +76,7 @@ export class BaseQuery {
                 return;
             }
             var data = this.decode(req.response)
-            console.log("Query returned", data)
+            console.log("Query", this.url, "returned", data)
             this.apply(data)
             update();
         }

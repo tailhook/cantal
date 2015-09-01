@@ -50,6 +50,7 @@ html render(peers, ctr):
             table.table.table-bordered.table-hover
               thead
                 tr
+                  th "ID"
                   th "IP"
                   th "Name"
                   th "Hostname"
@@ -59,16 +60,22 @@ html render(peers, ctr):
                   th "Peers"
                   th "Remote?"
               tbody
-                for p of peers:
+                for p of peers key p.id:
                   tr
-                    td "{p.addr}"
-                    td .text-muted?(p.name == null)
+                    td "{p.id}"
+                    td.text-muted?(p.name == null)
+                      if p.primary_addr:
+                        "{p.primary_addr}"
+                      else:
+                        "?/{p.addresses.length}"
+                    td.text-muted?(p.name == null)
                       if p.name:
                         "{p.name}"
                       else:
                         "unknown"
                       " "
-                      let port = p.addr.split(':')[1]
+                      let paddr = p.primary_addr or p.addresses[0] or ':22682'
+                      let port = paddr.split(':')[1]
                       a.btn.btn-default.btn-xs[href="http://{p.name}:{port}"]
                         span.glyphicon.glyphicon-play
                     td .text-muted?(p.hostname == null)
@@ -76,9 +83,9 @@ html render(peers, ctr):
                         "{p.hostname}"
                       else:
                         "unknown"
-                    td.text-muted?(p.probe == null)
-                      if p.probe:
-                        =format_diff(till_now_ms(from_ms(p.probe)))
+                    td.text-muted?(p.probe_time == null)
+                      if p.probe_time:
+                        =format_diff(till_now_ms(from_ms(p.probe_time)))
                       else:
                         "never"
                     td.text-muted?(p.report == null)

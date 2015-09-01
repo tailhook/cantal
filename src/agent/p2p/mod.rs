@@ -14,6 +14,7 @@ use rustc_serialize::Decodable;
 use super::error::Error;
 use self::peer::{Peer};
 use super::deps::{Dependencies, LockedDeps};
+use {HostId};
 
 mod peer;
 mod gossip;
@@ -24,6 +25,7 @@ const GOSSIP: Token = Token(0);
 
 
 pub fn p2p_init(deps: &mut Dependencies, host: &str, port: u16,
+    machine_id: Vec<u8>, addresses: Vec<SocketAddr>,
     hostname: String, name: String)
     -> Result<Init, Error>
 {
@@ -39,6 +41,8 @@ pub fn p2p_init(deps: &mut Dependencies, host: &str, port: u16,
 
     Ok(Init {
         sock: server,
+        machine_id: machine_id,
+        addresses: addresses,
         hostname: hostname,
         name: name,
         eloop: eloop,
@@ -52,6 +56,8 @@ pub fn p2p_loop(init: Init, deps: Dependencies)
     eloop.run(&mut Context {
         queue: Default::default(),
         sock: init.sock,
+        machine_id: init.machine_id,
+        addresses: init.addresses,
         hostname: init.hostname,
         name: init.name,
         deps: deps,
@@ -72,6 +78,8 @@ pub enum Timer {
 
 pub struct Init {
     sock: udp::UdpSocket,
+    machine_id: Vec<u8>,
+    addresses: Vec<SocketAddr>,
     hostname: String,
     name: String,
     eloop: EventLoop<Context>,
@@ -79,7 +87,9 @@ pub struct Init {
 
 struct Context {
     sock: udp::UdpSocket,
-    queue: Vec<SocketAddr>,
+    queue: Vec<HostId>,
+    machine_id: HostId,
+    addresses: Vec<SocketAddr>,
     hostname: String,
     name: String,
     deps: Dependencies,
@@ -87,8 +97,7 @@ struct Context {
 
 #[derive(Default)]
 pub struct GossipStats {
-    pub peers: HashMap<SocketAddr, Peer>,
-    pub num_having_remote: usize,
+    pub peers: HashMap<HostId, Peer>,
     pub has_remote: bool,
 }
 

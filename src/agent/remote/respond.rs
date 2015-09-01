@@ -49,11 +49,11 @@ pub fn serve_query_by_host(req: &Request, context: &mut Context)
                 let subscr = OutputMessage::Subscribe(
                     rule.series.clone(), DATA_POINTS);
                 let msg = probor::to_buf(&subscr);
-                let ref mut addresses = &mut peers.addresses;
-                let ref mut peerlist = &mut peers.peers;
+                let ref mut tokens = &mut peers.tokens;
+                let ref mut slab = &mut peers.peers;
                 let ref mut eloop = context.eloop;
-                for tok in addresses.values() {
-                    peerlist.replace_with(*tok, |mut peer| {
+                for tok in tokens.values() {
+                    slab.replace_with(*tok, |mut peer| {
                         if let Some(ref mut wsock) = peer.connection {
                             if wsock.output.len() > MAX_OUTPUT_BUFFER {
                                 debug!("Websocket buffer overflow");

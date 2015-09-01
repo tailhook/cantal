@@ -263,11 +263,11 @@ pub fn beacon(deps: &Dependencies) -> Vec<u8> {
     };
     let (gossip_peers, peers_with_remote) = {
         let gossip = deps.read::<GossipStats>();
-        (gossip.peers.len(), gossip.num_having_remote)
+        (gossip.peers.len(), 0 /* TODO(tailhook) num having remote */)
     };
     let (remote_total, remote_connected) =
         if let &Some(ref peers) = deps.read::<Option<Peers>>().deref() {
-            (Some(peers.addresses.len()), Some(peers.connected))
+            (Some(peers.tokens.len()), Some(peers.connected))
         } else {
             (None, None)
         };

@@ -8,15 +8,45 @@ use mio::buf::ByteBuf;
 
 use super::Context;
 use super::peer::{Peer, Report};
-use super::super::server::Message::NewHost;
+use super::super::server::Message::Touch;
 use super::GossipStats;
 use super::super::deps::{LockedDeps};
 use super::super::scan::time_ms;
+use {HostId};
 
 
+/// Wake up once per 1000 ms to send few probes
 pub const INTERVAL: u64 = 1000;
-pub const MIN_PROBE: u64 = 5000;  // Don't probe more often than 5 sec
-pub const NUM_FRIENDS: u64 = 10;
+
+/// Number of probes to send at each interval
+pub const NUM_PROBES: u64 = 10;
+
+/// If we got any probe or report during 5 seconds, don't probe this node
+pub const MIN_PROBE: u64 = 5000;
+
+/// But if we sent no probe within 60 seconds (but were receiving reports, so
+/// didn't hit 5 seconds timeout above), we should send probe anyway. This
+/// allows too keep roundtrip times on both nodes reasonably up to date
+pub const MAX_PROBE: u64 = 60000;
+
+/// Num of friend nodes to send within each request, everything must fit
+/// single UDP packet (65535), better single IP packet (< 1500)
+pub const NUM_FRIENDS: usize = 10;
+
+/// After we had no reports from node for 20 seconds (but we sent probe during
+/// this time) we consider node to be inaccessible by it's primary IP and are
+/// trying to reach it by pinging any other random IP address.
+pub const PREFAIL_TIME: u64 = 20000;
+
+/// Maximum expected roundtrip time. We consider report failing if it's not
+/// received during this time. Note, this doesn't need to be absolute ceiling
+/// of RTT, and we don't do any crazy things based on the timeout, this is
+/// just heuristic for pre-fail condition.
+pub const MAX_ROUNDTRIP: u64 = 2000;
+
+// Expectations:
+//     MAX_PROBE > MIN_PROBE
+//     MAX_ROUNDTRIP <= MAX_PROBE
 
 #[derive(Debug, Clone, RustcEncodable, RustcDecodable)]
 pub enum Packet {
@@ -35,6 +65,8 @@ pub enum Packet {
 
 #[derive(Debug, Clone, RustcEncodable, RustcDecodable)]
 pub struct MyInfo {
+    id: HostId,
+    addresses: Vec<String>,
     host: String,
     name: String,
     report: Report,
@@ -42,56 +74,37 @@ pub struct MyInfo {
 
 #[derive(Debug, Clone, RustcEncodable, RustcDecodable)]
 pub struct FriendInfo {
-    addr: String,
+    id: HostId,
+    my_primary_addr: Option<String>,
+    addresses: Vec<String>,
     host: Option<String>,
     name: Option<String>,
     report: Option<(u64, Report)>,
     roundtrip: Option<(u64, u64)>,
 }
 
-fn get_friends_for(peers: &HashMap<SocketAddr, Peer>, peer: SocketAddr)
+fn get_friends(peers: &HashMap<HostId, Peer>, exclude: SocketAddr)
     -> Vec<FriendInfo>
 {
     let mut rng = thread_rng();
-    let other_peers = peers.iter().filter(|&(ref a, _)| **a != peer);
-    let friends = sample(&mut rng, other_peers, 10);
-    friends.into_iter().map(|(a, f)| FriendInfo {
-        addr: a.to_string(),
+    let other_peers = peers.values()
+        .filter(|peer| !peer.addresses.contains(&exclude));
+    let friends = sample(&mut rng, other_peers, NUM_FRIENDS);
+    friends.into_iter().map(|f| FriendInfo {
+        id: f.id.clone(),
+        my_primary_addr: f.primary_addr.map(|x| format!("{}", x)),
+        addresses: f.addresses.iter().map(|x| format!("{}", x)).collect(),
         host: f.host.clone(),
         name: f.name.clone(),
         report: f.report.clone(),
-        roundtrip: f.last_roundtrip,
+        roundtrip: f.last_roundtrip.map(|(_, ts, rtt)| (ts, rtt)),
     }).collect()
-}
-
-fn apply_report(num_having_remote: &mut usize,
-    dest: &mut Option<(u64, Report)>, src: Option<(u64, Report)>) {
-    let old_remote = dest.as_ref()
-        .map(|&(_, ref x)| x.has_remote).unwrap_or(false);
-    if match (&dest, &src) {
-        (&&mut Some((pts, _)), &Some((fts, _)))
-        if pts < fts  // apply only newer report
-        => true,
-        (&&mut None, &Some((_, _)))  // or if one did not exists
-        => true,
-        _ => false
-    } {
-        *dest = src;
-    }
-    let new_remote = dest.as_ref()
-        .map(|&(_, ref x)| x.has_remote).unwrap_or(false);
-    if old_remote != new_remote {
-        if new_remote {
-            *num_having_remote += 1;
-        } else {
-            *num_having_remote -= 1;
-        }
-    }
 }
 
 impl Context {
     pub fn gossip_broadcast(&mut self) {
-        let cut_time = time_ms() - MIN_PROBE;
+        let tm = time_ms();
+        let cut_time = tm - MIN_PROBE;
         let mut stats = self.deps.write::<GossipStats>();
         if self.queue.len() == 0 {
             if stats.peers.len() == 0 {
@@ -100,84 +113,81 @@ impl Context {
             self.queue = stats.peers.keys().cloned().collect();
         }
         thread_rng().shuffle(&mut self.queue[..]);
-        for _ in 0..NUM_FRIENDS {
+        let mut sent = Vec::with_capacity(NUM_PROBES as usize);
+        for _ in 0..NUM_PROBES {
             if self.queue.len() == 0 {
                 break;
             }
-            let target_ip = self.queue.pop().unwrap();
+            let id = self.queue.pop().unwrap();
             // if not expired yet
-            if let Some(peer) = stats.peers.get(&target_ip) {
-                if peer.last_probe.map(|x| x > cut_time).unwrap_or(false) ||
-                   peer.last_report_direct.map(|x| x > cut_time)
-                    .unwrap_or(false)
-                {
-                    continue;  // don't probe too often
+            stats.peers.get(&id).map(|peer| {
+                if !peer.has_fresh_report() {
+                    let mut addr = peer.primary_addr;
+                    if addr.is_none() || !peer.ping_primary_address() {
+                        addr = peer.random_ping_addr()
+                    };
+                    addr.map(|addr| {
+                        self.send_gossip(addr, &stats);
+                        sent.push((id, addr));
+                    });
                 }
-            }
-            self.send_gossip(target_ip, &mut stats);
+            });
+        }
+        // It's here because of borrow checker :(
+        for (id, addr) in sent {
+            stats.peers.get_mut(&id).map(|peer| {
+                peer.last_probe = Some((tm, addr));
+            });
         }
     }
     fn apply_friends(&self, stats: &mut GossipStats,
                      friends: Vec<FriendInfo>, source: SocketAddr)
     {
         for friend in friends.into_iter() {
-            let v4: SocketAddrV4 =
-                if let Ok(SocketAddr::V4(val)) = friend.addr.parse() {
-                    val
+            let sendto_addr = {
+                let id = friend.id.clone();
+                let mut new = false;
+                let peer = stats.peers.entry(friend.id)
+                    .or_insert_with(|| {
+                        new = true;
+                        Peer::new(id)
+                    });
+                peer.apply_addresses(
+                    // TODO(tailhook) filter out own IP addressses
+                    friend.addresses.iter().filter_map(|x| x.parse().ok()),
+                    false);
+                peer.apply_report(friend.report, false);
+                peer.apply_hostname(friend.host, false);
+                peer.apply_node_name(friend.name, false);
+                friend.roundtrip.map(|rtt|
+                    peer.apply_roundtrip(rtt, source, false));
+                if new {
+                    let addr = friend.my_primary_addr.and_then(|x| {
+                        x.parse().map_err(|e| error!("Can't parse IP address"))
+                        .ok()
+                    });
+                    peer.primary_addr = addr;
+                    addr
                 } else {
-                    continue;
-                };
-            let addr = SocketAddr::V4(v4);
-            let peer = stats.peers.entry(addr)
-                .or_insert_with(|| {
-                    self.deps.get::<Sender<_>>().unwrap()
-                        .send(NewHost(*v4.ip(), v4.port()))
-                        .map_err(|_| error!("Error sending NewHost msg"))
-                        .ok();
-                    Peer::new(addr)
-                });
-            apply_report(&mut stats.num_having_remote,
-                &mut peer.report, friend.report);
-            if peer.host != friend.host {
-                if friend.host.is_some() && peer.host.is_some() {
-                    warn!("Peer host is different for {} \
-                            known {:?}, received {:?}",
-                            addr, peer.host.as_ref().unwrap(),
-                                  friend.host.as_ref().unwrap());
-                } else if friend.host.is_some() {
-                    peer.host = friend.host;
+                    None
                 }
-            }
-            if peer.name != friend.name {
-                if friend.name.is_some() && peer.name.is_some() {
-                    warn!("Peer name is different for {} \
-                            known {:?}, received {:?}",
-                            addr, peer.name.as_ref().unwrap(),
-                                  friend.name.as_ref().unwrap());
-                } else if friend.name.is_some() {
-                    peer.name = friend.name;
-                }
-            }
-            if friend.roundtrip.is_some() {
-                peer.random_peer_roundtrip = friend.roundtrip
-                    .map(|(tm, rtt)| (source, tm, rtt));
-            }
+            };
+            sendto_addr.map(|addr| {
+                self.send_gossip(addr, stats);
+            });
         }
     }
-    pub fn send_gossip(&self, addr: SocketAddr, stats: &mut GossipStats)
+    pub fn send_gossip(&self, addr: SocketAddr, stats: &GossipStats)
     {
-        let v4: SocketAddrV4 =
-            if let SocketAddr::V4(val) = addr {
-                val
-            } else {
-                return;
-            };
-        debug!("Sending gossip to {}", addr);
+        debug!("Sending gossip {}", addr);
         let mut buf = ByteBuf::mut_with_capacity(1024);
         {
             let mut e = Encoder::from_writer(&mut buf);
             e.encode(&[&Packet::Ping {
                 me: MyInfo {
+                    id: self.machine_id.clone(),
+                    addresses: self.addresses.iter()
+                        .map(|x| x.to_string()).collect(),
                     host: self.hostname.clone(),
                     name: self.name.clone(),
                     report: Report {
@@ -186,24 +196,11 @@ impl Context {
                     },
                 },
                 now: time_ms(),
-                friends: get_friends_for(&stats.peers, addr),
+                friends: get_friends(&stats.peers, addr),
             }]).unwrap();
         }
-        match self.sock.send_to(&mut buf.flip(), &addr) {
-            Ok(_) => {
-                let peer = stats.peers.entry(addr)
-                    .or_insert_with(|| {
-                        self.deps.get::<Sender<_>>().unwrap()
-                            .send(NewHost(*v4.ip(), v4.port()))
-                            .map_err(|_| error!("Error sending NewHost msg"))
-                            .ok();
-                        Peer::new(addr)
-                    });
-                peer.last_probe = Some(time_ms());
-            }
-            Err(e) => {
-                error!("Error sending probe to {:?}: {}", addr, e);
-            }
+        if let Err(e) = self.sock.send_to(&mut buf.flip(), &addr) {
+            error!("Error sending probe to {}: {}", addr, e);
         }
     }
 
@@ -221,20 +218,24 @@ impl Context {
         match packet {
             Packet::Ping { me: info, now, friends } => {
                 {
-                    let peer = stats.peers.entry(addr)
+                    let id = info.id.clone();
+                    let peer = stats.peers.entry(id.clone())
                         .or_insert_with(|| {
                             self.deps.get::<Sender<_>>().unwrap()
-                                .send(NewHost(*v4.ip(), v4.port()))
+                                .send(Touch(info.id.clone()))
                                 .map_err(|_| error!(
-                                    "Error sending NewHost msg"))
+                                    "Error sending Touch msg"))
                                 .ok();
-                            Peer::new(addr)
+                            Peer::new(id)
                         });
-                    apply_report(&mut stats.num_having_remote,
-                        &mut peer.report, Some((tm, info.report)));
-                    peer.host = Some(info.host.clone());
-                    peer.name = Some(info.name.clone());
-                    peer.last_report_direct = Some(tm);
+                    peer.apply_addresses(
+                        // TODO(tailhook) filter out own IP addressses
+                        info.addresses.iter().filter_map(|x| x.parse().ok()),
+                        true);
+                    peer.apply_report(Some((tm, info.report)), true);
+                    peer.apply_hostname(Some(info.host), true);
+                    peer.apply_node_name(Some(info.name), true);
+                    peer.primary_addr = Some(addr);
                 }
                 self.apply_friends(&mut *stats, friends, addr);
                 let mut buf = ByteBuf::mut_with_capacity(1024);
@@ -242,6 +243,9 @@ impl Context {
                     let mut e = Encoder::from_writer(&mut buf);
                     e.encode(&[&Packet::Pong {
                         me: MyInfo {
+                            id: self.machine_id.clone(),
+                            addresses: self.addresses.iter()
+                                .map(|x| x.to_string()).collect(),
                             host: self.hostname.clone(),
                             name: self.name.clone(),
                             report: Report {
@@ -251,7 +255,7 @@ impl Context {
                         },
                         ping_time: now,
                         peer_time: tm,
-                        friends: get_friends_for(&stats.peers, addr),
+                        friends: get_friends(&stats.peers, addr),
                     }]).unwrap();
                 }
                 self.sock.send_to(&mut buf.flip(), &addr)
@@ -261,25 +265,29 @@ impl Context {
             }
             Packet::Pong { me: info, ping_time, peer_time, friends } => {
                 {
-                    let peer = stats.peers.entry(addr)
+                    let id = info.id.clone();
+                    let peer = stats.peers.entry(id.clone())
                         .or_insert_with(|| {
                             self.deps.get::<Sender<_>>().unwrap()
-                                .send(NewHost(*v4.ip(), v4.port()))
+                                .send(Touch(info.id.clone()))
                                 .map_err(|_| error!(
-                                    "Error sending NewHost msg"))
+                                    "Error sending Touch msg"))
                                 .ok();
-                            Peer::new(addr)
+                            Peer::new(id)
                         });
-                    apply_report(&mut stats.num_having_remote,
-                        &mut peer.report, Some((tm, info.report)));
+                    peer.apply_addresses(
+                        // TODO(tailhook) filter out own IP addressses
+                        info.addresses.iter().filter_map(|x| x.parse().ok()),
+                        true);
+                    peer.apply_report(Some((tm, info.report)), true);
                     // sanity check
                     if ping_time < tm && ping_time < peer_time {
-                        peer.last_roundtrip = Some(
-                            (tm, (tm - ping_time) as u64));
+                        peer.apply_roundtrip((tm, (tm - ping_time)),
+                            addr, true);
                     }
-                    peer.host = Some(info.host.clone());
-                    peer.name = Some(info.name.clone());
-                    peer.last_report_direct = Some(tm);
+                    peer.apply_hostname(Some(info.host), true);
+                    peer.apply_node_name(Some(info.name), true);
+                    peer.primary_addr = Some(addr);
                 }
                 self.apply_friends(&mut *stats, friends, addr);
             }

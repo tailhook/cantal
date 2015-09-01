@@ -19,22 +19,29 @@ html render(peers, peer_map):
   table.table.table-bordered.table-hover
     thead
       tr
+        th "ID"
         th "IP"
-        th "Hostname"
+        th "Name"
         th "Connected"
         th "Last Beacon"
         th "Beacon"
         th "Latency"
     tbody
-      for p of peers:
+      for p of peers key p.id:
         tr
-          td "{p.addr}"
-          if peer_map[p.addr]:
+          td "{p.id}"
+          td.text-muted?(p.current_addr)
+            if p.current_addr:
+              "{p.current_addr}"
+            else:
+              "∅"
+          if peer_map[p.id]:
             td
-              let port = p.addr.split(':')[1]
-              =String(peer_map[p.addr])
+              let paddr = p.primary_addr or p.addresses and p.addresses[0] or ':22682'
+              let port = paddr.split(':')[1]
+              =String(peer_map[p.id])
               " "
-              a.btn.btn-default.btn-xs[href="http://{peer_map[p.addr]}:{port}"]
+              a.btn.btn-default.btn-xs[href="http://{peer_map[p.id]}:{port}"]
                 span.glyphicon.glyphicon-play
           else:
             td.text-muted

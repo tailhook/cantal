@@ -12,8 +12,8 @@ authors = ["paul@colomiets.name"]
 log = "0.3"
 num = "0.1"
 rustc-serialize = "0.3"
-cbor-codec = "0.2"
-probor = "0.1"
+cbor-codec = { git = "git://github.com/twittner/cbor-codec" }
+probor = { git = "git://github.com/tailhook/probor" }
 byteorder = "0.3"
 
 [dependencies.cantal_values]

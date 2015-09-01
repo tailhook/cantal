@@ -10,6 +10,7 @@ use probor;
 use time::{SteadyTime, Duration};
 use rand::thread_rng;
 use rand::distributions::{IndependentSample, Range};
+use rustc_serialize::hex::ToHex;
 
 use query::{Filter, Extract};
 use super::server::Context;
@@ -25,6 +26,7 @@ use self::owebsock::WebSocket;
 use super::history::History;
 use super::ioutil::Poll;
 use super::server::Timer::{RemoteCollectGarbage};
+use {HostId};
 
 mod owebsock;
 mod aggregate;
@@ -48,13 +50,14 @@ pub struct Peers {
     touch_time: SteadyTime,
     gc_timer: Timeout,
     pub connected: usize,
-    pub addresses: HashMap<SocketAddr, Token>,
+    pub tokens: HashMap<HostId, Token>,
     pub peers: Slab<Peer>,
     subscriptions: HashMap<Filter, SteadyTime>,
 }
 
 pub struct Peer {
-    pub addr: SocketAddr,
+    pub id: HostId,
+    pub current_addr: Option<SocketAddr>,
     connection: Option<WebSocket>,
     timeout: Timeout,
     history: History,
@@ -87,19 +90,20 @@ pub fn ensure_started(ctx: &mut Context) {
         gc_timer: ctx.eloop.timeout_ms(RemoteCollectGarbage,
             GARBAGE_COLLECTOR_INTERVAL).unwrap(),
         connected: 0,
-        addresses: HashMap::new(),
+        tokens: HashMap::new(),
         subscriptions: HashMap::new(),
     };
-    for addr in peers {
+    for id in peers {
         if let Some(tok) = data.peers.insert_with(|tok| Peer {
-            addr: addr,
+            id: id.clone(),
+            current_addr: None,
             last_beacon: None,
             connection: None,
             history: History::new(),
             timeout: ctx.eloop.timeout_ms(ReconnectPeer(tok),
                 range.ind_sample(&mut rng)).unwrap(),
         }) {
-            data.addresses.insert(addr, tok);
+            data.tokens.insert(id.clone(), tok);
         } else {
             error!("Too many peers");
         }
@@ -112,8 +116,9 @@ pub fn ensure_started(ctx: &mut Context) {
         .ok();
 }
 
-pub fn add_peer(addr: SocketAddr, ctx: &mut Context) {
-    debug!("Adding peer {:?}", addr);
+pub fn touch(id: HostId, ctx: &mut Context) {
+    debug!("Touching {:?}", id.to_hex());
+
     let range = Range::new(5, 150);
     let mut rng = thread_rng();
     let mut opt_peers = ctx.deps.write::<Option<Peers>>();
@@ -122,32 +127,55 @@ pub fn add_peer(addr: SocketAddr, ctx: &mut Context) {
         return;
     }
     let data = opt_peers.as_mut().unwrap();
-    if data.addresses.contains_key(&addr) {
+    if data.tokens.contains_key(&id) {
         return;
     }
     let ref mut eloop = ctx.eloop;
     if let Some(tok) = data.peers.insert_with(|tok| Peer {
-        addr: addr,
+        id: id.clone(),
+        current_addr: None,
         last_beacon: None,
         connection: None,
         timeout: eloop.timeout_ms(ReconnectPeer(tok),
             range.ind_sample(&mut rng)).unwrap(),
         history: History::new(),
     }) {
-        data.addresses.insert(addr, tok);
+        data.tokens.insert(id, tok);
     } else {
         error!("Too many peers");
     }
 }
 
 pub fn reconnect_peer(tok: Token, ctx: &mut Context) {
+    // Get ID then addr and avoid deadlock
+    let id = ctx.deps.write::<Option<Peers>>().as_ref().unwrap()
+        .peers.get(tok).unwrap().id.clone();
+
+    let addr = {
+        match ctx.deps.read::<GossipStats>().peers.get(&id)
+            .and_then(|x| x.primary_addr)
+        {
+            Some(addr) => {
+                debug!("The addr {:?} has primary ip {}", id.to_hex(), addr);
+                addr
+            }
+            None => {
+                debug!("The addr {:?} has no primary ip", id.to_hex());
+                // We assume that gossip subsystem will notify us when host
+                // gets its primary ip
+                return;
+            }
+        }
+    };
+
     let mut peers_opt = ctx.deps.write::<Option<Peers>>();
     let data = peers_opt.as_mut().unwrap();
     if let Some(ref mut peer) = data.peers.get_mut(tok) {
         assert!(peer.connection.is_none());
         let range = Range::new(1000, 2000);
         let mut rng = thread_rng();
-        if let Ok(conn) = WebSocket::connect(peer.addr) {
+        if let Ok(conn) = WebSocket::connect(addr) {
+            peer.current_addr = Some(addr);
             match conn.register(tok, ctx.eloop) {
                 Ok(_) => {
                     peer.connection = Some(conn);
@@ -214,8 +242,10 @@ pub fn try_io(tok: Token, ev: EventSet, ctx: &mut Context) -> bool
                             .unwrap()
                         }
                         InputMessage::Stats(stats) => {
-                            debug!("New stats from peer {:?}", peer.addr);
-                            trace!("Stat values {:?}: {:?}", peer.addr, stats);
+                            debug!("New stats from peer {} at {:?}",
+                                peer.id.to_hex(), peer.current_addr);
+                            trace!("Stat values from {}: {:?}",
+                                peer.id.to_hex(), stats);
                             update::update_history(&mut peer.history, stats);
                         }
                     }
@@ -225,7 +255,8 @@ pub fn try_io(tok: Token, ev: EventSet, ctx: &mut Context) -> bool
                 to_close = true;
             }
             if old &&  !to_close && !wsock.handshake {
-                debug!("Connected websocket to {:?}", peer.addr);
+                debug!("Connected websocket to {} at {:?}",
+                    peer.id.to_hex(), peer.current_addr);
                 data.connected += 1;
                 assert!(ctx.eloop.clear_timeout(peer.timeout));
                 peer.timeout = ctx.eloop.timeout_ms(ResetPeer(tok),
@@ -240,7 +271,8 @@ pub fn try_io(tok: Token, ev: EventSet, ctx: &mut Context) -> bool
                     ctx.eloop.modify(&wsock.sock, tok, true, true);
                 }
             } else if !old && to_close {
-                debug!("Disconnected websocket from {:?}", peer.addr);
+                debug!("Disconnected websocket for {} at {:?}",
+                    peer.id.to_hex(), peer.current_addr);
                 data.connected -= 1;
             }
             to_close

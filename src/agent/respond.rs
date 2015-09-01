@@ -3,6 +3,7 @@ use std::collections::HashMap;
 
 use rustc_serialize::json;
 use rustc_serialize::json::ToJson;
+use rustc_serialize::hex::ToHex;
 
 use query::{Rule, query_history, Dataset};
 use probor;
@@ -128,7 +129,8 @@ pub fn serve_remote_stats(_req: &Request, context: &mut Context)
     }
     #[derive(RustcEncodable)]
     struct PeerInfo {
-        addr: String,
+        id: String,
+        current_addr: Option<String>,
         connected: bool,
         last_beacon_time: Option<u64>,
         last_beacon: Option<Beacon>,
@@ -137,7 +139,8 @@ pub fn serve_remote_stats(_req: &Request, context: &mut Context)
         let mut result = Vec::new();
         for p in peers.peers.iter() {
             result.push(PeerInfo {
-                addr: p.addr.to_string(),
+                id: p.id.to_hex(),
+                current_addr: p.current_addr.map(|x| x.to_string()),
                 connected: p.connected(),
                 last_beacon_time: p.last_beacon.as_ref().map(|x| x.0),
                 last_beacon: p.last_beacon.as_ref().map(|x| x.1.clone()),

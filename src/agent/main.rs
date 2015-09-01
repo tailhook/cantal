@@ -27,18 +27,19 @@ extern crate cantal_query as query;
 use std::env;
 use std::thread;
 use std::io::BufReader;
+use std::io::Read;
 use std::fs::File;
 use std::str::FromStr;
 use std::path::PathBuf;
 use std::sync::{RwLock,Arc};
 use std::process::exit;
 use std::error::Error;
-use nix::unistd::gethostname;
 
 use argparse::{ArgumentParser, Store, ParseOption, StoreOption};
 
 use deps::{Dependencies, LockedDeps};
 
+pub type HostId = Vec<u8>;
 
 mod util;
 mod server;
@@ -56,19 +57,7 @@ mod remote;
 mod error;
 mod deps;
 mod ioutil;
-
-
-fn hostname() -> String {
-    let mut buf = [0u8; 256];
-    gethostname(&mut buf).unwrap();
-    for (idx, &ch) in buf.iter().enumerate() {
-        if ch == 0 {
-            return String::from_utf8(buf[..idx].to_owned()).unwrap();
-        }
-    }
-    panic!("Bad hostname");
-}
-
+mod info;
 
 
 fn main() {
@@ -130,13 +119,16 @@ fn run() -> Result<(), Box<Error>> {
         panic!("Failed to initialize global logger: {}", e);
     }
 
-    let hostname = hostname();
+    let hostname = info::hostname().unwrap();
+    let addresses = info::my_addresses(port).unwrap();
     let name = name.unwrap_or(hostname.clone());
+    let machine_id = info::machine_id();
 
     let mut deps = Dependencies::new();
     deps.insert(Arc::new(RwLock::new(stats::Stats::new())));
 
-    let p2p_init = try!(p2p::p2p_init(&mut deps, &host, port, hostname, name));
+    let p2p_init = try!(p2p::p2p_init(&mut deps, &host, port,
+        machine_id, addresses, hostname, name));
     let server_init = try!(server::server_init(&mut deps, &host, port));
 
     deps.insert(Arc::new(util::Cell::<storage::Buffer>::new()));

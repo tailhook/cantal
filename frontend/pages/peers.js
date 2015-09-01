@@ -20,6 +20,7 @@ export class Peers extends Component {
             } else {
                 peers = data.peers
             }
+            console.log("Peers", peers);
             return {error, peers, latency}
         })
     }

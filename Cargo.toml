@@ -19,7 +19,7 @@ rand = "0.3"
 nix = "0.3"
 mime = "*"
 httparse = "0.1"
-unicase = "0.1"
+unicase = "1.0"
 hyper = "0.6"
 num = "0.1"
 websocket = "0.12"
@@ -31,7 +31,7 @@ matches = "0.1"
 mio = "0.4"
 
 [dependencies.probor]
-path = "target/probor/rust"
+git = "git://github.com/tailhook/probor"
 features = ["regex_serde"]
 
 [dependencies.cantal_values]

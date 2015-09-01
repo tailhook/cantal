@@ -267,7 +267,9 @@ pub enum Timer {
 #[derive(Debug)]
 pub enum Message {
     ScanComplete,
-    NewHost(Ipv4Addr, u16),
+    /// This is sent whenever node added or changes primary IP, it's expected
+    /// that remote subsystem knows how to deal with it on its own
+    Touch(Vec<u8>),
 }
 
 impl Handler {
@@ -563,18 +565,19 @@ impl mio::Handler for Handler {
                     self.websockets.remove(tok);
                 }
             }
-            Message::NewHost(ip, port) => {
-                {
-                    let mut context = Context {
-                        deps: &mut self.deps,
-                        eloop: eloop,
-                    };
-                    remote::add_peer(
-                        SocketAddr::V4(SocketAddrV4::new(ip, port)),
-                        &mut context);
-                }
-                let new_peer = websock::new_peer(ip, port);
-                self.send_all(eloop, &new_peer);
+            Message::Touch(id) => {
+                let mut context = Context {
+                    deps: &mut self.deps,
+                    eloop: eloop,
+                };
+                remote::touch(id, &mut context);
+                // TODO(tailhook) send new peer by websocket
+                //                this is commented out for now because in case
+                //                of flickering IP (i.e. when node is
+                //                accessible by two IP addresses), this may
+                //                create lots of traffic
+                // let new_peer = websock::new_peer(ip, port);
+                // self.send_all(eloop, &new_peer);
             }
         }
     }
