@@ -1,10 +1,12 @@
 use std::net::{SocketAddr, SocketAddrV4};
+use std::mem::replace;
 use std::collections::HashMap;
 
 use mio::Sender;
 use rand::{thread_rng, Rng, sample};
 use cbor::Encoder;
 use mio::buf::ByteBuf;
+use rustc_serialize::hex::ToHex;
 
 use super::Context;
 use super::peer::{Peer, Report};
@@ -36,7 +38,8 @@ pub const NUM_FRIENDS: usize = 10;
 /// After we had no reports from node for 20 seconds (but we sent probe during
 /// this time) we consider node to be inaccessible by it's primary IP and are
 /// trying to reach it by pinging any other random IP address.
-pub const PREFAIL_TIME: u64 = 20000;
+pub const PREFAIL_TIME: u64 = 20_000;
+
 
 /// Maximum expected roundtrip time. We consider report failing if it's not
 /// received during this time. Note, this doesn't need to be absolute ceiling
@@ -44,9 +47,25 @@ pub const PREFAIL_TIME: u64 = 20000;
 /// just heuristic for pre-fail condition.
 pub const MAX_ROUNDTRIP: u64 = 2000;
 
+/// After this time we consider node failing and don't send it in friendlist.
+/// Note that all nodes that where up until we marked node as failinig do know
+/// the node, and do ping it. This is currently used only
+pub const FAIL_TIME: u64 = 3600_000;
+
+
+/// This is time after last heartbeat when node will be removed from the list
+/// of known nodes. This should be long after FAIL_TIME. (But not necessarily
+/// 48x longer, as we do now).
+/// Also note that node will be removed from all peers after
+/// FAIL_TIME + REMOVE_TIME + longest-round-trip-time
+pub const REMOVE_TIME: u64 = 2 * 86400_000;
+
+
+
 // Expectations:
 //     MAX_PROBE > MIN_PROBE
 //     MAX_ROUNDTRIP <= MAX_PROBE
+//     FAIL_TIME + some big value < REMOVE_TIME
 
 #[derive(Debug, Clone, RustcEncodable, RustcDecodable)]
 pub enum Packet {
@@ -88,7 +107,8 @@ fn get_friends(peers: &HashMap<HostId, Peer>, exclude: SocketAddr)
 {
     let mut rng = thread_rng();
     let other_peers = peers.values()
-        .filter(|peer| !peer.addresses.contains(&exclude));
+        .filter(|peer| !peer.addresses.contains(&exclude))
+        .filter(|peer| !peer.is_failing());
     let friends = sample(&mut rng, other_peers, NUM_FRIENDS);
     friends.into_iter().map(|f| FriendInfo {
         id: f.id.clone(),
@@ -292,5 +312,20 @@ impl Context {
                 self.apply_friends(&mut *stats, friends, addr);
             }
         }
+    }
+
+    pub fn remove_failed_nodes(&mut self) {
+        let mut statsguard = self.deps.write::<GossipStats>();
+        let ref mut stats = &mut *statsguard;
+        stats.peers = replace(&mut stats.peers, HashMap::new()).into_iter()
+            .filter(|&(ref id, ref peer)| {
+                if peer.should_remove() {
+                    warn!("Peer {} / {:?} is removed",
+                        id.to_hex(), peer.addresses);
+                    false
+                } else {
+                    true
+                }
+            }).collect();
     }
 }

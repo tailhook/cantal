@@ -21,6 +21,7 @@ mod gossip;
 
 
 const GOSSIP: Token = Token(0);
+const GARBAGE_COLLECTOR_INTERVAL: u64 = 300_000; // 5 min
 
 
 
@@ -35,6 +36,8 @@ pub fn p2p_init(deps: &mut Dependencies, host: &str, port: u16,
     try!(eloop.register_opt(&server, GOSSIP,
         EventSet::readable(), PollOpt::level()));
     try!(eloop.timeout_ms(Timer::GossipBroadcast, gossip::INTERVAL));
+    try!(eloop.timeout_ms(Timer::GarbageCollector,
+        GARBAGE_COLLECTOR_INTERVAL));
 
     deps.insert(eloop.channel());
     deps.insert(Arc::new(RwLock::new(GossipStats::default())));
@@ -74,6 +77,7 @@ pub enum Command {
 #[derive(Debug)]
 pub enum Timer {
     GossipBroadcast,
+    GarbageCollector,
 }
 
 pub struct Init {
@@ -152,6 +156,11 @@ impl Handler for Context {
                 self.gossip_broadcast();
                 eloop.timeout_ms(Timer::GossipBroadcast,
                                  gossip::INTERVAL).unwrap();
+            }
+            Timer::GarbageCollector => {
+                self.remove_failed_nodes();
+                eloop.timeout_ms(Timer::GarbageCollector,
+                                 GARBAGE_COLLECTOR_INTERVAL).unwrap();
             }
         }
     }

@@ -7,6 +7,7 @@ use rand::{thread_rng, sample};
 
 use super::super::scan::time_ms;
 use super::gossip::{PREFAIL_TIME, MAX_ROUNDTRIP, MAX_PROBE, MIN_PROBE};
+use super::gossip::{FAIL_TIME, REMOVE_TIME};
 
 
 // TODO(tailhook) probably remove the structure
@@ -21,6 +22,7 @@ pub struct Report {
 #[derive(Debug, Clone)]
 pub struct Peer {
     pub id: Vec<u8>,
+    pub added: u64,
     /// Primary IP is address used to send gossip packets to
     /// It's derived from the address this machine has sent packets from
     pub primary_addr: Option<SocketAddr>,
@@ -39,6 +41,7 @@ impl Peer {
     pub fn new(id: Vec<u8>) -> Peer {
         Peer {
             id: id,
+            added: time_ms(),
             primary_addr: None,
             addresses: HashSet::new(),
             host: None,
@@ -172,12 +175,34 @@ impl Peer {
             list.pop()
         }
     }
+
+    pub fn is_failing(&self) -> bool {
+        let now = time_ms();
+        match self.report {
+            // never probed (yet)
+            None => self.added + FAIL_TIME < now,
+            // not yet responed
+            Some((ts, _)) => ts + FAIL_TIME < now,
+        }
+    }
+
+    pub fn should_remove(&self) -> bool {
+        let now = time_ms();
+        match self.report {
+            // never probed (yet)
+            None => self.added + REMOVE_TIME < now,
+            // not yet responed
+            Some((ts, _)) => ts + REMOVE_TIME < now,
+        }
+    }
 }
 
 impl ToJson for Peer {
     fn to_json(&self) -> Json {
         Json::Object(vec![
             ("id", self.id[..].to_hex().to_json()),
+            ("known_since", self.added.to_json()),
+            ("is_failing", self.is_failing().to_json()),
             ("primary_addr", self.primary_addr
                 .map(|x| format!("{}", x)).to_json()),
             ("addresses", self.addresses.iter()
