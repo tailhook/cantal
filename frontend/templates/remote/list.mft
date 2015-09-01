@@ -1,5 +1,6 @@
 import {Toggle, Store, Value} from 'util/stores'
 import {format_diff, till_now_ms, from_ms} from 'util/time'
+import {get_port} from 'pages/remote'
 
 css:
   pre.short
@@ -37,10 +38,8 @@ html render(peers, peer_map):
               "∅"
           if peer_map[p.id]:
             td
-              let paddr = p.primary_addr or p.addresses and p.addresses[0] or ':22682'
-              let port = paddr.split(':')[1]
-              =String(peer_map[p.id])
-              " "
+              let port = get_port(p)
+              "{peer_map[p.id]} "
               a.btn.btn-default.btn-xs[href="http://{peer_map[p.id]}:{port}"]
                 span.glyphicon.glyphicon-play
           else:
@@ -49,8 +48,13 @@ html render(peers, peer_map):
           td "{p.connected}"
           td.text-muted?(p.last_beacon_time == null)
             if p.last_beacon_time:
-              =format_diff(till_now_ms(
-                             from_ms(p.last_beacon_time)))
+              span
+                let val = p.last_beacon_time
+                if val < 10000:
+                  "{val} ms"
+                else:
+                  =format_diff(till_now_ms(
+                                 from_ms(p.last_beacon_time)))
             else:
               "never"
           td.text-muted?(p.last_beacon == null).relative

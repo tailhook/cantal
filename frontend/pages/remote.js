@@ -4,6 +4,12 @@ import {RefreshJson, Submit} from 'util/request'
 import remote from 'templates/remote.mft'
 import websock from 'util/websock'
 
+export function get_port(p) {
+    let paddr = p.primary_addr || (p.addresses && p.addresses[0]) || ':22682'
+    let port = paddr.split(':')[1]
+    return port
+}
+
 export class Remote extends Component {
     constructor() {
         super()

@@ -85,12 +85,22 @@ html render(peers, ctr):
                         "unknown"
                     td.text-muted?(p.probe_time == null)
                       if p.probe_time:
-                        =format_diff(till_now_ms(from_ms(p.probe_time)))
+                        span
+                          let delta = till_now_ms(from_ms(p.probe_time))
+                          if delta < 10000:
+                            "{delta} ms"
+                          else:
+                            =format_diff(delta)
                       else:
                         "never"
                     td.text-muted?(p.report == null)
-                      if p.report != null:
-                        =format_diff(till_now_ms(from_ms(p.report)))
+                      if p.report:
+                        span
+                          let delta = till_now_ms(from_ms(p.report))
+                          if delta < 10000:
+                            "{delta} ms"
+                          else:
+                            =format_diff(delta)
                       else:
                         "never"
                     td.text-muted?(p.roundtrip == null)

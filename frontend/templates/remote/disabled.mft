@@ -1,4 +1,5 @@
 import {PeersRequest} from 'util/query'
+import {get_port} from 'pages/remote'
 
 html render(enable_remote):
   h1
@@ -32,15 +33,12 @@ html render(enable_remote):
       else:
         ul
           for peer of peers_request.peers:
-            li
-              let port = peer.addr.split(':')[1]
-              if peer.hostname:
-                a[href="http://{peer.hostname}:{port}/"]
-                  "http://{peer.hostname}:{port}/"
-                " ({peer.addr})"
-              else:
-                  code "{peer.addr}"
-                  " (no known host name)"
+            if peer.name:
+              li
+                let port = get_port(peer)
+                a[href="http://{peer.name}:{port}/"]
+                  "http://{peer.name}:{port}/"
+                " ({peer.primary_addr})"
       p.text-right?(!peers_request.peers or peers_request.peers.length != 0)
         button.btn.btn-danger
           link click = enable_remote
