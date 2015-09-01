@@ -35,7 +35,9 @@ use std::sync::{RwLock,Arc};
 use std::process::exit;
 use std::error::Error;
 
+use nix::unistd::getpid;
 use argparse::{ArgumentParser, Store, ParseOption, StoreOption};
+use rustc_serialize::hex::ToHex;
 
 use deps::{Dependencies, LockedDeps};
 
@@ -125,7 +127,9 @@ fn run() -> Result<(), Box<Error>> {
     let machine_id = info::machine_id();
 
     let mut deps = Dependencies::new();
-    deps.insert(Arc::new(RwLock::new(stats::Stats::new())));
+    deps.insert(Arc::new(RwLock::new(stats::Stats::new(
+        getpid(), name.clone(), hostname.clone(), machine_id.to_hex(),
+        addresses.iter().map(|x| x.to_string()).collect()))));
 
     let p2p_init = try!(p2p::p2p_init(&mut deps, &host, port,
         machine_id, addresses, hostname, name));

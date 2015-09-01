@@ -29,6 +29,10 @@ probor_struct!(
 #[derive(Debug, Clone, RustcEncodable)]
 pub struct Beacon {
     pub version: String => (),
+    pub id: String => (),
+    pub addresses: Vec<String> => (),
+    pub name: String => (),
+    pub hostname: String => (),
     pub pid: pid_t => (),
     pub current_time: u64 => (),
     pub startup_time: u64 => (),
@@ -242,6 +246,10 @@ pub fn write_binary(buf: &mut Vec<u8>, bytes: &[u8]) {
 pub fn beacon(deps: &Dependencies) -> Vec<u8> {
     // Lock one by one, to avoid deadlocks
     let (pid,
+         id,
+         addresses,
+         name,
+         hostname,
          startup_time,
          boot_time,
          scan_time,
@@ -252,6 +260,10 @@ pub fn beacon(deps: &Dependencies) -> Vec<u8> {
          history_age) = {
             let st = deps.read::<Stats>();
             (   st.pid,
+                st.id_hex.clone(),
+                st.addresses_str.clone(),
+                st.name.clone(),
+                st.hostname.clone(),
                 st.startup_time,
                 st.boot_time.map(|x| x*1000),
                 st.last_scan,
@@ -273,6 +285,10 @@ pub fn beacon(deps: &Dependencies) -> Vec<u8> {
         };
     probor::to_buf(&OutputMessage::Beacon(Beacon {
         version: include_str!("../../version.txt").to_string(),
+        id: id,
+        addresses: addresses,
+        name: name,
+        hostname: hostname,
         pid: pid,
         current_time: time_ms(),
         startup_time: startup_time,

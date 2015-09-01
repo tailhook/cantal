@@ -2,7 +2,6 @@ use std::sync::{Arc, RwLock};
 use std::io::Write;
 
 use mio;
-use nix::unistd::getpid;
 use libc::usleep;
 use probor::{Encoder, Encodable};
 
@@ -33,8 +32,6 @@ pub fn scan_loop(deps: Dependencies)
     let mut process_cache = processes::ReadCache::new();
     let mut values_cache = values::ReadCache::new();
     let mut last_buffer_size = 16 << 10;
-    stats.write().map(|mut s| { s.pid = getpid(); })
-        .ok().expect("Stats must be readable still");
     loop {
         let start = time_ms();
         let mut tip = Tip::new();
