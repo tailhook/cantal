@@ -55,6 +55,7 @@ commands:
         --pkgversion="$(cat version.txt)" \
         --requires="libssl1.0.0" \
         --nodoc --strip=no \
+        --pakdir=dist/ \
         make install
 
   mpack: !Command

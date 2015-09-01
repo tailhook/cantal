@@ -9,6 +9,7 @@
 /public/js
 /frontend/tools/jadecompile
 /target
+/dist
 /cantal_values/target
 /cantal_history/target
 Cargo.lock
