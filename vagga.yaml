@@ -47,15 +47,18 @@ commands:
     description: Build ubuntu (trusty) package
     container: ubuntu
     write-mode: transient-hard-link-copy
+    environ:
+      PATH: /bin:/usr/bin:/usr/local/bin:/usr/local/sbin:/usr/sbin:/sbin
     run: |
-      make -B
+      make
+      [ -d dist ] || mkdir dist
       checkinstall --default \
         --maintainer=paul@colomiets.name \
         --pkglicense=MIT --pkgname=cantal \
         --pkgversion="$(cat version.txt)" \
         --requires="libssl1.0.0" \
         --nodoc --strip=no \
-        --pakdir=dist/ \
+        --pakdir=dist \
         make install
 
   mpack: !Command
