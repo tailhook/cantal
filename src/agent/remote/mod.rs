@@ -170,20 +170,37 @@ pub fn reconnect_peer(tok: Token, ctx: &mut Context) {
         .peers.get(tok).unwrap().id.clone();
 
     let addr = {
-        match ctx.deps.read::<GossipStats>().peers.get(&id)
-            .and_then(|x| x.primary_addr)
-        {
-            Some(addr) => {
-                debug!("The addr {:?} has primary ip {}", id.to_hex(), addr);
-                addr
+        if let Some(peer) = ctx.deps.read::<GossipStats>().peers.get(&id) {
+            match peer.primary_addr {
+                Some(addr) => {
+                    debug!("The addr {:?} has primary ip {}",
+                        id.to_hex(), addr);
+                    Some(addr)
+                }
+                None => {
+                    debug!("The addr {:?} has no primary ip", id.to_hex());
+                    // We assume that gossip subsystem will notify us when host
+                    // gets its primary ip
+                    return;
+                }
             }
-            None => {
-                debug!("The addr {:?} has no primary ip", id.to_hex());
-                // We assume that gossip subsystem will notify us when host
-                // gets its primary ip
-                return;
-            }
+        } else {
+            None
         }
+    };
+
+    // This is separate block to avoid deadlock too
+    let addr = if let Some(addr) = addr {
+        addr
+    } else {  // None means the host is already removed from gossip
+        let mut peers_ref = ctx.deps.write::<Option<Peers>>();
+        let peers = peers_ref.as_mut().unwrap();
+        let peer = peers.peers.remove(tok).unwrap();
+        let peer_token = peers.tokens.remove(&peer.id).unwrap();
+        warn!("Host {} removed from remote subsystem", id.to_hex());
+        assert!(peer.id == id);
+        assert!(peer_token == tok);
+        return;
     };
 
     let mut peers_opt = ctx.deps.write::<Option<Peers>>();
