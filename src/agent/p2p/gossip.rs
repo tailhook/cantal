@@ -160,18 +160,19 @@ impl Context {
             });
         }
     }
+    fn send_touch(&self, id: HostId) {
+        self.deps.get::<Sender<_>>().unwrap()
+            .send(Touch(id))
+            .map_err(|_| error!("Error sending Touch msg"))
+            .ok();
+    }
     fn apply_friends(&self, stats: &mut GossipStats,
                      friends: Vec<FriendInfo>, source: SocketAddr)
     {
         for friend in friends.into_iter() {
             let sendto_addr = {
-                let id = friend.id.clone();
-                let mut new = false;
-                let peer = stats.peers.entry(friend.id)
-                    .or_insert_with(|| {
-                        new = true;
-                        Peer::new(id)
-                    });
+                let peer = stats.peers.entry(friend.id.clone())
+                    .or_insert_with(|| Peer::new(friend.id.clone()));
                 peer.apply_addresses(
                     // TODO(tailhook) filter out own IP addressses
                     friend.addresses.iter().filter_map(|x| x.parse().ok()),
@@ -181,12 +182,13 @@ impl Context {
                 peer.apply_node_name(friend.name, false);
                 friend.roundtrip.map(|rtt|
                     peer.apply_roundtrip(rtt, source, false));
-                if new {
+                if peer.primary_addr.is_none() {
                     let addr = friend.my_primary_addr.and_then(|x| {
                         x.parse().map_err(|e| error!("Can't parse IP address"))
                         .ok()
                     });
                     peer.primary_addr = addr;
+                    self.send_touch(friend.id);
                     addr
                 } else {
                     None
@@ -240,14 +242,7 @@ impl Context {
                 {
                     let id = info.id.clone();
                     let peer = stats.peers.entry(id.clone())
-                        .or_insert_with(|| {
-                            self.deps.get::<Sender<_>>().unwrap()
-                                .send(Touch(info.id.clone()))
-                                .map_err(|_| error!(
-                                    "Error sending Touch msg"))
-                                .ok();
-                            Peer::new(id)
-                        });
+                        .or_insert_with(|| Peer::new(id.clone()));
                     peer.apply_addresses(
                         // TODO(tailhook) filter out own IP addressses
                         info.addresses.iter().filter_map(|x| x.parse().ok()),
@@ -255,7 +250,10 @@ impl Context {
                     peer.apply_report(Some((tm, info.report)), true);
                     peer.apply_hostname(Some(info.host), true);
                     peer.apply_node_name(Some(info.name), true);
-                    peer.primary_addr = Some(addr);
+                    if peer.primary_addr.as_ref() != Some(&addr) {
+                        peer.primary_addr = Some(addr);
+                        self.send_touch(id);
+                    }
                 }
                 self.apply_friends(&mut *stats, friends, addr);
                 let mut buf = ByteBuf::mut_with_capacity(1024);
@@ -287,14 +285,7 @@ impl Context {
                 {
                     let id = info.id.clone();
                     let peer = stats.peers.entry(id.clone())
-                        .or_insert_with(|| {
-                            self.deps.get::<Sender<_>>().unwrap()
-                                .send(Touch(info.id.clone()))
-                                .map_err(|_| error!(
-                                    "Error sending Touch msg"))
-                                .ok();
-                            Peer::new(id)
-                        });
+                        .or_insert_with(|| Peer::new(id.clone()));
                     peer.apply_addresses(
                         // TODO(tailhook) filter out own IP addressses
                         info.addresses.iter().filter_map(|x| x.parse().ok()),
@@ -307,7 +298,10 @@ impl Context {
                     }
                     peer.apply_hostname(Some(info.host), true);
                     peer.apply_node_name(Some(info.name), true);
-                    peer.primary_addr = Some(addr);
+                    if peer.primary_addr.as_ref() != Some(&addr) {
+                        peer.primary_addr = Some(addr);
+                        self.send_touch(id);
+                    }
                 }
                 self.apply_friends(&mut *stats, friends, addr);
             }

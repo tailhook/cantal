@@ -10,7 +10,7 @@ use probor;
 use time::{SteadyTime, Duration};
 use rand::thread_rng;
 use rand::distributions::{IndependentSample, Range};
-use rustc_serialize::hex::ToHex;
+use rustc_serialize::hex::{ToHex, FromHex};
 
 use query::{Filter, Extract};
 use super::server::Context;
@@ -36,11 +36,27 @@ pub mod respond;
 
 const SLAB_START: usize = 1000000000;
 const MAX_OUTPUT_CONNECTIONS: usize = 4096;
+/// A time to give for node to handshake
 const HANDSHAKE_TIMEOUT: u64 = 30000;
+/// If no messages during this timeout drop connections. (i.e. at least beacons
+/// should be regularly).
+///
+/// Note beacons are every 2 seconds but if your network is overloaded for some
+/// reason you don't want to overload it even more by reconnections. So keep
+/// it high enough.
 const MESSAGE_TIMEOUT: u64 = 15000;
+/// An interval to clean old subscriptions, old statistics and old hosts
 const GARBAGE_COLLECTOR_INTERVAL: u64 = 60_000;
+/// The time after which subscription is removed if nobody requested data for
+/// it.
+///
+/// Note it should be bigger than polling interval of any given client
+/// (including JS and all monitoring systems). But it should be low enough so
+/// that dashboards that are looked at only occasionally do not waste resources
+/// 24 hours a day.
 const SUBSCRIPTION_LIFETIME: i64 = 3 * 60_000;
 const DATA_POINTS: usize = 150;  // ~ five minutes ~ 150px of graph
+
 pub const EXTRACT: Extract = Extract::HistoryByNum(DATA_POINTS);
 pub const EXTRACT_ONE: Extract = Extract::HistoryByNum(1);  // just latest one
 
@@ -51,6 +67,7 @@ pub struct Peers {
     gc_timer: Timeout,
     pub connected: usize,
     pub tokens: HashMap<HostId, Token>,
+    pub addresses: HashMap<SocketAddr, Token>,
     pub peers: Slab<Peer>,
     subscriptions: HashMap<Filter, SteadyTime>,
 }
@@ -87,6 +104,7 @@ pub fn ensure_started(ctx: &mut Context) {
         touch_time: SteadyTime::now(),
         peers: Slab::new_starting_at(Token(SLAB_START),
                                      MAX_OUTPUT_CONNECTIONS),
+        addresses: HashMap::new(),
         gc_timer: ctx.eloop.timeout_ms(RemoteCollectGarbage,
             GARBAGE_COLLECTOR_INTERVAL).unwrap(),
         connected: 0,
@@ -174,8 +192,15 @@ pub fn reconnect_peer(tok: Token, ctx: &mut Context) {
         assert!(peer.connection.is_none());
         let range = Range::new(1000, 2000);
         let mut rng = thread_rng();
+        if let Some(other_tok) = data.addresses.get(&addr) {
+            trace!("Address {} is occupied by tok {:?}", addr, other_tok);
+            peer.timeout = ctx.eloop.timeout_ms(ReconnectPeer(tok),
+                range.ind_sample(&mut rng)).unwrap();
+            return;
+        }
         if let Ok(conn) = WebSocket::connect(addr) {
             peer.current_addr = Some(addr);
+            data.addresses.insert(addr, tok);
             match conn.register(tok, ctx.eloop) {
                 Ok(_) => {
                     peer.connection = Some(conn);
@@ -220,7 +245,7 @@ pub fn try_io(tok: Token, ev: EventSet, ctx: &mut Context) -> bool
             let ref mut wsock = peer.connection.as_mut()
                 .expect("Can't read from non-existent socket");
             let old = wsock.handshake;
-            let mut to_close;
+            let mut to_close = false;
             if let Some(messages) = wsock.events(ev, tok, ctx) {
                 if messages.len() > 0 {
                     assert!(ctx.eloop.clear_timeout(peer.timeout));
@@ -230,7 +255,13 @@ pub fn try_io(tok: Token, ev: EventSet, ctx: &mut Context) -> bool
                 for msg in messages {
                     match msg {
                         InputMessage::Beacon(b) => {
-                            peer.last_beacon = Some((time_ms(), b));
+                            if b.id.from_hex().ok().as_ref() == Some(&peer.id) {
+                                peer.last_beacon = Some((time_ms(), b));
+                            } else {
+                                debug!("Host with id {} declared id {} at {:?}",
+                                    b.id, peer.id.to_hex(), peer.current_addr);
+                                to_close = true;
+                            }
                         }
                         InputMessage::NewIPv4Peer(ip, port) => {
                             // TODO(tailhook) process it
@@ -250,7 +281,6 @@ pub fn try_io(tok: Token, ev: EventSet, ctx: &mut Context) -> bool
                         }
                     }
                 }
-                to_close = false;
             } else {
                 to_close = true;
             }
@@ -284,6 +314,10 @@ pub fn try_io(tok: Token, ev: EventSet, ctx: &mut Context) -> bool
             assert!(ctx.eloop.clear_timeout(peer.timeout));
             peer.timeout = ctx.eloop.timeout_ms(ReconnectPeer(tok),
                     range.ind_sample(&mut rng)).unwrap();
+            if let Some(addr) = peer.current_addr.take() {
+                let old_tok = data.addresses.remove(&addr);
+                assert!(old_tok == Some(tok));
+            };
         }
         return true;
     } else {
