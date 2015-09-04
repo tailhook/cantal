@@ -226,7 +226,8 @@ impl Context {
         }
     }
 
-    pub fn consume_gossip(&self, packet: Packet, addr: SocketAddr) {
+    pub fn consume_gossip(&self, packet: Packet, addr: SocketAddr,
+        stats: &mut GossipStats) {
         let tm = time_ms();
         let v4: SocketAddrV4 =
             if let SocketAddr::V4(val) = addr {
@@ -235,8 +236,6 @@ impl Context {
                 return;
             };
 
-        let mut statsguard = self.deps.write::<GossipStats>();
-        let ref mut stats = &mut *statsguard;
         match packet {
             Packet::Ping { me: info, now, friends } => {
                 {

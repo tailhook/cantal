@@ -114,20 +114,25 @@ impl Handler for Context {
     {
         match tok {
             GOSSIP => {
-                let mut buf = ByteBuf::mut_with_capacity(4096);
-                if let Ok(Some(addr)) = self.sock.recv_from(&mut buf) {
-                    let mut dec = Decoder::from_reader(buf.flip());
-                    match dec.decode::<gossip::Packet>().next() {
-                        Some(Ok(packet)) => {
-                            trace!("Packet {:?} from {:?}", packet, addr);
-                            self.consume_gossip(packet, addr);
+                let mut stats = self.deps.write::<GossipStats>();
+                loop {
+                    let mut buf = ByteBuf::mut_with_capacity(8192);
+                    if let Ok(Some(addr)) = self.sock.recv_from(&mut buf) {
+                        let mut dec = Decoder::from_reader(buf.flip());
+                        match dec.decode::<gossip::Packet>().next() {
+                            Some(Ok(packet)) => {
+                                trace!("Packet {:?} from {:?}", packet, addr);
+                                self.consume_gossip(packet, addr, &mut *stats);
+                            }
+                            None => {
+                                debug!("Empty packet from {:?}", addr);
+                            }
+                            Some(Err(e)) => {
+                                debug!("Errorneous packet from {:?}: {}", addr, e);
+                            }
                         }
-                        None => {
-                            debug!("Empty packet from {:?}", addr);
-                        }
-                        Some(Err(e)) => {
-                            debug!("Errorneous packet from {:?}: {}", addr, e);
-                        }
+                    } else {
+                        break;
                     }
                 }
             }
