@@ -10,6 +10,8 @@ use mio::buf::ByteBuf;
 use mio::{udp};
 use cbor::{Decoder};
 use rustc_serialize::Decodable;
+use rand::{thread_rng};
+use rand::distributions::{IndependentSample, Range};
 
 use super::error::Error;
 use self::peer::{Peer};
@@ -22,7 +24,11 @@ mod gossip;
 
 const GOSSIP: Token = Token(0);
 const GARBAGE_COLLECTOR_INTERVAL: u64 = 300_000; // 5 min
-
+/// Sometimes packet lost (it's UDP) so we retry 5 times
+const ADD_HOST_RETRY_TIMES: u32 = 5;
+/// The retry interval, it will be randomized from 0.5x to 1.5x
+/// Note: randomization is then rounded to tick size of 100ms by mio
+const ADD_HOST_RETRY_INTERVAL: u64 = 1000;
 
 
 pub fn p2p_init(deps: &mut Dependencies, host: &str, port: u16,
@@ -78,6 +84,7 @@ pub enum Command {
 pub enum Timer {
     GossipBroadcast,
     GarbageCollector,
+    AddHost(SocketAddr, u32),
 }
 
 pub struct Init {
@@ -140,13 +147,19 @@ impl Handler for Context {
         }
     }
 
-    fn notify(&mut self, _eloop: &mut EventLoop<Context>, msg: Command) {
+    fn notify(&mut self, eloop: &mut EventLoop<Context>, msg: Command) {
         use self::Command::*;
         trace!("Command {:?}", msg);
         match msg {
             AddGossipHost(ip) => {
                 let ref mut stats = self.deps.write::<GossipStats>();
                 self.send_gossip(ip, stats);
+                // Sometimes first packet fails, so we try few times
+                let range = Range::new(ADD_HOST_RETRY_INTERVAL/2,
+                    ADD_HOST_RETRY_INTERVAL*3/2);
+                let mut rng = thread_rng();
+                eloop.timeout_ms(Timer::AddHost(ip, ADD_HOST_RETRY_TIMES),
+                                 range.ind_sample(&mut rng)).unwrap();
             }
             RemoteSwitch(val) => {
                 let ref mut stats = self.deps.write::<GossipStats>();
@@ -166,6 +179,18 @@ impl Handler for Context {
                 self.remove_failed_nodes();
                 eloop.timeout_ms(Timer::GarbageCollector,
                                  GARBAGE_COLLECTOR_INTERVAL).unwrap();
+            }
+            Timer::AddHost(ip, num) => {
+                let ref mut stats = self.deps.write::<GossipStats>();
+                self.send_gossip(ip, stats);
+                // Sometimes first packet fails, so we try few times
+                if num > 0 {
+                    let range = Range::new(ADD_HOST_RETRY_INTERVAL/2,
+                        ADD_HOST_RETRY_INTERVAL*3/2);
+                    let mut rng = thread_rng();
+                    eloop.timeout_ms(Timer::AddHost(ip, num-1),
+                                     range.ind_sample(&mut rng)).unwrap();
+                }
             }
         }
     }
