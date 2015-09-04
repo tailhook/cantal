@@ -133,30 +133,29 @@ impl Context {
             self.queue = stats.peers.keys().cloned().collect();
         }
         thread_rng().shuffle(&mut self.queue[..]);
-        let mut sent = Vec::with_capacity(NUM_PROBES as usize);
         for _ in 0..NUM_PROBES {
             if self.queue.len() == 0 {
                 break;
             }
             let id = self.queue.pop().unwrap();
             // if not expired yet
-            stats.peers.get(&id).map(|peer| {
+            let addr = stats.peers.get_mut(&id).and_then(|peer| {
                 if !peer.has_fresh_report() {
                     let mut addr = peer.primary_addr;
                     if addr.is_none() || !peer.ping_primary_address() {
                         addr = peer.random_ping_addr()
                     };
                     addr.map(|addr| {
-                        self.send_gossip(addr, &stats);
-                        sent.push((id, addr));
-                    });
+                        peer.last_probe = Some((tm, addr));
+                        peer.probes_sent += 1;
+                        addr
+                    })
+                } else {
+                    None
                 }
             });
-        }
-        // It's here because of borrow checker :(
-        for (id, addr) in sent {
-            stats.peers.get_mut(&id).map(|peer| {
-                peer.last_probe = Some((tm, addr));
+            addr.map(|addr| {
+                self.send_gossip(addr, &stats);
             });
         }
     }
@@ -171,8 +170,9 @@ impl Context {
     {
         for friend in friends.into_iter() {
             let sendto_addr = {
-                let peer = stats.peers.entry(friend.id.clone())
-                    .or_insert_with(|| Peer::new(friend.id.clone()));
+                let id = friend.id;
+                let peer = stats.peers.entry(id.clone())
+                    .or_insert_with(|| Peer::new(id.clone()));
                 peer.apply_addresses(
                     // TODO(tailhook) filter out own IP addressses
                     friend.addresses.iter().filter_map(|x| x.parse().ok()),
@@ -188,7 +188,12 @@ impl Context {
                         .ok()
                     });
                     peer.primary_addr = addr;
-                    self.send_touch(friend.id);
+                    addr.map(|addr| {
+                        self.send_touch(id);
+                        peer.last_probe = Some((time_ms(), addr));
+                        peer.probes_sent += 1;
+                        addr
+                    });
                     addr
                 } else {
                     None
@@ -249,6 +254,7 @@ impl Context {
                     peer.apply_report(Some((tm, info.report)), true);
                     peer.apply_hostname(Some(info.host), true);
                     peer.apply_node_name(Some(info.name), true);
+                    peer.pings_received += 1;
                     if peer.primary_addr.as_ref() != Some(&addr) {
                         peer.primary_addr = Some(addr);
                         self.send_touch(id);
@@ -290,8 +296,9 @@ impl Context {
                         info.addresses.iter().filter_map(|x| x.parse().ok()),
                         true);
                     peer.apply_report(Some((tm, info.report)), true);
+                    peer.pongs_received += 1;
                     // sanity check
-                    if ping_time < tm && ping_time < peer_time {
+                    if ping_time <= tm && ping_time <= peer_time {
                         peer.apply_roundtrip((tm, (tm - ping_time)),
                             addr, true);
                     }

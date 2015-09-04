@@ -1,6 +1,34 @@
 import {Toggle, Store, Value} from 'util/stores'
 import {format_uptime, format_diff, till_now_ms, from_ms} from 'util/time'
 
+css:
+  .tiny
+    font-size: xx-small
+    color: gray
+  .tinyline
+    font-size: xx-small
+    color: gray
+    white-space: nowrap
+    overflow: hidden
+    text-overflow: ellipsis
+    max-width: 128px
+  .id
+    white-space: nowrap
+    overflow: hidden
+    text-overflow: ellipsis
+    max-width: 64px
+
+html millis_time(tm):
+  if tm:
+    span
+      let delta = till_now_ms(from_ms(tm))
+      if delta < 10000:
+        "{delta} ms"
+      else:
+        =format_diff(delta)
+  else:
+    "never"
+
 html render(peers, ctr):
   .container
     store toggle = new Toggle()
@@ -53,7 +81,6 @@ html render(peers, ctr):
                   th "ID"
                   th "IP"
                   th "Name"
-                  th "Hostname"
                   th "Last Probe"
                   th "Last Report"
                   th "Roundtrip"
@@ -62,12 +89,18 @@ html render(peers, ctr):
               tbody
                 for p of peers key p.id:
                   tr
-                    td "{p.id}"
+                    td
+                      .id
+                        "{p.id}"
+                      .tiny
+                        "{p.id}"
                     td.text-muted?(p.name == null)
                       if p.primary_addr:
                         "{p.primary_addr}"
                       else:
-                        "?/{p.addresses.length}"
+                        "to-be-determined"
+                      .tinyline
+                        "total: {p.addresses.length}"
                     td.text-muted?(p.name == null)
                       if p.name:
                         "{p.name}"
@@ -78,34 +111,24 @@ html render(peers, ctr):
                       let port = paddr.split(':')[1]
                       a.btn.btn-default.btn-xs[href="http://{p.name}:{port}"]
                         span.glyphicon.glyphicon-play
-                    td .text-muted?(p.hostname == null)
-                      if p.hostname:
-                        "{p.hostname}"
-                      else:
-                        "unknown"
+                      .tiny
+                        if p.hostname:
+                          "{p.hostname}"
+                        else:
+                          "unknown"
                     td.text-muted?(p.probe_time == null)
-                      if p.probe_time:
-                        span
-                          let delta = till_now_ms(from_ms(p.probe_time))
-                          if delta < 10000:
-                            "{delta} ms"
-                          else:
-                            =format_diff(delta)
-                      else:
-                        "never"
-                    td.text-muted?(p.report == null)
-                      if p.report:
-                        span
-                          let delta = till_now_ms(from_ms(p.report))
-                          if delta < 10000:
-                            "{delta} ms"
-                          else:
-                            =format_diff(delta)
-                      else:
-                        "never"
+                      =millis_time(p.probe_time)
+                      .tiny
+                        "{p.probes_sent}"
+                    td.text-muted?(p.last_report_direct == null)
+                      =millis_time(p.last_report_direct)
+                      .tiny
+                        "{p.pings_received}/{p.pongs_received}"
                     td.text-muted?(p.roundtrip == null)
                       if p.roundtrip != null:
                         "{p.roundtrip}ms"
+                        .tiny
+                          =millis_time(p.random_peer_roundtrip)
                       else:
                         "∅"
                     td.text-muted?(p.peers == null)

@@ -31,6 +31,9 @@ pub struct Peer {
     pub host: Option<String>,
     pub name: Option<String>,
     pub last_probe: Option<(u64, SocketAddr)>,
+    pub probes_sent: u64,
+    pub pings_received: u64,
+    pub pongs_received: u64,
     pub last_roundtrip: Option<(SocketAddr, u64, u64)>,
     pub random_peer_roundtrip: Option<(SocketAddr, u64, u64)>,
     pub report: Option<(u64, Report)>,
@@ -47,6 +50,9 @@ impl Peer {
             host: None,
             name: None,
             last_probe: None,
+            probes_sent: 0,
+            pings_received: 0,
+            pongs_received: 0,
             last_roundtrip: None,
             random_peer_roundtrip: None,
             report: None,
@@ -220,6 +226,9 @@ impl ToJson for Peer {
             ("probe_time", self.last_probe.map(|(x, _)| x).to_json()),
             ("probe_addr", self.last_probe
                 .map(|(_, y)| y.to_string()).to_json()),
+            ("probes_sent", self.probes_sent.to_json()),
+            ("pings_received", self.pings_received.to_json()),
+            ("pongs_received", self.pongs_received.to_json()),
             ("roundtrip", self.last_roundtrip.map(|(_, _, v)| v).to_json()),
             ("random_peer_roundtrip", self.random_peer_roundtrip
                 .map(|(addr, timestamp, rtt)| vec![
