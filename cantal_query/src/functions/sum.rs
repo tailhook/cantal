@@ -86,9 +86,10 @@ fn sum_series(src: &Vec<(Key, Chunk, Vec<TimeStamp>)>)
     use history::Chunk as C;
     assert!(src.len() > 1);
     let ts = src[0].2.clone();
-    for &(_, _, ref nts) in &src[1..] {
+    for &(ref nkey, _, ref nts) in &src[1..] {
         if &ts != nts {
-            error!("Incompatible timestamps: {:?} /// {:?}", ts, nts);
+            error!("Incompatible timestamps: {:?} {:?} /// {:?} {:?}",
+                src[0].0, ts, nkey, nts);
             return Err(Conflict::CantSumTimestamps);
         }
     }
