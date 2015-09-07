@@ -16,27 +16,6 @@ commands:
     work-dir: frontend
     run: [webpack, --watch]
 
-  build: !Command
-    description: Build cantal binaries with cargo
-    container: ubuntu
-    environ:
-      HOME: /work/target
-    run: [cargo, build]
-
-  test: !Command
-    description: Build and run tests
-    container: ubuntu
-    environ:
-      RUST_BACKTRACE: 1
-    run: [cargo, test]
-
-  py3: !Command
-    description: Run python3 example
-    container: ubuntu
-    run: python3 py3/example.py
-    environ:
-      CANTAL_PATH: /work/run/py3
-
   docs: !Command
     description: Build HTML docs
     container: docs
@@ -61,10 +40,49 @@ commands:
         --pakdir=dist \
         make install
 
-  mpack: !Command
-    description: Run interactive python with msgpack (to debug file format)
-    container: msgpack
-    run: python
+  ten: !Supervise
+    description: Runs ten cantals so you can test "remote" subsystem
+    children:
+      n0: !Command
+        container: ubuntu
+        environ: {RUST_LOG: debug}
+        run: ./cantal-agent --host 0.0.0.0 --port 20000
+      n1: !Command
+        container: ubuntu
+        environ: {RUST_LOG: debug}
+        run: ./cantal-agent --host 0.0.0.0 --port 20001
+      n2: !Command
+        container: ubuntu
+        environ: {RUST_LOG: debug}
+        run: ./cantal-agent --host 0.0.0.0 --port 20002
+      n3: !Command
+        container: ubuntu
+        environ: {RUST_LOG: debug}
+        run: ./cantal-agent --host 0.0.0.0 --port 20003
+      n4: !Command
+        container: ubuntu
+        environ: {RUST_LOG: debug}
+        run: ./cantal-agent --host 0.0.0.0 --port 20004
+      n5: !Command
+        container: ubuntu
+        environ: {RUST_LOG: debug}
+        run: ./cantal-agent --host 0.0.0.0 --port 20005
+      n6: !Command
+        container: ubuntu
+        environ: {RUST_LOG: debug}
+        run: ./cantal-agent --host 0.0.0.0 --port 20006
+      n7: !Command
+        container: ubuntu
+        environ: {RUST_LOG: debug}
+        run: ./cantal-agent --host 0.0.0.0 --port 20007
+      n8: !Command
+        container: ubuntu
+        environ: {RUST_LOG: debug}
+        run: ./cantal-agent --host 0.0.0.0 --port 20008
+      n9: !Command
+        container: ubuntu
+        environ: {RUST_LOG: debug}
+        run: ./cantal-agent --host 0.0.0.0 --port 20009
 
 containers:
 
