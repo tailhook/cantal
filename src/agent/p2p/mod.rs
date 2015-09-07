@@ -17,6 +17,7 @@ use super::error::Error;
 use self::peer::{Peer};
 use super::deps::{Dependencies, LockedDeps};
 use {HostId};
+use self::gossip::MAX_PACKET_SIZE;
 
 mod peer;
 mod gossip;
@@ -123,7 +124,7 @@ impl Handler for Context {
             GOSSIP => {
                 let mut stats = self.deps.write::<GossipStats>();
                 loop {
-                    let mut buf = ByteBuf::mut_with_capacity(8192);
+                    let mut buf = ByteBuf::mut_with_capacity(MAX_PACKET_SIZE);
                     if let Ok(Some(addr)) = self.sock.recv_from(&mut buf) {
                         let mut dec = Decoder::from_reader(buf.flip());
                         match dec.decode::<gossip::Packet>().next() {
@@ -132,10 +133,12 @@ impl Handler for Context {
                                 self.consume_gossip(packet, addr, &mut *stats);
                             }
                             None => {
-                                debug!("Empty packet from {:?}", addr);
+                                warn!("Empty or truncated packet from {:?}",
+                                      addr);
                             }
                             Some(Err(e)) => {
-                                debug!("Errorneous packet from {:?}: {}", addr, e);
+                                warn!("Errorneous packet from {:?}: {}",
+                                    addr, e);
                             }
                         }
                     } else {

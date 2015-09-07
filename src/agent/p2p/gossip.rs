@@ -1,6 +1,7 @@
 use std::net::{SocketAddr, SocketAddrV4};
 use std::mem::replace;
 use std::collections::HashMap;
+use std::os::unix::io::AsRawFd;
 
 use mio::Sender;
 use rand::{thread_rng, Rng, sample};
@@ -32,7 +33,8 @@ pub const MIN_PROBE: u64 = 5000;
 pub const MAX_PROBE: u64 = 60000;
 
 /// Num of friend nodes to send within each request, everything must fit
-/// single UDP packet (65535), better single IP packet (< 1500)
+/// MAX_PACKET_SIZE which is capped at maximum UDP packet size (65535),
+/// better if it fits single IP packet (< 1500)
 pub const NUM_FRIENDS: usize = 10;
 
 /// After we had no reports from node for 20 seconds (but we sent probe during
@@ -59,6 +61,11 @@ pub const FAIL_TIME: u64 = 3600_000;
 /// Also note that node will be removed from all peers after
 /// FAIL_TIME + REMOVE_TIME + longest-round-trip-time
 pub const REMOVE_TIME: u64 = 2 * 86400_000;
+
+/// This is a size of our UDP buffers. The maximum value depends on NUM_FRIENDS
+/// and the number of IP addresses at each node. It's always capped at maximum
+/// UDP packet size of 65535
+pub const MAX_PACKET_SIZE: usize = 8192;
 
 
 
@@ -207,7 +214,7 @@ impl Context {
     pub fn send_gossip(&self, addr: SocketAddr, stats: &GossipStats)
     {
         debug!("Sending gossip {}", addr);
-        let mut buf = ByteBuf::mut_with_capacity(1024);
+        let mut buf = ByteBuf::mut_with_capacity(MAX_PACKET_SIZE);
         {
             let mut e = Encoder::from_writer(&mut buf);
             e.encode(&[&Packet::Ping {
@@ -225,6 +232,15 @@ impl Context {
                 now: time_ms(),
                 friends: get_friends(&stats.peers, addr),
             }]).unwrap();
+        }
+        if buf.bytes().len() == MAX_PACKET_SIZE {
+            // Unfortunately cbor encoder doesn't report error of truncated
+            // data so we consider full buffer the truncated data
+            error!("Error sending probe to {}: Data is too long. \
+                All limits are compile-time. So this error basically means \
+                cantal developers were unwise at choosing the right values. \
+                If you didn't tweak the limits yourself, please file an issue \
+                at http://github.com/tailhook/cantal/issues", addr);
         }
         if let Err(e) = self.sock.send_to(&mut buf.flip(), &addr) {
             error!("Error sending probe to {}: {}", addr, e);
@@ -261,7 +277,7 @@ impl Context {
                     }
                 }
                 self.apply_friends(&mut *stats, friends, addr);
-                let mut buf = ByteBuf::mut_with_capacity(1024);
+                let mut buf = ByteBuf::mut_with_capacity(MAX_PACKET_SIZE);
                 {
                     let mut e = Encoder::from_writer(&mut buf);
                     e.encode(&[&Packet::Pong {
@@ -280,6 +296,17 @@ impl Context {
                         peer_time: tm,
                         friends: get_friends(&stats.peers, addr),
                     }]).unwrap();
+                }
+
+                if buf.bytes().len() == MAX_PACKET_SIZE {
+                    // Unfortunately cbor encoder doesn't report error of truncated
+                    // data so we consider full buffer the truncated data
+                    error!("Error sending probe to {}: Data is too long. \
+                        All limits are compile-time. So this error basically \
+                        means  cantal developers were unwise at choosing the \
+                        right values. If you didn't tweak the limits \
+                        yourself, please file an issue at \
+                        http://github.com/tailhook/cantal/issues", addr);
                 }
                 self.sock.send_to(&mut buf.flip(), &addr)
                     .map_err(|e| error!("Error sending probe to {:?}: {}",
