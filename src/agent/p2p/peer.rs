@@ -125,7 +125,10 @@ impl Peer {
                 Some((sa, tm, _)) if tm < rtt.0 => {
                     self.random_peer_roundtrip = Some((source, rtt.0, rtt.1));
                 }
-                _ => {}
+                Some(_) => {}
+                None => {
+                    self.random_peer_roundtrip = Some((source, rtt.0, rtt.1));
+                }
             }
         }
     }

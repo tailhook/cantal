@@ -19,13 +19,14 @@ css:
     max-width: 64px
 
 html millis_time(tm):
-  if tm:
-    span
-      let delta = till_now_ms(from_ms(tm))
-      if delta < 10000:
-        "{delta} ms"
-      else:
-        =format_diff(delta)
+  =millis_delta(till_now_ms(from_ms(tm)))
+
+html millis_delta(delta):
+  if delta:
+    if delta < 10000:
+      "{delta} ms"
+    else:
+      =format_diff(delta)
   else:
     "never"
 
@@ -123,12 +124,15 @@ html render(peers, ctr):
                     td.text-muted?(p.last_report_direct == null)
                       =millis_time(p.last_report_direct)
                       .tiny
-                        "{p.pings_received}/{p.pongs_received}"
+                        "{p.pings_received} / {p.pongs_received}"
                     td.text-muted?(p.roundtrip == null)
                       if p.roundtrip != null:
                         "{p.roundtrip}ms"
-                        .tiny
-                          =millis_time(p.random_peer_roundtrip)
+                        .tiny[title="{p.random_peer_roundtrip[0]}"]
+                          =millis_delta(p.random_peer_roundtrip[2])
+                          " / "
+                          =format_diff(till_now_ms(from_ms(
+                            p.random_peer_roundtrip[1])))
                       else:
                         "∅"
                     td.text-muted?(p.peers == null)
