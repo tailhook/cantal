@@ -142,6 +142,8 @@ html render(peers, ctr):
                     td.text-muted?(p.peers == null)
                       if p.peers != null:
                         "{p.peers}"
+                        .tiny
+                            =millis_time(p.report)
                       else:
                         "∅"
                     td.text-muted?(p.num_remote == null)
