@@ -185,4 +185,4 @@ html render(current_page):
             =render_status(beacon)
     if beacon:
       .hostinfo
-        "{beacon.name} / hostname / {beacon.id}"
+        "{beacon.name} / {beacon.hostname} / {beacon.id}"
