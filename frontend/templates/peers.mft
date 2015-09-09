@@ -30,6 +30,72 @@ html millis_delta(delta):
   else:
     "never"
 
+html peer_row(p):
+  tr
+    td
+      .id
+        "{p.id}"
+      .tiny
+        "{p.id}"
+    td.text-muted?(p.name == null)
+      if p.primary_addr:
+        "{p.primary_addr}"
+      else:
+        "to-be-determined"
+      .tinyline
+        "total: {p.addresses.length}"
+    td.text-muted?(p.name == null)
+      if p.name:
+        "{p.name}"
+      else:
+        "unknown"
+      " "
+      let paddr = p.primary_addr or p.addresses[0] or ':22682'
+      let port = paddr.split(':')[1]
+      a.btn.btn-default.btn-xs[href="http://{p.name}:{port}"]
+        span.glyphicon.glyphicon-play
+      .tiny
+        if p.hostname:
+          "{p.hostname}"
+        else:
+          "unknown"
+    td.text-muted?(p.probe_time == null)
+      =millis_time(p.probe_time)
+      .tiny
+        "{p.probes_sent}"
+    td.text-muted?(p.last_report_direct == null)
+      if p.last_report_direct:
+        =millis_time(p.last_report_direct)
+        .tiny
+          "{p.pings_received} / {p.pongs_received}"
+      else:
+        "∅"
+    td.text-muted?(p.roundtrip == null)
+      if p.roundtrip != null:
+        "{p.roundtrip}ms"
+        if p.random_peer_roundtrip:
+          .tiny[title="{p.random_peer_roundtrip[0]}"]
+            =millis_delta(p.random_peer_roundtrip[2])
+            " / "
+            =format_diff(till_now_ms(from_ms(
+              p.random_peer_roundtrip[1])))
+      else:
+        "∅"
+    td.text-muted?(p.peers == null)
+      if p.peers != null:
+        "{p.peers}"
+        .tiny
+            =millis_time(p.report)
+      else:
+        "∅"
+    td.text-muted?(p.num_remote == null)
+      if p.has_remote == null:
+        "∅"
+      elif p.has_remote:
+        span.glyphicon.glyphicon-ok
+      else:
+        span.glyphicon.glyphicon-remove
+
 html render(peers, ctr):
   .container
     store toggle = new Toggle()
@@ -89,70 +155,30 @@ html render(peers, ctr):
                   th "Remote?"
               tbody
                 for p of peers key p.id:
-                  tr
-                    td
-                      .id
-                        "{p.id}"
-                      .tiny
-                        "{p.id}"
-                    td.text-muted?(p.name == null)
-                      if p.primary_addr:
-                        "{p.primary_addr}"
-                      else:
-                        "to-be-determined"
-                      .tinyline
-                        "total: {p.addresses.length}"
-                    td.text-muted?(p.name == null)
-                      if p.name:
-                        "{p.name}"
-                      else:
-                        "unknown"
-                      " "
-                      let paddr = p.primary_addr or p.addresses[0] or ':22682'
-                      let port = paddr.split(':')[1]
-                      a.btn.btn-default.btn-xs[href="http://{p.name}:{port}"]
-                        span.glyphicon.glyphicon-play
-                      .tiny
-                        if p.hostname:
-                          "{p.hostname}"
-                        else:
-                          "unknown"
-                    td.text-muted?(p.probe_time == null)
-                      =millis_time(p.probe_time)
-                      .tiny
-                        "{p.probes_sent}"
-                    td.text-muted?(p.last_report_direct == null)
-                      if p.last_report_direct:
-                        =millis_time(p.last_report_direct)
-                        .tiny
-                          "{p.pings_received} / {p.pongs_received}"
-                      else:
-                        "∅"
-                    td.text-muted?(p.roundtrip == null)
-                      if p.roundtrip != null:
-                        "{p.roundtrip}ms"
-                        if p.random_peer_roundtrip:
-                          .tiny[title="{p.random_peer_roundtrip[0]}"]
-                            =millis_delta(p.random_peer_roundtrip[2])
-                            " / "
-                            =format_diff(till_now_ms(from_ms(
-                              p.random_peer_roundtrip[1])))
-                      else:
-                        "∅"
-                    td.text-muted?(p.peers == null)
-                      if p.peers != null:
-                        "{p.peers}"
-                        .tiny
-                            =millis_time(p.report)
-                      else:
-                        "∅"
-                    td.text-muted?(p.num_remote == null)
-                      if p.has_remote == null:
-                        "∅"
-                      elif p.has_remote:
-                        span.glyphicon.glyphicon-ok
-                      else:
-                        span.glyphicon.glyphicon-remove
+                  if (p.report and
+                    till_now_ms(from_ms(p.report)) <= 5*60*1000):
+                    =peer_row(p)
+                  else:
+                    tr
+            h3 "Old/Inactive/Failing Peers"
+            table.table.table-bordered.table-hover
+              thead
+                tr
+                  th "ID"
+                  th "IP"
+                  th "Name"
+                  th "Last Probe"
+                  th "Last Report"
+                  th "Roundtrip"
+                  th "Peers"
+                  th "Remote?"
+              tbody
+                for p of peers key p.id:
+                  if (not p.report or
+                      till_now_ms(from_ms(p.report)) >= 5*60*1000):
+                    =peer_row(p)
+                  else:
+                    tr
           else:
             .panel.panel-warning
               .panel-heading
