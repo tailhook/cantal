@@ -262,6 +262,9 @@ pub fn reset_peer(tok: Token, ctx: &mut Context) {
         let wsock = replace(&mut peer.connection, None)
             .expect("No socket to reset");
         ctx.eloop.remove(&wsock.sock);
+        if !wsock.handshake {
+            data.connected -= 1;
+        }
         let range = Range::new(RECONNECT_INTERVAL/2, RECONNECT_INTERVAL*3/2);
         let mut rng = thread_rng();
         peer.last_attempt = Some((time_ms(), "connection timeout"));
@@ -325,12 +328,12 @@ pub fn try_io(tok: Token, ev: EventSet, ctx: &mut Context) -> bool
             } else {
                 to_close = true;
             }
-            if old &&  !to_close && !wsock.handshake {
+            if old && !to_close && !wsock.handshake {
                 debug!("Connected websocket to {} at {:?}",
                     peer.id.to_hex(), peer.current_addr);
                 data.connected += 1;
-                assert!(ctx.eloop.clear_timeout(peer.timeout));
                 peer.last_attempt = None;
+                assert!(ctx.eloop.clear_timeout(peer.timeout));
                 peer.timeout = ctx.eloop.timeout_ms(ResetPeer(tok),
                     MESSAGE_TIMEOUT).unwrap();
                 if data.subscriptions.len() > 0 {
