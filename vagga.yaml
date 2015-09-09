@@ -40,6 +40,12 @@ commands:
         --pakdir=dist \
         make install
 
+  run: !Command
+    description: Runs cantal (is not very useful run in container)
+    container: ubuntu
+    environ: {RUST_LOG: debug}
+    run: ./cantal-agent --host 0.0.0.0
+
   ten: !Supervise
     description: Runs ten cantals so you can test "remote" subsystem
     children:
