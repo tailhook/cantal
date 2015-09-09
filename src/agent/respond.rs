@@ -7,6 +7,7 @@ use rustc_serialize::hex::ToHex;
 
 use query::{Rule, query_history, Dataset};
 use probor;
+use history::TimeStamp;
 use super::http;
 use super::scan;
 use super::storage::{StorageStats};
@@ -134,6 +135,7 @@ pub fn serve_remote_stats(_req: &Request, context: &mut Context)
         connected: bool,
         last_beacon_time: Option<u64>,
         last_beacon: Option<Beacon>,
+        last_attempt: Option<(TimeStamp, &'static str)>,
     }
     let response = if let Some(ref peers) = *context.deps.read::<Option<Peers>>() {
         let mut result = Vec::new();
@@ -144,6 +146,7 @@ pub fn serve_remote_stats(_req: &Request, context: &mut Context)
                 connected: p.connected(),
                 last_beacon_time: p.last_beacon.as_ref().map(|x| x.0),
                 last_beacon: p.last_beacon.as_ref().map(|x| x.1.clone()),
+                last_attempt: p.last_attempt,
             })
         }
         Response {

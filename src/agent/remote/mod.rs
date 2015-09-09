@@ -12,6 +12,7 @@ use rand::thread_rng;
 use rand::distributions::{IndependentSample, Range};
 use rustc_serialize::hex::{ToHex, FromHex};
 
+use history::TimeStamp;
 use query::{Filter, Extract};
 use super::server::Context;
 use super::scan::time_ms;
@@ -45,6 +46,9 @@ const HANDSHAKE_TIMEOUT: u64 = 30000;
 /// reason you don't want to overload it even more by reconnections. So keep
 /// it high enough.
 const MESSAGE_TIMEOUT: u64 = 15000;
+/// When connection is dropped, we reconnect randomly between 0.5 and 1.5 of
+/// this interval
+const RECONNECT_INTERVAL: u64 = 1500;
 /// An interval to clean old subscriptions, old statistics and old hosts
 const GARBAGE_COLLECTOR_INTERVAL: u64 = 60_000;
 /// The time after which subscription is removed if nobody requested data for
@@ -79,6 +83,7 @@ pub struct Peer {
     timeout: Timeout,
     history: History,
     pub last_beacon: Option<(u64, Beacon)>,
+    pub last_attempt: Option<(TimeStamp, &'static str)>,
 }
 
 impl Peer {
@@ -116,6 +121,7 @@ pub fn ensure_started(ctx: &mut Context) {
             id: id.clone(),
             current_addr: None,
             last_beacon: None,
+            last_attempt: None,
             connection: None,
             history: History::new(),
             timeout: ctx.eloop.timeout_ms(ReconnectPeer(tok),
@@ -153,6 +159,7 @@ pub fn touch(id: HostId, ctx: &mut Context) {
         id: id.clone(),
         current_addr: None,
         last_beacon: None,
+        last_attempt: None,
         connection: None,
         timeout: eloop.timeout_ms(ReconnectPeer(tok),
             range.ind_sample(&mut rng)).unwrap(),
@@ -165,16 +172,21 @@ pub fn touch(id: HostId, ctx: &mut Context) {
 }
 
 pub fn reconnect_peer(tok: Token, ctx: &mut Context) {
+    let tm = time_ms();
     // Get ID then addr and avoid deadlock
-    let id = ctx.deps.write::<Option<Peers>>().as_ref().unwrap()
-        .peers.get(tok).unwrap().id.clone();
+    let id = {
+        let mut peers = ctx.deps.write::<Option<Peers>>();
+        let peer = peers.as_mut().unwrap().peers.get_mut(tok).unwrap();
+        peer.last_attempt = Some((tm, "seeking primary addr"));
+        peer.id.clone()
+    };
 
     let addr = {
         if let Some(peer) = ctx.deps.read::<GossipStats>().peers.get(&id) {
             match peer.primary_addr {
                 Some(addr) => {
-                    debug!("The addr {:?} has primary ip {}",
-                        id.to_hex(), addr);
+                    debug!("The addr {} {:?} has primary ip {}",
+                        id.to_hex(), tok, addr);
                     Some(addr)
                 }
                 None => {
@@ -210,28 +222,33 @@ pub fn reconnect_peer(tok: Token, ctx: &mut Context) {
         let range = Range::new(1000, 2000);
         let mut rng = thread_rng();
         if let Some(other_tok) = data.addresses.get(&addr) {
-            trace!("Address {} is occupied by tok {:?}", addr, other_tok);
+            debug!("Address {} is occupied by tok {:?}", addr, other_tok);
+            assert!(tok != *other_tok);
+            peer.last_attempt = Some((tm, "addr used by other host"));
             peer.timeout = ctx.eloop.timeout_ms(ReconnectPeer(tok),
                 range.ind_sample(&mut rng)).unwrap();
             return;
         }
         if let Ok(conn) = WebSocket::connect(addr) {
-            peer.current_addr = Some(addr);
-            data.addresses.insert(addr, tok);
             match conn.register(tok, ctx.eloop) {
                 Ok(_) => {
                     peer.connection = Some(conn);
+                    peer.current_addr = Some(addr);
+                    data.addresses.insert(addr, tok);
+                    peer.last_attempt = Some((tm, "connecting"));
                     peer.timeout = ctx.eloop.timeout_ms(ResetPeer(tok),
                         HANDSHAKE_TIMEOUT).unwrap();
                 }
                 _ => {
                     peer.connection = None;
+                    peer.last_attempt = Some((tm, "could not register"));
                     peer.timeout = ctx.eloop.timeout_ms(ReconnectPeer(tok),
                         range.ind_sample(&mut rng)).unwrap();
                 }
             }
         } else {
             peer.connection = None;
+            peer.last_attempt = Some((tm, "connect call failed"));
             peer.timeout = ctx.eloop.timeout_ms(ReconnectPeer(tok),
                 range.ind_sample(&mut rng)).unwrap();
         }
@@ -245,10 +262,17 @@ pub fn reset_peer(tok: Token, ctx: &mut Context) {
         let wsock = replace(&mut peer.connection, None)
             .expect("No socket to reset");
         ctx.eloop.remove(&wsock.sock);
-        let range = Range::new(1000, 2000);
+        let range = Range::new(RECONNECT_INTERVAL/2, RECONNECT_INTERVAL*3/2);
         let mut rng = thread_rng();
+        peer.last_attempt = Some((time_ms(), "connection timeout"));
         peer.timeout = ctx.eloop.timeout_ms(ReconnectPeer(tok),
             range.ind_sample(&mut rng)).unwrap();
+        if let Some(addr) = peer.current_addr.take() {
+            let old_tok = data.addresses.remove(&addr);
+            assert!(old_tok == Some(tok));
+        } else {
+            panic!("No current addr for id {} {:?}", peer.id.to_hex(), tok);
+        }
     }
 }
 
@@ -306,6 +330,7 @@ pub fn try_io(tok: Token, ev: EventSet, ctx: &mut Context) -> bool
                     peer.id.to_hex(), peer.current_addr);
                 data.connected += 1;
                 assert!(ctx.eloop.clear_timeout(peer.timeout));
+                peer.last_attempt = None;
                 peer.timeout = ctx.eloop.timeout_ms(ResetPeer(tok),
                     MESSAGE_TIMEOUT).unwrap();
                 if data.subscriptions.len() > 0 {
@@ -327,14 +352,19 @@ pub fn try_io(tok: Token, ev: EventSet, ctx: &mut Context) -> bool
         if to_close {
             let range = Range::new(5, 150);
             let mut rng = thread_rng();
+
             peer.connection = None;
+            peer.last_attempt = Some((time_ms(), "connection reset"));
             assert!(ctx.eloop.clear_timeout(peer.timeout));
             peer.timeout = ctx.eloop.timeout_ms(ReconnectPeer(tok),
                     range.ind_sample(&mut rng)).unwrap();
             if let Some(addr) = peer.current_addr.take() {
                 let old_tok = data.addresses.remove(&addr);
                 assert!(old_tok == Some(tok));
-            };
+            } else {
+                panic!("No current addr for id {} {:?}",
+                    peer.id.to_hex(), tok);
+            }
         }
         return true;
     } else {

@@ -15,6 +15,10 @@ css:
     margin-right: 8px
   .relative
     position: relative
+  .tiny
+    display: inline
+    font-size: xx-small
+    color: gray
 
 html render(peers, peer_map):
   table.table.table-bordered.table-hover
@@ -45,7 +49,16 @@ html render(peers, peer_map):
           else:
             td.text-muted
               "∅"
-          td "{p.connected}"
+          td[title=p.last_attempt and p.last_attempt[1]]
+            if p.connected:
+              "{p.connected}"
+            else:
+              "no,"
+              .tiny
+                if p.last_attempt:
+                  =format_diff(till_now_ms(from_ms(p.last_attempt[0])))
+                else:
+                  "???"
           td.text-muted?(p.last_beacon_time == null)
             if p.last_beacon_time:
               span
