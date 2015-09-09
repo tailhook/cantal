@@ -390,7 +390,8 @@ pub fn garbage_collector(ctx: &mut Context) {
     for peer in peers.peers.iter_mut() {
         // TODO(tailhook) Is it ok to truncate by time? Do we want some
         // stale data to be around on ocassion?
-        peer.history.truncate_by_time((DATA_POINTS as u64)*2000+2000);
+        peer.history.truncate_by_time(
+            time_ms() - (DATA_POINTS as u64)*2000+2000);
     }
 
     peers.gc_timer = ctx.eloop.timeout_ms(RemoteCollectGarbage,
