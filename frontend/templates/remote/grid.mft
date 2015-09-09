@@ -7,8 +7,6 @@ import {get_port} from 'pages/remote'
 
 css:
   .peer
-    float: left
-    display: inline-block
     width: 165px
     min-height: 160px
     text-align: center
@@ -16,6 +14,9 @@ css:
     border-radius: 8px
     margin: 2px
     position: relative
+    order: 1
+  .peer.unknown
+    order: 2
   .latency
     float: right
   .question
@@ -32,6 +33,10 @@ css:
     min-width: 24px
   .donut-container, .sparkline-container
     margin: 4px
+  .peer-container
+    display: flex
+    flex-direction: row
+    flex-wrap: wrap
 
 html render_peer(stats, name, port, cpu_yaxis):
   if stats and stats.get('cpu_idle').chunks.length:
@@ -55,7 +60,7 @@ html render_peer(stats, name, port, cpu_yaxis):
           a.addr-btn.btn.btn-default.btn-xs[href="http://{name}:{port}"]
             span.glyphicon.glyphicon-play
   else:
-    .peer
+    .peer.unknown
       .question "?"
       .addr-row
         .addr
@@ -103,10 +108,8 @@ html render(peer_map):
       ]
     }
     .latency "{grid_query.latency}ms"
-    div
+    div.peer-container
       for peer of Object.keys(peer_map).concat('myself'):
-        div
-          let name = peer_map[peer] or peer.split(':')[0]
-          let port = get_port(peer)
-          =render_peer(grid_query.response and grid_query.response.get(peer),
-                      name, port, cpu_yaxis)
+        =render_peer(grid_query.response and grid_query.response.get(peer),
+                    peer_map[peer] or peer.split(':')[0],
+                    get_port(peer), cpu_yaxis)
