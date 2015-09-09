@@ -122,9 +122,12 @@ html render(peers, ctr):
                       .tiny
                         "{p.probes_sent}"
                     td.text-muted?(p.last_report_direct == null)
-                      =millis_time(p.last_report_direct)
-                      .tiny
-                        "{p.pings_received} / {p.pongs_received}"
+                      if p.last_report_direct:
+                        =millis_time(p.last_report_direct)
+                        .tiny
+                          "{p.pings_received} / {p.pongs_received}"
+                      else:
+                        "∅"
                     td.text-muted?(p.roundtrip == null)
                       if p.roundtrip != null:
                         "{p.roundtrip}ms"
