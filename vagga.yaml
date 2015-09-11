@@ -40,6 +40,24 @@ commands:
         --pakdir=dist \
         make install
 
+  build-precise-package: !Command
+    description: Build ubuntu (precise) package
+    container: ubuntu-precise
+    write-mode: transient-hard-link-copy
+    environ:
+      PATH: /bin:/usr/bin:/usr/local/bin:/usr/local/sbin:/usr/sbin:/sbin
+    run: |
+      make
+      [ -d dist ] || mkdir dist
+      checkinstall --default \
+        --maintainer=paul@colomiets.name \
+        --pkglicense=MIT --pkgname=cantal \
+        --pkgversion="$(cat version.txt)" \
+        --requires="libssl1.0.0" \
+        --nodoc --strip=no \
+        --pakdir=dist \
+        make install
+
   run: !Command
     description: Runs cantal (is not very useful run in container)
     container: ubuntu
@@ -126,6 +144,21 @@ containers:
       HOME: /work/target
       PATH: /bin:/usr/bin:/usr/local/bin
       NODE_PATH: /usr/local/lib/node_modules
+
+  ubuntu-precise:
+    setup:
+    # Only stuff needed for building a package
+    - !Ubuntu precise
+    - !UbuntuUniverse ~
+    - !Install [make, checkinstall, wget, ca-certificates, libssl-dev]
+
+    - !TarInstall
+      url: "http://static.rust-lang.org/dist/rust-1.2.0-x86_64-unknown-linux-gnu.tar.gz"
+      script: "./install.sh --prefix=/usr --components=rustc,cargo"
+
+    environ:
+      HOME: /work/target
+      PATH: /bin:/usr/bin:/usr/local/bin
 
   docs:
     setup:
