@@ -1,9 +1,12 @@
 use std::str::from_utf8;
-use std::collections::{HashMap};
+use std::collections::{HashMap, BTreeMap};
 
 use time::{SteadyTime};
+use mio::Token;
 use probor;
 use rustc_serialize::json;
+use rustc_serialize::json::{Json, ToJson};
+use rustc_serialize::hex::ToHex;
 
 use query::{Rule, query_history};
 use super::super::stats::Stats;
@@ -12,7 +15,7 @@ use super::super::http::{Request, BadRequest};
 use super::super::http;
 use super::aggregate;
 use super::{Peers, ensure_started};
-use super::{DATA_POINTS};
+use super::{DATA_POINTS, SLAB_START, MAX_OUTPUT_CONNECTIONS};
 use super::super::server::{MAX_OUTPUT_BUFFER};
 use super::super::websock::InputMessage as OutputMessage;
 use super::super::websock::{write_binary};
@@ -86,4 +89,32 @@ pub fn serve_query_by_host(req: &Request, context: &mut Context)
 
         Ok(http::Response::probor(&resp))
     })
+}
+
+pub fn serve_mem_info(_req: &Request, context: &mut Context)
+    -> Result<http::Response, Box<http::Error>>
+{
+    let mut info: BTreeMap<_, _> = {
+        let peerguard = context.deps.read::<Option<Peers>>();
+        let peers = peerguard.as_ref().unwrap();
+        let mut peer_info = BTreeMap::new();
+        for i in SLAB_START..SLAB_START+MAX_OUTPUT_CONNECTIONS {
+            if let Some(ref peer) = peers.peers.get(Token(i)) {
+                peer_info.insert(peer.id.to_hex(), peer.history.info());
+            }
+        }
+        vec![
+            ("tokens".to_string(), peers.tokens.len().to_json()),
+            ("addresses".to_string(), peers.addresses.len().to_json()),
+            ("subscriptions".to_string(), peers.subscriptions.len().to_json()),
+            ("peers_no".to_string(), peers.peers.count().to_json()),
+            ("peers".to_string(), Json::Object(peer_info)),
+        ].into_iter().collect()
+    };
+
+    {
+        let stats = context.deps.read::<Stats>();
+        info.insert("my_history".to_string(), stats.history.info());
+    }
+    Ok(http::Response::json(&Json::Object(info)))
 }

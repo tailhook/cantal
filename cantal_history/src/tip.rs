@@ -1,8 +1,9 @@
-use std::mem::replace;
+use std::mem::{replace, size_of_val};
 use std::collections::HashMap;
 
 use Key;
 use values::Value as TipValue;
+use serialize::json::{Json, ToJson};
 
 
 #[derive(Debug)]
@@ -24,6 +25,19 @@ impl Tip {
             latest_timestamp: (0, 0),
             values: HashMap::new(),
         }
+    }
+    pub fn info(&self) -> Json {
+        let mut key_bytes = 0;
+        let mut value_bytes = 0;
+        for (k, v) in self.values.iter() {
+            key_bytes += k.size();
+            value_bytes += size_of_val(v) + v.1.additional_bytes();
+        }
+        return Json::Object(vec![
+            ("values".to_string(), self.values.len().to_json()),
+            ("key_bytes".to_string(), key_bytes.to_json()),
+            ("value_bytes".to_string(), value_bytes.to_json()),
+            ].into_iter().collect());
     }
     pub fn push<'x, I>(&mut self, timestamp: (u64, u32), iter: I)
         where I: Iterator<Item=(&'x Key, &'x TipValue)>

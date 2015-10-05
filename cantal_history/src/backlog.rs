@@ -1,7 +1,9 @@
-use std::mem::replace;
+use std::mem::{replace, size_of, size_of_val};
 use std::collections::{HashMap, VecDeque};
 use std::collections::vec_deque::Iter as VecDequeIter;
+
 use num::{Float};
+use serialize::json::{Json, ToJson};
 
 use values::Value as TipValue;
 use super::deltabuf::{DeltaBuf, DeltaIter, Delta, Int};
@@ -66,6 +68,14 @@ pub struct FloatHistory<'a, T:Float+Copy+'static> {
 }
 
 impl Value {
+    /// Size of key in bytes, for debugging
+    pub fn size(&self) -> usize {
+        match self {
+            &Value::Counter(ref i) => size_of_val(self) + i.buf.size(),
+            &Value::Integer(ref i) => size_of_val(self) + i.buf.size(),
+            &Value::Float(ref i) => size_of_val(self) + i.buf.size(),
+        }
+    }
     pub fn new(value: &TipValue, age: u64) -> Value {
         use self::Value as V;
         use values::Value as T;
@@ -139,6 +149,7 @@ impl Value {
 pub trait ValueBuf<T> {
     fn push(&mut self, old: T, new: T, age_diff: u64);
     fn truncate(&mut self, limit: usize);
+    fn size(&self) -> usize;
 }
 
 impl<T: Copy, U:ValueBuf<T>> Inner<T, U> {
@@ -235,6 +246,9 @@ impl<T:Int> ValueBuf<T> for DeltaBuf<T> {
     fn truncate(&mut self, limit: usize) {
         DeltaBuf::truncate(self, limit.saturating_sub(1));
     }
+    fn size(&self) -> usize {
+        self.byte_size()
+    }
 }
 
 impl <T:Int> Inner<T, DeltaBuf<T>> {
@@ -262,7 +276,7 @@ impl<T: Float> Inner<T, VecDeque<T>> {
     }
 }
 
-impl<T:Float> ValueBuf<T> for VecDeque<T> {
+impl<T:Float+Sized> ValueBuf<T> for VecDeque<T> {
     fn push(&mut self, _old: T, new: T, age_diff: u64) {
         if age_diff > 1 {
             for _ in 1..age_diff {
@@ -277,6 +291,9 @@ impl<T:Float> ValueBuf<T> for VecDeque<T> {
             self.pop_back();
         }
     }
+    fn size(&self) -> usize {
+        self.len()*size_of::<T>()
+    }
 }
 
 impl Backlog {
@@ -286,6 +303,21 @@ impl Backlog {
             timestamps: VecDeque::new(),
             values: HashMap::new(),
         }
+    }
+    pub fn info(&self) -> Json {
+        let mut key_bytes = 0;
+        let mut value_bytes = 0;
+        for (k, v) in self.values.iter() {
+            key_bytes += k.size();
+            value_bytes += v.size();
+        }
+        return Json::Object(vec![
+            ("age".to_string(), self.age.to_json()),
+            ("timestamps".to_string(), self.timestamps.len().to_json()),
+            ("values".to_string(), self.values.len().to_json()),
+            ("key_bytes".to_string(), key_bytes.to_json()),
+            ("value_bytes".to_string(), value_bytes.to_json()),
+            ].into_iter().collect());
     }
     pub fn push<'x, I>(&mut self, timestamp: (u64, u32), iter: I)
         where I: Iterator<Item=(&'x Key, &'x TipValue)>

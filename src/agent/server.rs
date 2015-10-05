@@ -213,6 +213,8 @@ fn resolve(req: &Request, context: &mut Context)
         => respond::serve_query(req, context),
         (&Post, &P(ref x)) if &x[..] == "/remote/query_by_host.cbor"
         => remote::respond::serve_query_by_host(req, context),
+        (&Get, &P(ref x)) if &x[..] == "/remote/mem_info.json"
+        => remote::respond::serve_mem_info(req, context),
         (&Post, &P(ref x)) if &x[..] == "/add_host.json"
         => do_add_host(req, context),
         // TODO(tailhook) this should be post

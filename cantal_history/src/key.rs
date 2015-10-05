@@ -1,3 +1,4 @@
+use std::mem::size_of_val;
 use std::io::Cursor;
 use std::collections::BTreeMap;
 use std::marker::PhantomData;
@@ -43,6 +44,10 @@ impl<'a, A, B> ExactSizeIterator for Merge<'a, A, B>
 
 
 impl Key {
+    /// Size of key in bytes, for debugging
+    pub fn size(&self) -> usize {
+        size_of_val(self) + self.0.as_ref().map(|x| x.len()).unwrap_or(0)
+    }
     /// Note: caller must ensure that order is Okay
     fn from_iter<'x, I>(pairs: I) -> Key
         where I :Iterator<Item=(&'x str, &'x str)>+ExactSizeIterator

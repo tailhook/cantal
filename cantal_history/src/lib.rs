@@ -23,6 +23,7 @@ pub use merge::{ChunkSet, ValueSet};
 pub use chunk::HistoryChunk as Chunk;
 pub use serde::VersionInfo;
 pub use tstamp::compare_timestamps;
+use serialize::json::Json;
 
 pub type TimeStamp = u64;  // Milliseconds
 pub type TimeDelta = u32;  // Milliseconds
@@ -57,6 +58,12 @@ impl History {
     pub fn truncate_by_time(&mut self, tstamp: u64) {
         self.fine.truncate_by_time(tstamp);
         self.tip.truncate_by_time(tstamp);
+    }
+    pub fn info(&self) -> Json {
+        return Json::Object(vec![
+            ("tip".to_string(), self.tip.info()),
+            ("fine".to_string(), self.fine.info()),
+            ].into_iter().collect());
     }
 }
 

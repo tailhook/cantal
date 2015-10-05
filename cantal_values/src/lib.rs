@@ -83,6 +83,17 @@ pub struct Metadata {
     stat: util::Stat,
 }
 
+impl Value {
+    /// Additional bytes on top of size_of_val(self)
+    pub fn additional_bytes(&self) -> usize {
+        use self::Value::*;
+        match self {
+            &Counter(_) | &Integer(_) | &Float(_) => 0,
+            &State((_, ref v)) => v.as_bytes().len(),
+        }
+    }
+}
+
 impl Metadata {
     pub fn read(path: &Path) -> Result<Metadata, MetadataError> {
         // TODO(tailhook) implement LineNumberReader

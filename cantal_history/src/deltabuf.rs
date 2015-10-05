@@ -237,6 +237,9 @@ impl<T:Int> DeltaBuf<T> {
     pub fn bytes<'x>(&'x self) -> DequeIter<'x, u8> {
         self.0.iter()
     }
+    pub fn byte_size(&self) -> usize {
+        self.0.len()
+    }
 }
 
 impl<T:Int> From<Vec<u8>> for DeltaBuf<T> {
