@@ -4,6 +4,7 @@ import donut from 'templates/donut.mft'
 import sparkline from 'templates/charts/sparkline.mft'
 import {number_formatter, already_percent_formatter} from 'util/format'
 import {get_port} from 'pages/remote'
+import {add_key} from 'util/template'
 
 css:
   .peer
@@ -112,7 +113,7 @@ html render(peer_map):
     .latency "{grid_query.latency}ms"
     div.peer-container
       for peer of Object.keys(peer_map).concat('myself'):
-        div
-          =render_peer(grid_query.response and grid_query.response.get(peer),
-                      peer_map[peer] or peer.split(':')[0],
-                      get_port(peer), cpu_yaxis)
+        =add_key(peer, render_peer(
+            grid_query.response and grid_query.response.get(peer),
+            peer_map[peer] or peer.split(':')[0],
+            get_port(peer), cpu_yaxis))
