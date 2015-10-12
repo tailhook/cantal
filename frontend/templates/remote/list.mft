@@ -21,68 +21,67 @@ css:
     color: gray
 
 html peer_row(p, name):
-  tr
-    td "{p.id}"
-    td.text-muted?(p.current_addr)
-      if p.current_addr:
-        "{p.current_addr}"
-      else:
-        "∅"
-    if name:
-      td
-        let port = get_port(p)
-        "{name} "
-        a.btn.btn-default.btn-xs[href="http://{name}:{port}"]
-          span.glyphicon.glyphicon-play
+  td "{p.id}"
+  td.text-muted?(p.current_addr)
+    if p.current_addr:
+      "{p.current_addr}"
     else:
-      td.text-muted
-        "∅"
-    td[title=p.last_attempt and p.last_attempt[1]]
-      if p.connected:
-        "{p.connected}"
-      else:
-        "no,"
-        .tiny
-          if p.last_attempt:
-            =format_diff(till_now_ms(from_ms(p.last_attempt[0])))
-          else:
-            "???"
-    td.text-muted?(p.last_beacon_time == null)
-      if p.last_beacon_time:
-        span
-          let val = p.last_beacon_time
-          if val < 10000:
-            "{val} ms"
-          else:
-            =format_diff(till_now_ms(
-                           from_ms(p.last_beacon_time)))
-      else:
-        "never"
-    td.text-muted?(p.last_beacon == null).relative
-      store toggle = new Toggle()
-      if p.last_beacon:
-        if toggle.visible:
-          pre
-            =JSON.stringify(p.last_beacon, null, '  ')
+      "∅"
+  if name:
+    td
+      let port = get_port(p)
+      "{name} "
+      a.btn.btn-default.btn-xs[href="http://{name}:{port}"]
+        span.glyphicon.glyphicon-play
+  else:
+    td.text-muted
+      "∅"
+  td[title=p.last_attempt and p.last_attempt[1]]
+    if p.connected:
+      "{p.connected}"
+    else:
+      "no,"
+      .tiny
+        if p.last_attempt:
+          =format_diff(till_now_ms(from_ms(p.last_attempt[0])))
         else:
-          .beacon
-            "Values: {p.last_beacon.values}, "
-            "peers: {p.last_beacon.peers}"
-      else:
-        "∅"
-      button.float-right.btn.btn-default.btn.btn-xs.corner?(toggle.visible)
-        link click = toggle.toggle
-        if toggle.visible:
-          span.glyphicon.glyphicon-chevron-up
+          "???"
+  td.text-muted?(p.last_beacon_time == null)
+    if p.last_beacon_time:
+      span
+        let val = p.last_beacon_time
+        if val < 10000:
+          "{val} ms"
         else:
-          span.glyphicon.glyphicon-chevron-down
-    td.text-muted?(p.last_beacon == null)
-      if p.last_beacon:
-        =String(p.last_beacon_time -
-                p.last_beacon.current_time)
-        "ms"
+          =format_diff(till_now_ms(
+                         from_ms(p.last_beacon_time)))
+    else:
+      "never"
+  td.text-muted?(p.last_beacon == null).relative
+    store toggle = new Toggle()
+    if p.last_beacon:
+      if toggle.visible:
+        pre
+          =JSON.stringify(p.last_beacon, null, '  ')
       else:
-        "∅"
+        .beacon
+          "Values: {p.last_beacon.values}, "
+          "peers: {p.last_beacon.peers}"
+    else:
+      "∅"
+    button.float-right.btn.btn-default.btn.btn-xs.corner?(toggle.visible)
+      link click = toggle.toggle
+      if toggle.visible:
+        span.glyphicon.glyphicon-chevron-up
+      else:
+        span.glyphicon.glyphicon-chevron-down
+  td.text-muted?(p.last_beacon == null)
+    if p.last_beacon:
+      =String(p.last_beacon_time -
+              p.last_beacon.current_time)
+      "ms"
+    else:
+      "∅"
 
 html render(peers, peer_map):
   table.table.table-bordered.table-hover
@@ -97,11 +96,10 @@ html render(peers, peer_map):
         th "Latency"
     tbody
       for p of peers key p.id:
-        if (p.last_beacon and
-            till_now_ms(from_ms(p.last_beacon_time)) < 5*60*1000):
-          =peer_row(p, peer_map[p.id])
-        else:
-          tr
+        tr
+          if (p.last_beacon and
+              till_now_ms(from_ms(p.last_beacon_time)) < 5*60*1000):
+              =peer_row(p, peer_map[p.id])
 
   h3 "Old/Inactive/Failing Peers"
   table.table.table-bordered.table-hover
@@ -116,8 +114,7 @@ html render(peers, peer_map):
         th "Latency"
     tbody
       for p of peers key p.id:
-        if (not p.last_beacon or
-            till_now_ms(from_ms(p.last_beacon_time)) >= 5*60*1000):
-          =peer_row(p, peer_map[p.id])
-        else:
-          tr
+        tr
+          if (not p.last_beacon or
+              till_now_ms(from_ms(p.last_beacon_time)) >= 5*60*1000):
+            =peer_row(p, peer_map[p.id])

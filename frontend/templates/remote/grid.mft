@@ -112,6 +112,7 @@ html render(peer_map):
     .latency "{grid_query.latency}ms"
     div.peer-container
       for peer of Object.keys(peer_map).concat('myself'):
-        =render_peer(grid_query.response and grid_query.response.get(peer),
-                    peer_map[peer] or peer.split(':')[0],
-                    get_port(peer), cpu_yaxis)
+        div
+          =render_peer(grid_query.response and grid_query.response.get(peer),
+                      peer_map[peer] or peer.split(':')[0],
+                      get_port(peer), cpu_yaxis)
