@@ -148,7 +148,7 @@ html render(current_page):
           a.navbar-brand[href="#/"]
             "Cantal"
             .version_string
-              .version "dev"
+              .version "v0.2.12"
               if beacon:
                 " / "
                 "{beacon.version}"
