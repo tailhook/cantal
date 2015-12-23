@@ -46,7 +46,7 @@ pub fn sum_by(by: &str, total: bool, src: Dataset) -> Dataset {
             }
             Err(c) => Incompatible(c),
         },
-        MultiTip(vec) => unimplemented!(),
+        MultiTip(_) => unimplemented!(),
         src @ SingleSeries(_, _, _) => src,
         src @ SingleTip(_, _, _) => src,
         src @ Incompatible(_) => src,

@@ -9,7 +9,7 @@ pub fn compare_timestamps(new: &Vec<u64>, old: &VecDeque<(u64, u32)>)
 {
     let mut iter_new = new.iter().enumerate().peekable();
     let last_ots = old[0].0;
-    let mut new_pt;
+    let new_pt;
     loop { // New points
         match iter_new.peek() {
             None => return (new.len() as u64, new.len()),

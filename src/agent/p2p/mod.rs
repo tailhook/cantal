@@ -1,12 +1,11 @@
 use std::io;
-use std::io::{Write};
+use std::io::{Write, Cursor};
 use std::net::{SocketAddr, SocketAddrV4};
 use std::sync::{Arc, RwLock};
 use std::default::Default;
 use std::collections::{HashMap};
 
 use mio::{EventLoop, Token, Handler, EventSet, PollOpt};
-use mio::buf::ByteBuf;
 use mio::{udp};
 use cbor::{Decoder};
 use rustc_serialize::Decodable;
@@ -40,7 +39,7 @@ pub fn p2p_init(deps: &mut Dependencies, host: &str, port: u16,
     let server = try!(udp::UdpSocket::bound(&SocketAddr::V4(
         SocketAddrV4::new(try!(host.parse()), port))));
     let mut eloop = try!(EventLoop::new());
-    try!(eloop.register_opt(&server, GOSSIP,
+    try!(eloop.register(&server, GOSSIP,
         EventSet::readable(), PollOpt::level()));
     try!(eloop.timeout_ms(Timer::GossipBroadcast, gossip::INTERVAL));
     try!(eloop.timeout_ms(Timer::GarbageCollector,
@@ -124,9 +123,9 @@ impl Handler for Context {
             GOSSIP => {
                 let mut stats = self.deps.write::<GossipStats>();
                 loop {
-                    let mut buf = ByteBuf::mut_with_capacity(MAX_PACKET_SIZE);
-                    if let Ok(Some(addr)) = self.sock.recv_from(&mut buf) {
-                        let mut dec = Decoder::from_reader(buf.flip());
+                    let mut buf = [0u8; MAX_PACKET_SIZE];
+                    if let Ok(Some((n, addr))) = self.sock.recv_from(&mut buf) {
+                        let mut dec = Decoder::from_reader(&buf[..n]);
                         match dec.decode::<gossip::Packet>().next() {
                             Some(Ok(packet)) => {
                                 trace!("Packet {:?} from {:?}", packet, addr);

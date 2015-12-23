@@ -10,11 +10,11 @@ authors = ["paul@colomiets.name"]
 
 [dependencies]
 log = "0.3"
-cbor-codec = "0.1"
+cbor-codec = "0.4.2"
 rustc-serialize = "0.3"
 regex = "0.1"
-probor = { git = "git://github.com/tailhook/probor" }
-num = "*"
+probor = "0.1.3"
+num = "0.1"
 
 [dependencies.cantal_values]
 path = "../cantal_values"

@@ -1,7 +1,7 @@
 use std::mem::replace;
 use std::net::{SocketAddr, SocketAddrV4, Ipv4Addr};
 use std::ops::DerefMut;
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, RwLock, Mutex};
 use std::collections::HashMap;
 
 use mio::{Token, Timeout, EventSet, Sender};
@@ -94,8 +94,8 @@ impl Peer {
 
 
 pub fn ensure_started(ctx: &mut Context) {
-    let pref = ctx.deps.get::<Arc<RwLock<Option<Peers>>>>().unwrap().clone();
-    let mut opt_peers = pref.write().unwrap();
+    let pref = ctx.deps.get::<Arc<Mutex<Option<Peers>>>>().unwrap().clone();
+    let mut opt_peers = pref.lock().unwrap();
     if let &mut Some(ref mut peers) = opt_peers.deref_mut() {
         peers.touch_time = SteadyTime::now();
         return; // already started
@@ -145,7 +145,7 @@ pub fn touch(id: HostId, ctx: &mut Context) {
 
     let range = Range::new(5, 150);
     let mut rng = thread_rng();
-    let mut opt_peers = ctx.deps.write::<Option<Peers>>();
+    let mut opt_peers = ctx.deps.lock::<Option<Peers>>();
     if opt_peers.is_none() {
         // Remote handling is not enabled ATM
         return;
@@ -175,7 +175,7 @@ pub fn reconnect_peer(tok: Token, ctx: &mut Context) {
     let tm = time_ms();
     // Get ID then addr and avoid deadlock
     let id = {
-        let mut peers = ctx.deps.write::<Option<Peers>>();
+        let mut peers = ctx.deps.lock::<Option<Peers>>();
         let peer = peers.as_mut().unwrap().peers.get_mut(tok).unwrap();
         peer.last_attempt = Some((tm, "seeking primary addr"));
         peer.id.clone()
@@ -205,7 +205,7 @@ pub fn reconnect_peer(tok: Token, ctx: &mut Context) {
     let addr = if let Some(addr) = addr {
         addr
     } else {  // None means the host is already removed from gossip
-        let mut peers_ref = ctx.deps.write::<Option<Peers>>();
+        let mut peers_ref = ctx.deps.lock::<Option<Peers>>();
         let peers = peers_ref.as_mut().unwrap();
         let peer = peers.peers.remove(tok).unwrap();
         let peer_token = peers.tokens.remove(&peer.id).unwrap();
@@ -215,7 +215,7 @@ pub fn reconnect_peer(tok: Token, ctx: &mut Context) {
         return;
     };
 
-    let mut peers_opt = ctx.deps.write::<Option<Peers>>();
+    let mut peers_opt = ctx.deps.lock::<Option<Peers>>();
     let data = peers_opt.as_mut().unwrap();
     if let Some(ref mut peer) = data.peers.get_mut(tok) {
         assert!(peer.connection.is_none());
@@ -256,7 +256,7 @@ pub fn reconnect_peer(tok: Token, ctx: &mut Context) {
 }
 
 pub fn reset_peer(tok: Token, ctx: &mut Context) {
-    let mut peers_opt = ctx.deps.write::<Option<Peers>>();
+    let mut peers_opt = ctx.deps.lock::<Option<Peers>>();
     let data = peers_opt.as_mut().unwrap();
     if let Some(ref mut peer) = data.peers.get_mut(tok) {
         let wsock = replace(&mut peer.connection, None)
@@ -281,8 +281,8 @@ pub fn reset_peer(tok: Token, ctx: &mut Context) {
 
 pub fn try_io(tok: Token, ev: EventSet, ctx: &mut Context) -> bool
 {
-    let pref = ctx.deps.get::<Arc<RwLock<Option<Peers>>>>().unwrap().clone();
-    let mut opt_peers = pref.write().unwrap();
+    let pref = ctx.deps.get::<Arc<Mutex<Option<Peers>>>>().unwrap().clone();
+    let mut opt_peers = pref.lock().unwrap();
     let data = opt_peers.as_mut().unwrap();
     if let Some(ref mut peer) = data.peers.get_mut(tok) {
         let to_close = {
@@ -380,7 +380,7 @@ pub fn try_io(tok: Token, ev: EventSet, ctx: &mut Context) -> bool
 
 pub fn garbage_collector(ctx: &mut Context) {
     debug!("Garbage collector");
-    let mut peers_opt = ctx.deps.write::<Option<Peers>>();
+    let mut peers_opt = ctx.deps.lock::<Option<Peers>>();
     let peers = peers_opt.as_mut().unwrap();
 
     let cut_off = SteadyTime::now() - Duration::milliseconds(

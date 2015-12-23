@@ -1,5 +1,5 @@
 use std::io;
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex};
 use std::mem::replace;
 use std::str::from_utf8;
 use std::io::{Read, Write};
@@ -463,7 +463,7 @@ impl Handler {
     }
 
     fn send_all(&mut self, eloop: &mut EventLoop<Handler>, msg: &[u8]) {
-        for tok in (1+MAX_HTTP_CLIENTS .. 1+MAX_HTTP_CLIENTS+MAX_WEBSOCK_CLIENTS) {
+        for tok in 1+MAX_HTTP_CLIENTS .. 1+MAX_HTTP_CLIENTS+MAX_WEBSOCK_CLIENTS {
             let tok = Token(tok);
             if let Some(ref mut wsock) = self.websockets.get_mut(tok) {
                 if wsock.output.len() < MAX_OUTPUT_BUFFER {
@@ -493,7 +493,7 @@ impl mio::Handler for Handler {
     {
         match tok {
             INPUT => {
-                let sock = match self.input.accept() {
+                let (sock, addr) = match self.input.accept() {
                     Ok(Some(sock)) => sock,
                     Ok(None) => return,
                     Err(e) => {
@@ -502,12 +502,12 @@ impl mio::Handler for Handler {
                     }
                 };
                 let cli = Client::new();
-                debug!("Accepted {:?}", sock.peer_addr());
+                debug!("Accepted {:?}", addr);
                 let cli_intr = cli.interest();
                 let ntok = self.clients.insert((sock, Some(cli)))
                     .map_err(|_| error!("Too many clients"));
                 if let Ok(cli_token) = ntok {
-                    if let Err(e) = eloop.register_opt(
+                    if let Err(e) = eloop.register(
                         &self.clients.get(cli_token).unwrap().0,
                         cli_token, cli_intr.event_set(), PollOpt::level())
                     {
@@ -534,7 +534,7 @@ impl mio::Handler for Handler {
 
                 // TODO(tailhook) refactor me PLEASE!!!
                 let stats = self.deps.read::<Stats>();
-                for tok in (1+MAX_HTTP_CLIENTS .. 1+MAX_HTTP_CLIENTS+MAX_WEBSOCK_CLIENTS) {
+                for tok in 1+MAX_HTTP_CLIENTS .. 1+MAX_HTTP_CLIENTS+MAX_WEBSOCK_CLIENTS {
                     let tok = Token(tok);
                     if let Some(ref mut wsock) = self.websockets.get_mut(tok) {
                         if wsock.subscriptions.len() <= 0 {
@@ -614,9 +614,10 @@ pub fn server_init(deps: &mut Dependencies, host: &str, port: u16)
     let server = try!(mio::tcp::TcpListener::bind(&SocketAddr::V4(
         SocketAddrV4::new(try!(host.parse()), port))));
     let mut eloop = try!(EventLoop::new());
-    try!(eloop.register(&server, INPUT));
+    try!(eloop.register(&server, INPUT,
+        EventSet::readable(), PollOpt::level()));
     deps.insert(eloop.channel());
-    deps.insert(Arc::new(RwLock::new(None::<remote::Peers>)));
+    deps.insert(Arc::new(Mutex::new(None::<remote::Peers>)));
     Ok(Init {
         input: server,
         eloop: eloop,

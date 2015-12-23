@@ -29,7 +29,7 @@ impl<H:Handler> Poll for EventLoop<H> {
         let eset = EventSet::none()
             | (if read { EventSet::readable() } else { EventSet::none() })
             | (if write { EventSet::writable() } else { EventSet::none() });
-        self.register_opt(io, tok, eset, PollOpt::level())
+        self.register(io, tok, eset, PollOpt::level())
             .map_err(|e| {
                 error!("Can't register token {:?}, io {:?}: {}", tok, io, e);
                 panic!("Can't register token {:?}, io {:?}: {}", tok, io, e);

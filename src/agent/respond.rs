@@ -137,7 +137,7 @@ pub fn serve_remote_stats(_req: &Request, context: &mut Context)
         last_beacon: Option<Beacon>,
         last_attempt: Option<(TimeStamp, &'static str)>,
     }
-    let response = if let Some(ref peers) = *context.deps.read::<Option<Peers>>() {
+    let response = if let Some(ref peers) = *context.deps.lock::<Option<Peers>>() {
         let mut result = Vec::new();
         for p in peers.peers.iter() {
             result.push(PeerInfo {

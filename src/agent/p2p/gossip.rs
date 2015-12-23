@@ -6,7 +6,6 @@ use std::os::unix::io::AsRawFd;
 use mio::Sender;
 use rand::{thread_rng, Rng, sample};
 use cbor::Encoder;
-use mio::buf::ByteBuf;
 use rustc_serialize::hex::ToHex;
 
 use super::Context;
@@ -214,7 +213,7 @@ impl Context {
     pub fn send_gossip(&self, addr: SocketAddr, stats: &GossipStats)
     {
         debug!("Sending gossip {}", addr);
-        let mut buf = ByteBuf::mut_with_capacity(MAX_PACKET_SIZE);
+        let mut buf = Vec::with_capacity(MAX_PACKET_SIZE);
         {
             let mut e = Encoder::from_writer(&mut buf);
             e.encode(&[&Packet::Ping {
@@ -233,7 +232,7 @@ impl Context {
                 friends: get_friends(&stats.peers, addr),
             }]).unwrap();
         }
-        if buf.bytes().len() == MAX_PACKET_SIZE {
+        if buf.len() >= MAX_PACKET_SIZE {
             // Unfortunately cbor encoder doesn't report error of truncated
             // data so we consider full buffer the truncated data
             error!("Error sending probe to {}: Data is too long. \
@@ -242,7 +241,7 @@ impl Context {
                 If you didn't tweak the limits yourself, please file an issue \
                 at http://github.com/tailhook/cantal/issues", addr);
         }
-        if let Err(e) = self.sock.send_to(&mut buf.flip(), &addr) {
+        if let Err(e) = self.sock.send_to(&buf[..], &addr) {
             error!("Error sending probe to {}: {}", addr, e);
         }
     }
@@ -277,7 +276,7 @@ impl Context {
                     }
                 }
                 self.apply_friends(&mut *stats, friends, addr);
-                let mut buf = ByteBuf::mut_with_capacity(MAX_PACKET_SIZE);
+                let mut buf = Vec::with_capacity(MAX_PACKET_SIZE);
                 {
                     let mut e = Encoder::from_writer(&mut buf);
                     e.encode(&[&Packet::Pong {
@@ -298,7 +297,7 @@ impl Context {
                     }]).unwrap();
                 }
 
-                if buf.bytes().len() == MAX_PACKET_SIZE {
+                if buf.len() == MAX_PACKET_SIZE {
                     // Unfortunately cbor encoder doesn't report error of truncated
                     // data so we consider full buffer the truncated data
                     error!("Error sending probe to {}: Data is too long. \
@@ -308,7 +307,7 @@ impl Context {
                         yourself, please file an issue at \
                         http://github.com/tailhook/cantal/issues", addr);
                 }
-                self.sock.send_to(&mut buf.flip(), &addr)
+                self.sock.send_to(&buf[..], &addr)
                     .map_err(|e| error!("Error sending probe to {:?}: {}",
                         addr, e))
                     .ok();

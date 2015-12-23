@@ -132,7 +132,7 @@ impl ReadCache {
     pub fn new() -> ReadCache {
         ReadCache {
             tick: unsafe {
-                libc::sysconf(libc::consts::os::sysconf::_SC_CLK_TCK) as u32
+                libc::sysconf(libc::_SC_CLK_TCK) as u32
             },
         }
     }

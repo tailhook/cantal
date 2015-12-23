@@ -39,7 +39,7 @@ pub fn serve_query_by_host(req: &Request, context: &mut Context)
         ensure_started(context);
 
         let mut resp = {
-            let mut peerguard = context.deps.write::<Option<Peers>>();
+            let mut peerguard = context.deps.lock::<Option<Peers>>();
             let mut peers = peerguard.as_mut().unwrap();
 
             for (_, rule) in query.rules.iter() {
@@ -95,7 +95,7 @@ pub fn serve_mem_info(_req: &Request, context: &mut Context)
     -> Result<http::Response, Box<http::Error>>
 {
     let mut info: BTreeMap<_, _> = {
-        let peerguard = context.deps.read::<Option<Peers>>();
+        let peerguard = context.deps.lock::<Option<Peers>>();
         let peers = peerguard.as_ref().unwrap();
         let mut peer_info = BTreeMap::new();
         for i in SLAB_START..SLAB_START+MAX_OUTPUT_CONNECTIONS {

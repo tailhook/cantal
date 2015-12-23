@@ -1,4 +1,5 @@
 use std::sync::{RwLock, RwLockWriteGuard, RwLockReadGuard, Arc};
+use std::sync::{Mutex, MutexGuard};
 
 use anymap::any::Any;
 use anymap::any::CloneAny;
@@ -10,6 +11,7 @@ pub type Dependencies = Map<CloneAny+Sync+Send>;
 pub trait LockedDeps {
     fn write<T:Any+Sync+Send>(&self) -> RwLockWriteGuard<T>;
     fn read<T:Any+Sync+Send>(&self) -> RwLockReadGuard<T>;
+    fn lock<T:Any+Send>(&self) -> MutexGuard<T>;
     fn copy<T:Any+Sync+Send>(&self) -> Arc<T>;
 }
 
@@ -22,6 +24,9 @@ impl LockedDeps for Dependencies {
     fn read<T:Any+Sync+Send>(&self) -> RwLockReadGuard<T> {
         self.get::<Arc<RwLock<T>>>()
         .unwrap().read().unwrap()
+    }
+    fn lock<T:Any+Send>(&self) -> MutexGuard<T> {
+        self.get::<Arc<Mutex<T>>>().unwrap().lock().unwrap()
     }
     fn copy<T:Any+Sync+Send>(&self) -> Arc<T> {
         self.get::<Arc<T>>().unwrap().clone()

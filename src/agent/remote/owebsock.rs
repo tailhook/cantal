@@ -49,8 +49,7 @@ impl WebSocket {
     pub fn register(&self, tok: Token, eloop: &mut EventLoop<Handler>)
         -> Result<(), io::Error>
     {
-        eloop.register_opt(&self.sock, tok,
-            EventSet::writable(), PollOpt::level())
+        eloop.register(&self.sock, tok, EventSet::writable(), PollOpt::level())
     }
     pub fn events(&mut self, ev: EventSet, tok: Token, ctx: &mut Context)
         -> Option<Vec<InputMessage>>
