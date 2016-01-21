@@ -2,6 +2,7 @@ RUSTC ?= rustc -C opt-level=3
 
 PREFIX ?= /usr
 DESTDIR ?=
+WEBPACK ?= webpack
 
 all: bin js
 
@@ -17,7 +18,7 @@ debug-bin:
 
 js:
 	-mkdir public/js 2>/dev/null
-	make -C frontend
+	cd web; $(WEBPACK)
 
 # ------------------ INSTALL -----------------------
 

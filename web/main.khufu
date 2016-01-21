@@ -1,0 +1,37 @@
+import {last_beacon as beacon} from './websock'
+
+style:
+  .menu
+    width: 150px
+  .version
+    font-size: xx-small
+    padding: 0px 16px 8px 16px
+
+view main():
+  <div.pure-g>
+    <div.pure-u.menu>
+      <div.pure-menu>
+        <a.pure-menu-heading href="/">
+          "Cantal"
+        <ul.pure-menu-list>
+          if beacon:
+            <li.version.pure-menu-item>
+              beacon.version
+          <li.pure-menu-item>
+            <a.pure-menu-link href="/status">
+              "Status"
+          <li.pure-menu-item>
+            <a.pure-menu-link href="/processes">
+              "Processes"
+              if beacon:
+                " ["
+                beacon.processes
+                "]"
+          <li.pure-menu-item>
+            <a.pure-menu-link href="/metrics">
+              "Metrics"
+              if beacon:
+                " ["
+                beacon.values
+                "]"
+

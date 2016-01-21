@@ -1,0 +1,46 @@
+var webpack = require('webpack')
+var DEV = process.env['NODE_ENV'] != 'production';
+module.exports = {
+    context: __dirname,
+    entry: DEV ? [
+        "./index",
+        "webpack-dev-server/client?http://localhost:8080",
+        "webpack/hot/only-dev-server",
+    ] : "./index",
+    output: {
+        path: __dirname + "../public/js",
+        filename: "bundle.js",
+        publicPath: '/js/',
+    },
+    module: {
+        loaders: [{
+            test: /\.khufu$/,
+            loaders: ['babel', 'khufu'],
+            exclude: /node_modules/,
+        }, {
+            test: /\.js$/,
+            loaders: ['babel'],
+            exclude: /node_modules/,
+        }],
+    },
+    resolve: {
+        root: ["/usr/local/lib/node_modules"],
+    },
+    resolveLoader: {
+        root: ["/usr/local/lib/node_modules"],
+    },
+    devServer: {
+        contentBase: '../public',
+        //contentBase: 'http://localhost:8080/',
+        publicPath: '/js/',
+        hot: true,
+        historyApiFallback: false,
+    },
+    khufu: {
+        static_attrs: !DEV,
+    },
+    plugins: [
+        new webpack.NoErrorsPlugin(),
+    ],
+}
+

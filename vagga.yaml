@@ -10,12 +10,6 @@ commands:
     container: ubuntu
     run: [cargo]
 
-  watch: !Command
-    description: Build and watch javascripts
-    container: ubuntu
-    work-dir: frontend
-    run: [webpack, --watch]
-
   docs: !Command
     description: Build HTML docs
     container: docs
@@ -58,11 +52,24 @@ commands:
         --pakdir=dist \
         make install
 
-  run: !Command
+  run: &run !Command
     description: Runs cantal (is not very useful run in container)
     container: ubuntu
     environ: {RUST_LOG: debug}
     run: ./cantal-agent --host 0.0.0.0
+
+  live: !Supervise
+    description: Run cantal in container with live reload of frontend
+    children:
+      cantal: *run
+      webpack: !Command
+        container: ubuntu
+        work-dir: web
+        run:
+        - webpack-dev-server
+        - --hot
+        - --progress
+        - --colors
 
   ten: !Supervise
     description: Runs ten cantals so you can test "remote" subsystem
@@ -125,26 +132,14 @@ containers:
     - !UbuntuUniverse ~
     - !Install [make, checkinstall, wget, ca-certificates, libssl-dev]
 
-    - !NpmInstall
-      - jade@1.11
-      - babel@5.8
-      - uglify-js@2.4
-      - webpack@1.12
-      - babel-loader@5.3
+    - !NpmDependencies
+      file: "web/package.json"
+      optional: true
 
     - !TarInstall
       url: "http://static.rust-lang.org/dist/rust-1.5.0-x86_64-unknown-linux-gnu.tar.gz"
       script: "./install.sh --prefix=/usr \
                 --components=rustc,rust-std-x86_64-unknown-linux-gnu,cargo"
-
-    - !GitInstall
-      url: "git://github.com/tailhook/marafet"
-      script: |
-        mkdir /tmp/marafet
-        # Cargo can't build in /tmp/git:%2F...
-        cp -R . /tmp/marafet
-        cd /tmp/marafet
-        make install PREFIX=/usr
 
     environ:
       HOME: /work/target
