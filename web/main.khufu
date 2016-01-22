@@ -1,4 +1,4 @@
-import {last_beacon as beacon} from './websock'
+import {last_beacon as beacon, remote_enabled} from './websock'
 
 style:
   .menu
@@ -7,16 +7,29 @@ style:
     font-size: xx-small
     padding: 0px 16px 8px 16px
 
+
 view main():
   <div.pure-g>
     <div.pure-u.menu>
       <div.pure-menu>
         <a.pure-menu-heading href="/">
-          "Cantal"
+          `Cantal`
         <ul.pure-menu-list>
           if beacon:
             <li.version.pure-menu-item>
               beacon.version
+          <li.pure-menu-item>
+            <label>
+              let on = remote_enabled()
+              <input.ios-switch.bigswitch.pregreen?(on).blue?(on)
+                type="checkbox">
+              <div>
+                <div>
+          <li.pure-menu-item>
+            <label>
+              <input.switch type="checkbox">
+              <div.switch-track>
+                <div>
           <li.pure-menu-item>
             <a.pure-menu-link href="/status">
               "Status"
@@ -24,14 +37,10 @@ view main():
             <a.pure-menu-link href="/processes">
               "Processes"
               if beacon:
-                " ["
-                beacon.processes
-                "]"
+                ` [${ beacon.processes }]`
           <li.pure-menu-item>
             <a.pure-menu-link href="/metrics">
               "Metrics"
               if beacon:
-                " ["
-                beacon.values
-                "]"
+                ` [${ beacon.values }]`
 

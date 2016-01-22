@@ -17,7 +17,7 @@
     "babel-plugin-transform-object-rest-spread": "6.3.13",
     "redux": "3.0.5",
     "cbor-js": "0.1.0",
-    "khufu": "0.2.0"
+    "khufu": "0.2.1"
   },
   "optionalDependencies": {
     "webpack-dev-server": "// For hot reload, with dependencies",
