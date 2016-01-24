@@ -1,16 +1,51 @@
 import {last_beacon as beacon, remote_enabled} from './websock'
+import {createStore} from 'redux'
+import {bool, toggle} from './stores/simple'
+import {main as enable_remote} from './pages/enable_remote.khufu'
 
 style:
-  .menu
-    width: 150px
   .version
     font-size: xx-small
     padding: 0px 16px 8px 16px
 
 
+
+view _local_menu():
+  <li.pure-menu-item>
+    <a.pure-menu-link href="/local/status">
+      "Status"
+  <li.pure-menu-item>
+    <a.pure-menu-link href="/local/processes">
+      "Processes"
+      if beacon:
+        ` [${ beacon.processes }]`
+  <li.pure-menu-item>
+    <a.pure-menu-link href="/local/metrics">
+      "Metrics"
+      if beacon:
+        ` [${ beacon.values }]`
+  <li.pure-menu-item>
+    <a.pure-menu-link href="/local/peers">
+      "Pings"
+
+view _remote_menu():
+  <li.pure-menu-item>
+    <a.pure-menu-link href="/remote/peers">
+      "Pings"
+
+  <li.pure-menu-item>
+    <a.pure-menu-link href="/remote/list">
+      "Peers"
+
+  <li.pure-menu-item>
+    <a.pure-menu-link href="/remote/grid">
+      "Grid"
+
+
 view main():
   <div.pure-g>
-    <div.pure-u.menu>
+    store @local = createStore(bool)
+    <div.pure-u-1.pure-u-md-1-3.pure-u-xl-4-24>
       <div.pure-menu>
         <a.pure-menu-heading href="/">
           `Cantal`
@@ -22,25 +57,17 @@ view main():
             <label>
               let on = remote_enabled()
               <input.ios-switch.bigswitch.pregreen?(on).blue?(on)
-                type="checkbox">
+                type="checkbox" checked=@local>
+                link {click} toggle(@local) -> @local
               <div>
                 <div>
-          <li.pure-menu-item>
-            <label>
-              <input.switch type="checkbox">
-              <div.switch-track>
-                <div>
-          <li.pure-menu-item>
-            <a.pure-menu-link href="/status">
-              "Status"
-          <li.pure-menu-item>
-            <a.pure-menu-link href="/processes">
-              "Processes"
-              if beacon:
-                ` [${ beacon.processes }]`
-          <li.pure-menu-item>
-            <a.pure-menu-link href="/metrics">
-              "Metrics"
-              if beacon:
-                ` [${ beacon.values }]`
-
+          if @local:
+            _local_menu()
+          else:
+            _remote_menu()
+    <div.pure-u-1.pure-u-md-2-3.pure-u-xl-20-24>
+      if @local:
+      else:
+        if remote_enabled():
+        else:
+          enable_remote()

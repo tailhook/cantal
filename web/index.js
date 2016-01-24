@@ -5,7 +5,7 @@ window.regeneratorRuntime = regeneratorRuntime
 
 import {main} from './main.khufu'
 
-let khufu_instance = khufu(document.getElementById('app'), main)
+let khufu_instance = khufu(document.getElementById('app'), main())
 
 if(process.env.NODE_ENV == 'production') {
     websock.start('ws://' + location.host  + '/ws',

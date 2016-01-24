@@ -1,0 +1,58 @@
+style:
+  button
+    background-color: orange
+    border-radius: 4px
+    color: white
+  .right
+    text-align: right
+  .margin
+    margin: 8px
+
+view main():
+  <div.margin>
+    <h1>
+      "Remote Stats Are Disabled"
+    <div.panel.panel-warning>
+      <div.panel-heading>
+        "Enable remote metrics"
+      <div.panel-body>
+        <p>
+          "
+          You may enable remote metrics. But be aware that it means this
+          node will use a little bit more resources.
+          "
+        <p>
+          " But more importantly, if you enable remote metrics on all (or
+            too many nodes) you will get "
+          <b>
+            "full mesh"
+          " of connections and a lot of traffic. So chose chose nodes
+            wisely."
+        <p>
+          " You might want to "
+          <b>
+          "find a node"
+          " which has remote stats enabled
+            instead of enabling them here.
+          "
+        //store @peers_request = new PeersRequest(true, 20000)
+        //if not peers_request.peers:
+        //  <p>
+        //    "Loading node list..."
+        //elif peers_request.peers.length == 0:
+        //  <p>
+        //    <i>
+        //      "Unfortunately no nodes are known to have remote tab enabled"
+        //else:
+        //  <ul>
+        //    for peer of peers_request.peers:
+        //      if peer.name:
+        //        <li>
+        //          let port = get_port(peer)
+        //          <a href=`http://${peer.name}:${port}/`>
+        //            `http://${peer.name}:${port}/`
+        //          ` (${peer.primary_addr})`
+        <p.right> //?(!peers_request.peers or peers_request.peers.length != 0)>
+          <button.pure-button>
+            //link click = enable_remote
+            "Enable"
