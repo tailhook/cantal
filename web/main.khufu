@@ -12,35 +12,42 @@ style:
 
 
 
-view _local_menu():
+view _local_menu(@base):
   <li.pure-menu-item>
     <a.pure-menu-link href="/local/status">
+      link {click} go(this.href, event) -> @base
       "Status"
   <li.pure-menu-item>
     <a.pure-menu-link href="/local/processes">
+      link {click} go(this.href, event) -> @base
       "Processes"
       if beacon:
         ` [${ beacon.processes }]`
   <li.pure-menu-item>
     <a.pure-menu-link href="/local/metrics">
+      link {click} go(this.href, event) -> @base
       "Metrics"
       if beacon:
         ` [${ beacon.values }]`
   <li.pure-menu-item>
     <a.pure-menu-link href="/local/peers">
+      link {click} go(this.href, event) -> @base
       "Pings"
 
-view _remote_menu():
+view _remote_menu(@base):
   <li.pure-menu-item>
     <a.pure-menu-link href="/remote/peers">
+      link {click} go(this.href, event) -> @base
       "Pings"
 
   <li.pure-menu-item>
     <a.pure-menu-link href="/remote/list">
+      link {click} go(this.href, event) -> @base
       "Peers"
 
   <li.pure-menu-item>
     <a.pure-menu-link href="/remote/grid">
+      link {click} go(this.href, event) -> @base
       "Grid"
 
 
@@ -65,9 +72,9 @@ view main():
               <div>
                 <div>
           if remote:
-            _remote_menu()
+            _remote_menu(-> @base)
           else:
-            _local_menu()
+            _local_menu(-> @base)
     <div.pure-u-1.pure-u-md-2-3.pure-u-xl-20-24>
       if not remote:
         status()

@@ -13,8 +13,16 @@ export function path(state={child: '/', segment: ''}, action) {
     return state
 }
 
-export function go(path) {
-    return { type: 'go', path: path}
+export function go(uri, event) {
+    if(event) {
+        event.preventDefault()
+    }
+    let m = uri.match(/https?:\/\/[^\/]+(\/.*)$/);
+    if(m) {
+        return { type: 'go', path: m[1]}
+    } else {
+        return { type: 'go', path: uri}
+    }
 }
 
 export function back(path) {
