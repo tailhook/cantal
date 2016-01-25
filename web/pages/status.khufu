@@ -1,0 +1,17 @@
+view main():
+  <h2>
+    "Memory"
+  <div.pure-g>
+    <div.pure-u-1-2>
+    <div.pure-u-1-2>
+      <table.pure-table>
+        <thead>
+          <tr>
+            <th>
+            <th>
+              "Title"
+            <th>
+              "MiB"
+        <tbody>
+          <tr>
+            

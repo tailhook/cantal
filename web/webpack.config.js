@@ -34,7 +34,7 @@ module.exports = {
         //contentBase: 'http://localhost:8080/',
         publicPath: '/js/',
         hot: true,
-        historyApiFallback: false,
+        historyApiFallback: true,
     },
     khufu: {
         static_attrs: !DEV,
