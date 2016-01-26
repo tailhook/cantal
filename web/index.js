@@ -4,8 +4,10 @@ import regeneratorRuntime from 'regenerator/runtime'
 window.regeneratorRuntime = regeneratorRuntime
 
 import {main} from './main.khufu'
+import {router} from './util/routing'
 
 let khufu_instance = khufu(document.getElementById('app'), main())
+router.subscribe(khufu_instance.queue_render)
 
 if(process.env.NODE_ENV == 'production') {
     websock.start('ws://' + location.host  + '/ws',

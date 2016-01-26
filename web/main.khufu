@@ -3,7 +3,7 @@ import {createStore} from 'redux'
 import {bool, toggle, disable} from './stores/simple'
 import {main as enable_remote} from './pages/enable_remote.khufu'
 import {main as status} from './pages/status.khufu'
-import {createRoute, path, go} from './util/routing'
+import {@router, toggle_remote, go} from './util/routing'
 
 style:
   .version
@@ -12,49 +12,47 @@ style:
 
 
 
-view _local_menu(@base):
-  <li.pure-menu-item>
+view _local_menu():
+  <li.pure-menu-item.pure-menu-active?(@router.page == 'status')>
     <a.pure-menu-link href="/local/status">
-      link {click} go(this.href, event) -> @base
+      link {click} go(event) -> @router
       "Status"
-  <li.pure-menu-item>
+  <li.pure-menu-item.pure-menu-active?(@router.page == 'processes')>
     <a.pure-menu-link href="/local/processes">
-      link {click} go(this.href, event) -> @base
+      link {click} go(event) -> @router
       "Processes"
       if beacon:
         ` [${ beacon.processes }]`
-  <li.pure-menu-item>
+  <li.pure-menu-item.pure-menu-active?(@router.page == 'metrics')>
     <a.pure-menu-link href="/local/metrics">
-      link {click} go(this.href, event) -> @base
+      link {click} go(event) -> @router
       "Metrics"
       if beacon:
         ` [${ beacon.values }]`
-  <li.pure-menu-item>
+  <li.pure-menu-item.pure-menu-active?(@router.page == 'peers')>
     <a.pure-menu-link href="/local/peers">
-      link {click} go(this.href, event) -> @base
+      link {click} go(event) -> @router
       "Pings"
 
-view _remote_menu(@base):
-  <li.pure-menu-item>
+view _remote_menu():
+  <li.pure-menu-item.pure-menu-active?(@router.page == 'peers')>
     <a.pure-menu-link href="/remote/peers">
-      link {click} go(this.href, event) -> @base
+      link {click} go(event) -> @router
       "Pings"
 
-  <li.pure-menu-item>
+  <li.pure-menu-item.pure-menu-active?(@router.page == 'list')>
     <a.pure-menu-link href="/remote/list">
-      link {click} go(this.href, event) -> @base
+      link {click} go(event) -> @router
       "Peers"
 
-  <li.pure-menu-item>
+  <li.pure-menu-item.pure-menu-active?(@router.page == 'grid')>
     <a.pure-menu-link href="/remote/grid">
-      link {click} go(this.href, event) -> @base
+      link {click} go(event) -> @router
       "Grid"
 
 
 view main():
   <div.pure-g>
-    store @base = createRoute(path)
-    let remote = @base.segment == 'remote'
     <div.pure-u-1.pure-u-md-1-3.pure-u-xl-4-24>
       <div.pure-menu>
         <a.pure-menu-heading href="/">
@@ -66,18 +64,22 @@ view main():
           <li.pure-menu-item>
             <label>
               let on = remote_enabled()
+              let rtr = @router
               <input.ios-switch.bigswitch.pregreen?(on).blue?(on)
-                type="checkbox" value='ok' checked=remote>
-                link {click} go(remote ? '/local' : '/remote') -> @base
+                type="checkbox" value='ok' checked=@router.remote>
+                link {click} toggle_remote(rtr) -> @router
               <div>
                 <div>
-          if remote:
-            _remote_menu(-> @base)
+          if @router.remote:
+            _remote_menu()
           else:
-            _local_menu(-> @base)
+            _local_menu()
     <div.pure-u-1.pure-u-md-2-3.pure-u-xl-20-24>
-      if not remote:
-        status()
+      if not @router.remote:
+        if @router.page == 'status':
+          status()
+        else:
+          @router.page
       else:
         if remote_enabled():
 
