@@ -7,8 +7,8 @@ var sleep = (num) => new Promise((accept) => setTimeout(accept, num))
 
 
 function* request() {
+    let url = yield take('url');
     while(true) {
-        var url = yield take('url');
         let time = Date.now()
         try {
             let response = yield fetch(url.url)
