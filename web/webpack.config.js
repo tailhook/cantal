@@ -36,7 +36,11 @@ module.exports = {
             '/*.json': {
                 target: 'http://localhost:22682',
                 secure: false,
-            }
+            },
+            '/*.cbor': {
+                target: 'http://localhost:22682',
+                secure: false,
+            },
         },
         publicPath: '/js/',
         hot: true,

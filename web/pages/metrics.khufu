@@ -1,0 +1,72 @@
+import {createQuery, url} from '../stores/cbor'
+import {metrics} from '../stores/metrics'
+import {MetricsResponse} from '../stores/query'
+import {repr} from '../util/view'
+
+style:
+  .title
+    display: flex
+    cursor: default
+  h1
+    flex-grow: 1
+    margin: 4px 16px
+  .title.error
+    background-color: red
+  span.error
+    color: white
+    align-self: center
+  .latency
+    color: gray
+    font-size: small
+    align-self: flex-end
+
+  .row
+    position: relative
+    display: flex
+    border: solid gray 1px
+    border-radius: 5px
+    background-color: #ddd
+    padding: 20px 16px 12px 16px
+    margin: 2px
+  pre
+    flex-grow: 1
+    margin: 0px
+    font-family: Hack, monospace
+  .value
+    font-family: Hack, monospace
+  .timestamp
+    font-size: small
+    position: absolute
+    top: 4px
+    right: 8px
+    color: gray
+
+view main():
+  <div>
+    store @query = createQuery(metrics) <- url(
+      '/all_metrics.cbor', MetricsResponse, 120000)
+    <div.title.error?(@query.error)>
+      <h1>
+        `All Metrics (${ @query.metrics.length })`
+      if @query.error:
+        <span.error>
+          @query.error
+      elif @query.latency:
+        <span.latency
+          title="Latency of getting statistics (the request roundtrip time)">
+          `${@query.latency} ms`
+    if not @query.metrics:
+      "Loading..."
+    else:
+      <div>
+        for tuple of @query.metrics key repr(tuple[0]):
+          let k = tuple[0]
+          let ts = tuple[1]
+          let val = tuple[2]
+          <div.row>
+            <pre>
+              repr(k)
+            <div.timestamp>
+              ts
+            <div.value>
+              `${ val.constructor.name } (${ val.value })`

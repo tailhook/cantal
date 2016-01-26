@@ -3,6 +3,8 @@ import {
     decode, Proto, Float as FloatProto
     } from '../util/probor'
 
+import CBOR from 'cbor-js'
+
 export const EMPTY_KEY = {}
 
 class Key extends Proto {
@@ -358,22 +360,11 @@ let value = new Enum(function() {
     }}())
 
 
-class MetricsResponse extends SimpleStruct { }
+export class MetricsResponse extends SimpleStruct { }
 MetricsResponse.probor_protocol = new Struct([
     ["metrics", null, new List(new Tuple(new Key(), new Timestamp(), value))],
     ])
 
-
-
-export class MetricsQuery extends CborQuery {
-    constructor(rules) {
-        super('/all_metrics.cbor', MetricsResponse, null, 120000)
-        this.start()
-    }
-    apply(obj) {
-        this.metrics = obj.metrics
-    }
-}
 
 export class RemoteStats extends JsonQuery {
     constructor(interval=5000) {

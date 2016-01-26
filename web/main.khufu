@@ -4,6 +4,7 @@ import {bool, toggle, disable} from './stores/simple'
 import {main as enable_remote} from './pages/enable_remote.khufu'
 import {main as status} from './pages/status.khufu'
 import {main as processes} from './pages/processes.khufu'
+import {main as metrics} from './pages/metrics.khufu'
 import {@router, toggle_remote, go} from './util/routing'
 
 style:
@@ -81,6 +82,8 @@ view main():
           status()
         elif @router.page == 'processes':
           processes()
+        elif @router.page == 'metrics':
+          metrics()
         else:
           @router.page
       else:
