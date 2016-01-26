@@ -53,7 +53,7 @@ view _remote_menu():
       "Grid"
 
 
-view main():
+view main(version):
   <div.pure-g>
     <div.pure-u-1.pure-u-md-1-3.pure-u-xl-4-24>
       <div.pure-menu>
@@ -62,7 +62,7 @@ view main():
         <ul.pure-menu-list>
           if beacon:
             <li.version.pure-menu-item>
-              beacon.version
+              `${ beacon.version } / ${ version }`
           <li.pure-menu-item>
             <label>
               let on = remote_enabled()

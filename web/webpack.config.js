@@ -51,6 +51,9 @@ module.exports = {
     },
     plugins: [
         new webpack.NoErrorsPlugin(),
+        new webpack.DefinePlugin({
+            VERSION: JSON.stringify(process.env['CANTAL_VERSION']),
+        }),
     ],
 }
 

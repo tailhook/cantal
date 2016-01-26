@@ -28,7 +28,7 @@ commands:
       checkinstall --default \
         --maintainer=paul@colomiets.name \
         --pkglicense=MIT --pkgname=cantal \
-        --pkgversion="$(cat version.txt)" \
+        --pkgversion="$(git describe)" \
         --requires="libssl1.0.0" \
         --nodoc --strip=no \
         --pakdir=dist \
@@ -55,7 +55,8 @@ commands:
   run: &run !Command
     description: Runs cantal (is not very useful run in container)
     container: ubuntu
-    environ: {RUST_LOG: debug}
+    environ:
+      RUST_LOG: debug
     run: ./cantal-agent --host 0.0.0.0
 
   live: !Supervise
@@ -65,6 +66,8 @@ commands:
       webpack: !Command
         container: ubuntu
         work-dir: web
+        environ:
+          CANTAL_VERSION: "0.1.live"
         run:
         - webpack-dev-server
         - --hot
@@ -130,7 +133,7 @@ containers:
     setup:
     - !Ubuntu trusty
     - !UbuntuUniverse ~
-    - !Install [make, checkinstall, wget, ca-certificates, libssl-dev]
+    - !Install [make, checkinstall, wget, ca-certificates, libssl-dev, git]
 
     - !NpmDependencies
       file: "web/package.json"

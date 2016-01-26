@@ -3,6 +3,7 @@ RUSTC ?= rustc -C opt-level=3
 PREFIX ?= /usr
 DESTDIR ?=
 WEBPACK ?= webpack
+export CANTAL_VERSION = $(shell git describe)
 
 all: bin js
 
