@@ -32,6 +32,12 @@ module.exports = {
     devServer: {
         contentBase: '../public',
         //contentBase: 'http://localhost:8080/',
+        proxy: {
+            '/*.json': {
+                target: 'http://localhost:22682',
+                secure: false,
+            }
+        },
         publicPath: '/js/',
         hot: true,
         historyApiFallback: true,

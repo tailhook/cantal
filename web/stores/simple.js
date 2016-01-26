@@ -1,9 +1,19 @@
-export function bool(state=false, action) {
+export function bool(state=undefined, action) {
     switch(action.type) {
+        case 'init':
+            if(state === undefined) {
+                return action.value;
+            } else {
+                return state;
+            }
         case 'enable': return true;
         case 'disable': return false;
         default: return state;
     }
+}
+
+export function init(val) {
+    return { type: 'init', value: val }
 }
 
 export function enable() {

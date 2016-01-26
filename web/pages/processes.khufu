@@ -1,0 +1,98 @@
+import {createQuery, url} from '../stores/json'
+import {processes} from '../stores/processes'
+import {createStore} from 'redux'
+import {bool, toggle, disable, init} from '../stores/simple'
+import {icon} from '../util/icon.khufu'
+
+style:
+  .title
+    display: flex
+    cursor: default
+  h1
+    flex-grow: 1
+    margin: 4px 16px
+  .title.error
+    background-color: red
+  span.error
+    color: white
+    align-self: center
+  .latency
+    color: gray
+    font-size: small
+    align-self: flex-end
+
+  .right
+    text-align: right
+  .plus
+    font-size: 10px // 70%
+    margin-left: 8px
+
+  .row
+    display: flex
+    flex-direction: row
+    margin: 2px
+  .head
+    font-weight: bold
+  .pid
+    flex-grow: 1
+  .name
+    width: 40%
+  .uptime
+    width: 20%
+  .mem
+    width: 20%
+
+
+
+view _process_row(process, all, level):
+  <div>
+    store @open = createStore(bool) <- init(false)
+    let children = all[process.pid]
+    let num = children and children.length
+    <div.row>
+      <div.pid style=({'paddingLeft': `${level*1}em`})>
+        process.pid
+        if num:
+          <button.pure-button.plus>
+            link {click} toggle(@open) -> @open
+            if @open:
+              icon('minus')
+            else:
+              icon('plus')
+              `[${ num }]`
+      <div.name>
+        `${process.name}`
+      <div.uptime>
+        `${process.uptime}`
+      <div.mem>
+        `${(process.rss / 1048576).toFixed(1)}`
+    if @open:
+      for child of children key child.pid:
+        _process_row(child, all, level+1)
+
+view main():
+  <div>
+    store @query = createQuery(processes) <- url('/all_processes.json')
+    <div.title.error?(@query.error)>
+      <h1>
+        "All Processes"
+      if @query.error:
+        <span.error>
+          @query.error
+      elif @query.latency:
+        <span.latency
+          title="Latency of getting statistics (the request roundtrip time)">
+          `${@query.latency} ms`
+    if not @query.tree:
+      "Loading..."
+    else:
+      <div>
+        <div.row>
+          <div.pid.head> "pid"
+          <div.name.head> "name"
+          <div.uptime.head> "uptime"
+          <div.mem.head> "mem (MiB)"
+        for pro of @query.toplevel:
+          _process_row(pro, @query.tree, 0)
+
+

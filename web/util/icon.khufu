@@ -1,0 +1,2 @@
+view icon(name):
+  <i.fa class=`fa-${name}`>

@@ -4,7 +4,7 @@
   "keywords": ["cantal", "monitoring"],
   "main": "index.js",
   "dependencies": {
-    "khufu-runtime": "0.3.4",
+    "khufu-runtime": "0.3.7",
     "redux": "3.0.5",
     "incremental-dom": "0.3.0",
     "redux-saga": "0.4.1",
@@ -17,7 +17,7 @@
     "babel-plugin-transform-object-rest-spread": "6.3.13",
     "redux": "3.0.5",
     "cbor-js": "0.1.0",
-    "khufu": "0.3.2"
+    "khufu": "0.3.7"
   },
   "optionalDependencies": {
     "webpack-dev-server": "// For hot reload, with dependencies",

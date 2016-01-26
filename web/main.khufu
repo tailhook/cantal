@@ -3,6 +3,7 @@ import {createStore} from 'redux'
 import {bool, toggle, disable} from './stores/simple'
 import {main as enable_remote} from './pages/enable_remote.khufu'
 import {main as status} from './pages/status.khufu'
+import {main as processes} from './pages/processes.khufu'
 import {@router, toggle_remote, go} from './util/routing'
 
 style:
@@ -75,9 +76,11 @@ view main():
           else:
             _local_menu()
     <div.pure-u-1.pure-u-md-2-3.pure-u-xl-20-24>
-      if not @router.remote:
+      if not(@router.remote):
         if @router.page == 'status':
           status()
+        elif @router.page == 'processes':
+          processes()
         else:
           @router.page
       else:
