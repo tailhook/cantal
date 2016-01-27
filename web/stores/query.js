@@ -292,7 +292,7 @@ let dataset = new Enum({
 })
 
 
-class QueryResponse extends SimpleStruct { }
+export class QueryResponse extends SimpleStruct { }
 QueryResponse.probor_protocol = new Struct([
     ["values", null, new Dict(new Str(), dataset)],
     ])

@@ -7,7 +7,7 @@
     "khufu-runtime": "0.3.7",
     "redux": "3.0.5",
     "incremental-dom": "0.3.0",
-    "redux-saga": "0.4.1",
+    "redux-saga": "0.5.0",
     "regenerator": "0.8.42"
   },
   "devDependencies": {

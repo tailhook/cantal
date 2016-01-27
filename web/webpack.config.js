@@ -8,7 +8,7 @@ module.exports = {
         "webpack/hot/only-dev-server",
     ] : "./index",
     output: {
-        path: __dirname + "../public/js",
+        path: __dirname + "/../public/js",
         filename: "bundle.js",
         publicPath: '/js/',
     },

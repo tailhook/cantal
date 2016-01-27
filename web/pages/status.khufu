@@ -1,7 +1,14 @@
+import {fine_grained} from '../query/lang.js'
+import {query} from '../stores/local-query.js'
+import {memory, cpu} from '../stores/status.js'
+
 view main():
   <h2>
     "Memory"
   <div.pure-g>
+    store @mem = query(
+        fine_grained().matching('metric', '^memory\\.').tip()
+      )(memory)
     <div.pure-u-1-2>
     <div.pure-u-1-2>
       <table.pure-table>
@@ -14,4 +21,8 @@ view main():
               "MiB"
         <tbody>
           <tr>
-            
+
+    store @cpu = query(
+        fine_grained().matching('metric', '^cpu\\.').history()
+      )(cpu)
+

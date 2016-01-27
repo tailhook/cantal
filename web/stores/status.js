@@ -1,8 +1,15 @@
-
-export function* refresh(url, delay) {
-    yield fetch(url)
-    yield 
+export function memory(state={}, action) {
+    switch(action) {
+        case 'data':
+            console.log("GOT MEMORY", action.payload)
+            break;
+    }
 }
 
-export function status() {
+export function cpu(state={}, action) {
+    switch(action) {
+        case 'data':
+            console.log("GOT MEMORY", action.payload)
+            break;
+    }
 }

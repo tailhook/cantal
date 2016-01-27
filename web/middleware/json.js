@@ -2,8 +2,7 @@ import {applyMiddleware, createStore} from 'redux'
 import middleware from 'redux-saga'
 import {guard} from './util'
 import {take, put, race} from 'redux-saga'
-
-var sleep = (num) => new Promise((accept) => setTimeout(accept, num))
+import {sleep} from '../middleware/util'
 
 
 function* request() {
