@@ -1,4 +1,4 @@
-import {createQuery, url} from '../stores/cbor'
+import {createQuery, url} from '../middleware/cbor'
 import {metrics} from '../stores/metrics'
 import {MetricsResponse} from '../stores/query'
 import {repr} from '../util/view'

@@ -1,4 +1,4 @@
-import {createQuery, url} from '../stores/json'
+import {createQuery, url} from '../middleware/json'
 import {processes} from '../stores/processes'
 import {createStore} from 'redux'
 import {bool, toggle, disable, init} from '../stores/simple'

@@ -1,5 +1,5 @@
 import {createStore, applyMiddleware} from 'redux'
-import {guard} from '../stores/util'
+import {guard} from '../middleware/util'
 import {take, race, put} from 'redux-saga'
 import middleware from 'redux-saga'
 
