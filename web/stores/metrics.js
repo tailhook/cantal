@@ -5,7 +5,6 @@ export function metrics(state={}, action) {
                 latency: action.latency,
                 metrics: action.payload.metrics,
             }
-            console.log('MET', state.metrics)
             break;
         case 'error':
             state = {error: action.error, ...state}
