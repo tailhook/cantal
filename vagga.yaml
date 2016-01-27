@@ -124,13 +124,39 @@ commands:
           done
           sleep 100000
 
-  carbon: !Command
+  carbon: &carbon !Command
     description: Run carbon (cantal can submit data to carbon)
     container: graphite
     work-dir: /opt/graphite
     run:
     - ./bin/carbon-cache.py
     - start
+    - --debug
+
+  graphite-web: &graphite !Command
+    description: Run graphite-web (cantal can submit data to carbon). You
+                 must run graphite-init before running this command
+    container: graphite
+    work-dir: /opt/graphite/webapp/graphite
+    run:
+    - python
+    - manage.py
+    - runserver
+
+  init_graphite: !Command
+    description: Init graphite-web (cantal can submit data to carbon)
+    container: graphite
+    work-dir: /opt/graphite/webapp/graphite
+    run: |
+      python manage.py syncdb --noinput
+      mkdir -p /work/integrations/tmp/log/webapp
+
+  graphite: !Supervise
+    description: Run graphite-web (cantal can submit data to carbon). You
+                 must run graphite-init before running this command
+    children:
+      graphite: *graphite
+      carbon: *carbon
 
 containers:
 
@@ -201,6 +227,10 @@ containers:
       path: /opt/graphite/conf/storage-schemas.conf
 
     - !Install [py-cairo, rrdtool-dev]
+    - !Install
+      - ttf-dejavu
+      - ttf-liberation
+      - ttf-ubuntu-font-family
     - !Py2Install
       - django<1.6
       - django-tagging<0.4
@@ -221,12 +251,10 @@ containers:
       path: /opt/graphite/webapp/graphite/local_settings.py
     - !EnsureDir /opt/graphite/storage
     - !Sh |
-        cd /opt/graphite/webapp/graphite
-        export PYTHONPATH=/opt/graphite/webapp
-        echo 'SECRET_KEY = "fails in local settings :("' >> settings.py
-        python manage.py syncdb --noinput
+        echo 'SECRET_KEY = "fails in local settings :("' \
+          >> /opt/graphite/webapp/graphite/settings.py
     auto-clean: true
     volumes:
-      /opt/graphite/storage: !Snapshot { size: 100Mi }
+      /opt/graphite/storage: !BindRW /work/integrations/tmp
 
 

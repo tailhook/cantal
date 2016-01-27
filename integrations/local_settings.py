@@ -201,3 +201,4 @@ DATABASES = {
 #from graphite.app_settings import *
 
 SECRET_KEY = 'test key'
+ALLOWED_HOSTS = ['*']
