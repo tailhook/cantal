@@ -1,4 +1,4 @@
-import {createQuery, url} from '../middleware/cbor'
+import {createRefreshing, probor} from '../middleware/request'
 import {metrics} from '../stores/metrics'
 import {MetricsResponse} from '../stores/query'
 import {repr} from '../util/view'
@@ -43,11 +43,13 @@ style:
 
 view main():
   <div>
-    store @query = createQuery(metrics) <- url(
+    store @query = createRefreshing(metrics) <- probor(
       '/all_metrics.cbor', MetricsResponse, 120000)
     <div.title.error?(@query.error)>
       <h1>
-        `All Metrics (${ @query.metrics.length })`
+        'All Metrics'
+        if @query.metrics:
+          ` (${ @query.metrics.length })`
       if @query.error:
         <span.error>
           @query.error

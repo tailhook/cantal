@@ -1,7 +1,4 @@
 import {createStore, applyMiddleware} from 'redux'
-import {guard} from '../middleware/util'
-import {take, race, put} from 'redux-saga'
-import middleware from 'redux-saga'
 
 const DEFAULT_PAGES = {
     true: 'grid',
@@ -68,10 +65,6 @@ export function toggle_remote(store) {
     return go({remote: !store.remote, page: DEFAULT_PAGES[!store.remote]})
 }
 
-function back(path) {
-    return {type: 'reset', value: deserialize(path)}
-}
-
 function* push_history(getState) {
     while(true) {
         let {a_go, a_back} = yield race({
@@ -79,20 +72,22 @@ function* push_history(getState) {
             a_back: take('reset'),
         })
         if(a_go) {
-            history.pushState({}, '', serialize(apply(getState(), a_go.delta)))
         }
     }
 }
 
-function fetch_history_middleware({dispatch, getState}) {
-    dispatch(back(location.pathname))
+var routing_middleware = ({getState}) => next => {
+    next({type: 'reset', value: deserialize(location.pathname)})
     window.addEventListener('popstate', function(e) {
-        dispatch(back(location.pathname))
+        next({type: 'reset', value: deserialize(location.pathname)})
     })
-    return action => action;
+    return action => {
+        if(action.type == 'update') {
+            history.pushState({}, '',
+                serialize(apply(getState(), action.delta)))
+        }
+        next(action)
+    }
 }
 
-export var router = applyMiddleware(
-    middleware(guard(push_history)),
-    fetch_history_middleware
-)(createStore)(path);
+export var router = applyMiddleware(routing_middleware)(createStore)(path);

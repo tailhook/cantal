@@ -1,12 +1,15 @@
+import {DATA, ERROR} from '../middleware/request'
+
+
 export function metrics(state={}, action) {
     switch(action.type) {
-        case 'data':
+        case DATA:
             state = {
                 latency: action.latency,
-                metrics: action.payload.metrics,
+                metrics: action.data.metrics,
             }
             break;
-        case 'error':
+        case ERROR:
             state = {error: action.error, ...state}
             break;
     }

@@ -1,3 +1,4 @@
+import {DATA, ERROR} from '../middleware/request'
 import {format_uptime, till_now_ms, from_ms} from '../util/time'
 
 function build_tree(data) {
@@ -29,13 +30,13 @@ function build_tree(data) {
 
 export function processes(state={}, action) {
     switch(action.type) {
-        case 'data':
+        case DATA:
             state = {
                 latency: action.latency,
-                ...build_tree(action.payload)
+                ...build_tree(action.data)
             }
             break;
-        case 'error':
+        case ERROR:
             state = {error: action.error, ...state}
             break;
     }
