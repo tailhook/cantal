@@ -2,7 +2,7 @@ import {applyMiddleware, createStore} from 'redux'
 import {refresher, probor} from '../middleware/request'
 import {UPDATE_REQUEST, DATA, ERROR} from '../middleware/request'
 import {CANCEL} from 'khufu-runtime'
-import {QueryResponse} from './query'
+import {QueryResponse} from '../stores/query'
 import {decode} from '../util/probor'
 
 export const METRICS = '@@local-query/metrics'
@@ -12,22 +12,20 @@ var queries = {}
 var stores = new Map()
 
 
-let update = refresher({
-    dispatch(action) {
-        switch(action.type) {
-            case DATA: {
-                for(let [key, store] of stores.entries()) {
-                    let val = action.data.values.get(key)
-                    /// TODO(tailhook) capture errors? middleware?
-                    store.dispatch({type: METRICS, metrics: val})
-                }
-                break;
+let update = refresher({})(action => {
+    switch(action.type) {
+        case DATA: {
+            for(let [key, store] of stores.entries()) {
+                let val = action.data.values.get(key)
+                /// TODO(tailhook) capture errors? middleware?
+                store.dispatch({type: METRICS, metrics: val})
             }
-            case ERROR: {
-                for(let store of stores.values()) {
-                    /// TODO(tailhook) capture errors? middleware?
-                    store.dispatch(action)
-                }
+            break;
+        }
+        case ERROR: {
+            for(let store of stores.values()) {
+                /// TODO(tailhook) capture errors? middleware?
+                store.dispatch(action)
             }
         }
     }

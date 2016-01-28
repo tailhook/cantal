@@ -55,7 +55,7 @@ export var refresher = store => next => {
         }
         if(body) {
             request.open('POST', url, true);
-            request.setHeader('Content-Type', 'application/json')
+            request.setRequestHeader('Content-Type', 'application/json')
             request.send(body)
         } else {
             request.open('GET', url, true);

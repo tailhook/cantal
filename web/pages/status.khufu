@@ -1,5 +1,5 @@
 import {fine_grained} from '../query/lang.js'
-import {query} from '../stores/local-query.js'
+import {query} from '../middleware/local-query.js'
 import {memory, cpu} from '../stores/status.js'
 
 view main():
