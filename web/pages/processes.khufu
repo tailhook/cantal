@@ -1,6 +1,5 @@
-import {createRefreshing, json} from '../middleware/request'
+import {refresher, json} from '../middleware/request'
 import {processes} from '../stores/processes'
-import {createStore} from 'redux'
 import {bool, toggle, disable, init} from '../stores/simple'
 import {icon} from '../util/icon.khufu'
 
@@ -46,7 +45,7 @@ style:
 
 view _process_row(process, all, level):
   <div>
-    store @open = createStore(bool) <- init(false)
+    store @open = bool | init(false)
     let children = all[process.pid]
     let num = children and children.length
     <div.row>
@@ -72,7 +71,7 @@ view _process_row(process, all, level):
 
 view main():
   <div>
-    store @query = createRefreshing(processes) <- json('/all_processes.json')
+    store @query = processes | refresher | json('/all_processes.json')
     <div.title.error?(@query.error)>
       <h1>
         "All Processes"

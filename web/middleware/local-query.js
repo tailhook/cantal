@@ -52,19 +52,16 @@ function del_query(id) {
     }
 }
 
-var specific_query = query => store => dispatch => {
+export var query = query => store => next => {
     let id = 'q' + (++counter);
     add_query(id, query, store)
     return action => {
         if(action.type == CANCEL) {
             del_query(id)
         }
-        dispatch(action)
+        next(action)
     }
 }
 
 
-export var query = query => applyMiddleware(
-    specific_query(query)
-)(createStore)
 

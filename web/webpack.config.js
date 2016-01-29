@@ -23,6 +23,12 @@ module.exports = {
             exclude: /node_modules/,
         }],
     },
+    babel: {
+        "presets": ["es2015"],
+        "plugins": [
+            "transform-object-rest-spread",
+        ],
+    },
     resolve: {
         root: ["/usr/local/lib/node_modules"],
     },
@@ -53,6 +59,7 @@ module.exports = {
         new webpack.NoErrorsPlugin(),
         new webpack.DefinePlugin({
             VERSION: JSON.stringify(process.env['CANTAL_VERSION']),
+            DEBUG: DEV,
         }),
     ],
 }

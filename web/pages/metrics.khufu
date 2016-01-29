@@ -1,4 +1,4 @@
-import {createRefreshing, probor} from '../middleware/request'
+import {refresher, probor} from '../middleware/request'
 import {metrics} from '../stores/metrics'
 import {MetricsResponse} from '../stores/query'
 import {repr} from '../util/view'
@@ -43,8 +43,7 @@ style:
 
 view main():
   <div>
-    store @query = createRefreshing(metrics) <- probor(
-      '/all_metrics.cbor', MetricsResponse, 120000)
+    store @query = metrics | refresher | probor('/all_metrics.cbor', MetricsResponse, 120000)
     <div.title.error?(@query.error)>
       <h1>
         'All Metrics'

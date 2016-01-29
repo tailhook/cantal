@@ -1,7 +1,6 @@
 import {fine_grained} from '../query/lang.js'
 import {query} from '../middleware/local-query.js'
 import {memory, cpu} from '../stores/status.js'
-import {createStore} from 'redux'
 import {bool, toggle, disable, init} from '../stores/simple'
 import {icon} from '../util/icon.khufu'
 
@@ -21,40 +20,39 @@ view main():
   <h2>
     "Memory"
   <div.pure-g>
-    store @mem = query(
-        fine_grained().matching('metric', '^memory\\.').tip()
-      )(memory)
+    store @mem = memory | query(fine_grained().matching('metric', '^memory\\.').tip())
     <div.pure-u-1-2>
     <div.pure-u-1-2>
-      <table.pure-table>
-        store @open = createStore(bool) <- init(false)
-        <thead>
-          <tr>
-            <th>
-            <th>
-              "Title"
-            <th>
-              "MiB"
-        <tbody>
-          for item of @mem.items key item.title:
-            if @open or not item.collapsed:
-              <tr>
-                <td>
-                  if item.color:
-                    <span.sample style=`background-color: ${item.color}`>
-                <td>`${item.title}`
-                <td.right>
-                  item.text
-        <tfoot>
-          <tr>
-            <td.button colspan=3>
-              link {click} toggle(@open) -> @open
-              if @open:
-                icon('arrow-up')
-              else:
-                icon('arrow-down')
+      if @mem:
+        <table.pure-table>
+          store @open = bool | init(false)
+          <thead>
+            <tr>
+              <th>
+              <th>
+                "Title"
+              <th>
+                "MiB"
+          <tbody>
+            for item of @mem.items key item.title:
+              if @open or not item.collapsed:
+                <tr>
+                  <td>
+                    if item.color:
+                      <span.sample style=`background-color: ${item.color}`>
+                  <td>`${item.title}`
+                  <td.right>
+                    item.text
+          <tfoot>
+            <tr>
+              <td.button colspan=3>
+                link {click} toggle(@open) -> @open
+                if @open:
+                  icon('arrow-up')
+                else:
+                  icon('arrow-down')
+      else:
+        "Loading ..."
 
-    store @cpu = query(
-        fine_grained().matching('metric', '^cpu\\.').history()
-      )(cpu)
+    store @cpu = cpu | query(fine_grained().matching('metric', '^cpu\\.').history())
 

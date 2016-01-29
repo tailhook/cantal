@@ -117,5 +117,3 @@ export var probor = (url, schema, interval, params) => ({
     decoder: x => decode(schema, x),
     ...params,
 })
-
-export var createRefreshing = applyMiddleware(refresher)(createStore)

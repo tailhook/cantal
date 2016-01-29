@@ -1,6 +1,4 @@
 import {last_beacon as beacon, remote_enabled} from './websock'
-import {createStore} from 'redux'
-import {bool, toggle, disable} from './stores/simple'
 import {main as enable_remote} from './pages/enable_remote.khufu'
 import {main as status} from './pages/status.khufu'
 import {main as processes} from './pages/processes.khufu'
