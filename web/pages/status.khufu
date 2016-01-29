@@ -3,6 +3,7 @@ import {query} from '../middleware/local-query.js'
 import {memory, cpu} from '../stores/status.js'
 import {bool, toggle, disable, init} from '../stores/simple'
 import {icon} from '../util/icon.khufu'
+import {donut} from '../util/donut.khufu'
 
 style:
   .sample
@@ -22,6 +23,8 @@ view main():
   <div.pure-g>
     store @mem = memory | query(fine_grained().matching('metric', '^memory\\.').tip())
     <div.pure-u-1-2>
+      if @mem:
+        donut(@mem.items, 256, 256, @mem.total)
     <div.pure-u-1-2>
       if @mem:
         <table.pure-table>

@@ -15,6 +15,12 @@ export function start(_url, _render) {
     connect()
 }
 
+export function stop() {
+    web_socket.onclose = null
+    web_socket.onmessage = null
+    web_socket.close()
+}
+
 function connect() {
     web_socket = new WebSocket(url)
     web_socket.binaryType = "arraybuffer";
@@ -76,3 +82,6 @@ export function remote_enabled() {
 
 window.WEBSOCK_DEBUG_INTERFACE = exports
 
+if(module.hot) {
+    module.hot.decline()
+}

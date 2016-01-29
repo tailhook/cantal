@@ -29,7 +29,7 @@ let khufu_instance = khufu(document.getElementById('app'), main(VERSION), {
     }
 })
 
-router.subscribe(khufu_instance.queue_render)
+let unsubscribe = router.subscribe(khufu_instance.queue_render)
 
 if(!DEBUG) {
     websock.start('ws://' + location.host  + '/ws',
@@ -41,4 +41,8 @@ if(!DEBUG) {
 
 if(module.hot) {
     module.hot.accept()
+    module.hot.dispose(() => {
+        unsubscribe()
+        websock.stop()
+    })
 }

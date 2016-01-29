@@ -1,0 +1,34 @@
+import * as math from './donut-math'
+import {tooltip, show, hide} from '../stores/tooltip'
+
+style:
+  svg
+    vertical-align: middle
+  .hover
+    stroke: black
+  .hint
+    position: absolute
+    top: 10px
+    left: 10px
+    pointer-events: none
+    font-family: Verdana, Tahoma, sans-serif
+    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5)
+  .canvas
+    position: relative
+
+view donut(items, width, height, total):
+  <div.canvas>
+    store @tooltip = tooltip
+    <svg style=({
+        'width': width + "px",
+        'height': height + "px"
+        })>
+      let paths = math.paths(items, total, width)
+      <g>
+        for item of paths key item.title:
+          <path fill=item.color title=item.title d=item.path>
+            link {mouseenter} show(event, item) -> @tooltip
+            link {mouseleave} hide() -> @tooltip
+    if @tooltip.visible:
+      <div.hint> `${@tooltip.title}: ${@tooltip.text}`
+
