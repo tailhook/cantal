@@ -50,7 +50,8 @@ view main():
   <h2>
     "Memory"
   <div.pure-g>
-    store @mem = memory | query(fine_grained().matching('metric', '^memory\\.').tip())
+    store @mem = memory
+      | query(fine_grained().matching('metric', '^memory\\.').tip())
     <div.pure-u-1-2.center>
       if @mem:
         donut(@mem.items, 256, 256, @mem.total)
@@ -60,5 +61,6 @@ view main():
       else:
         "Loading ..."
 
-    store @cpu = cpu | query(fine_grained().matching('metric', '^cpu\\.').history())
+    store @cpu = cpu
+      | query(fine_grained().matching('metric', '^cpu\\.').history())
 
