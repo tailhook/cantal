@@ -1,9 +1,11 @@
 import {fine_grained} from '../query/lang.js'
 import {query} from '../middleware/local-query.js'
-import {memory, cpu} from '../stores/status.js'
+import * as stores from '../stores/status.js'
 import {bool, toggle, disable, init} from '../stores/simple'
 import {icon} from '../util/icon.khufu'
-import {donut} from '../util/donut.khufu'
+import {donut} from '../charts/donut.khufu'
+import {compact} from '../charts/compact.khufu'
+import {number_formatter, already_percent_formatter} from '../util/format'
 
 style:
   .sample
@@ -46,11 +48,48 @@ view memtable(mem):
           else:
             icon('arrow-down')
 
+view cpu(series):
+  let cpu_yaxis = {
+    height: 40,
+    bg_color: 'rgb(237,248,233)',
+    skip_color: "white",
+    format: already_percent_formatter(),
+    colors: [
+        [100, 'rgb(186,228,179)'],
+        [200,'rgb(116,196,118)'],
+        [800, 'rgb(49,163,84)'],
+        [1600, 'rgb(0,109,44)'],
+        [6400, "black"]
+        ]
+    }
+  compact(1100, series.timestamps, [
+        {
+        'title': 'Cpu',
+        'values': series.total,
+        'yaxis': cpu_yaxis
+        },
+        {
+        'title': 'User',
+        'values': series.user.values,
+        'yaxis': cpu_yaxis
+        }, {
+        'title': 'System',
+        'values': series.system.values,
+        'yaxis': cpu_yaxis
+        }, {
+        'title': 'I/O Wait',
+        'values': series.iowait.values,
+        'yaxis': cpu_yaxis
+        }, {
+        'title': 'IRQ',
+        'values': series.irq.values,
+        'yaxis': cpu_yaxis
+        }])
+
 view main():
-  <h2>
-    "Memory"
+  <h2> "Memory"
   <div.pure-g>
-    store @mem = memory
+    store @mem = stores.memory
       | query(fine_grained().matching('metric', '^memory\\.').tip())
     <div.pure-u-1-2.center>
       if @mem:
@@ -61,6 +100,14 @@ view main():
       else:
         "Loading ..."
 
-    store @cpu = cpu
-      | query(fine_grained().matching('metric', '^cpu\\.').history())
+  <h2> "CPU"
+  <div.pure-g>
+    <div.pure-u-1>
+      store @cpu = stores.cpu
+        | query(fine_grained().matching('metric', '^cpu\\.').history()
+                .derivative().sumby('metric'))
+      if not @cpu:
+        "Loading ..."
+      else:
+        cpu(@cpu)
 

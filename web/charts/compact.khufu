@@ -1,0 +1,105 @@
+import {format_datetime} from '../util/time'
+import * as helpers from './compact-helpers'
+
+style:
+  .bar
+    height: 41px
+    border-bottom: solid black 1px
+    position: relative
+  .title
+    font-family: Verdana, Tahoma, sans-serif
+    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5)
+    position: absolute
+    left: 12px
+    top: 8px
+    font-size: 18px
+  .value
+    font-family: Verdana, Tahoma, sans-serif
+    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5)
+    font-size: 18px
+    position: absolute
+    right: 0px
+    top: 0px
+    padding-top: 8px
+    padding-right: 8px
+    height: 41px
+  .value.follow
+    border-right: solid black 1px
+  .footer
+    position: relative
+  .footer-time
+    position: absolute
+    right: 0px
+    top: 0px
+    padding-top: 8px
+    padding-right: 8px
+    height: 41px
+  .xaxis
+    height: 40px
+    position: relative
+    border-bottom: solid black 1px
+    padding-bottom: 0px
+  line.tick
+    stroke: black
+  text.tick
+    font-family: Verdana, Tahoma, sans-serif
+    text-anchor: middle
+    font-size: 12px
+
+view compact(width, timestamps, items):
+  <div>
+    store @pos = helpers.follow
+    <div>
+      link {mousemove, mouseenter, mouseleave} helpers.update_coords(event) -> @pos
+      let xaxis = helpers.xaxis(timestamps, width)
+      <div.xaxis style=({'width': width+'px'})>
+        <svg width=width height=40>
+          for tick of xaxis.ticks key tick.text:
+            <g transform=`translate(${tick.x}, 40)`>
+              <line.tick y2=-6 x2=0>
+              <text.tick y=-8> `${tick.text}`
+      <div>
+        for item of items key item.title:
+          if item.values:
+            <div.bar style=({'width': width + 'px'})>
+              helpers.draw(xaxis, item.yaxis, item.values)
+              <div.title>
+                item.title
+              if @pos.x != null and @pos.x < width:
+                <div.value.follow style=({
+                    'right': width - @pos.x + 'px'})>
+                  let px = xaxis.pixels[@pos.x]
+                  if px:
+                    if helpers.valid(item.values[px.index]):
+                      if item.yaxis.format:
+                        item.yaxis.format(item.values[px.index])
+                      else:
+                        item.values[px.index].toFixed(2)
+                  else:
+                    "--"
+              else:
+                <div.value>
+                  if helpers.valid(item.values[0]):
+                    if item.yaxis.format:
+                      item.yaxis.format(item.values[0])
+                    else:
+                      item.values[0].toFixed(2)
+          else:
+            <div.bar.nodata style=({'width': width+'px'})>
+              "-- no data --"
+      if @pos.x != null and @pos.x < width:
+        <div.footer style=({'width': width+'px'})>
+          <div.footer-time.follow
+              style=({'right': width - @pos.x + 'px'})>
+            let px = xaxis.pixels[@pos.x]
+            if px:
+              format_datetime(px.exact_time)
+            else:
+              "--"
+      else:
+        <div.footer style=({'width': width+'px'})>
+          let px = xaxis.pixels[width - 1]
+          if px:
+            <div.footer-time>
+              format_datetime(px.exact_time)
+

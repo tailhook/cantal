@@ -39,7 +39,7 @@ class Query {
     func(...item) {
         return new Query({
             ...this,
-            functions: this.functions.concat(item),
+            functions: this.functions.concat([item]),
         })
     }
     // Functions

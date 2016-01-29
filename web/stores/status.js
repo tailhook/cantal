@@ -20,7 +20,7 @@ const MEM_ORDER = {
     CommitLimit: 10,
 }
 
-export function mem_chart(metrics) {
+function mem_chart(metrics) {
     metrics = metrics.to_dict('metric', 'memory.')
     metrics.Used = (metrics.MemTotal - metrics.MemFree - metrics.Buffers
                     - metrics.Cached)
@@ -45,8 +45,13 @@ export function mem_chart(metrics) {
 
 
 
-export function cpu_usage(cpu_total, cpu_idle) {
-    return cpu_idle.values.map((x, i) => cpu_total.values[i] - x)
+function cpu_chart(metrics) {
+    let dic = metrics.to_dict('metric', 'cpu.')
+    return {
+        total: dic.idle.values.map((x, i) => dic.TOTAL.values[i] - x),
+        timestamps: metrics.chunks[0][2],
+        ...dic,
+    }
 }
 
 var map_metrics = fun => (state, action) => {
@@ -57,4 +62,4 @@ var map_metrics = fun => (state, action) => {
 }
 
 export var memory = map_metrics(mem_chart)
-export var cpu = map_metrics(cpu_usage)
+export var cpu = map_metrics(cpu_chart)
