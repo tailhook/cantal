@@ -127,6 +127,40 @@ commands:
           done
           sleep 100000
 
+  carbon: &carbon !Command
+    description: Run carbon (cantal can submit data to carbon)
+    container: graphite
+    work-dir: /opt/graphite
+    run:
+    - ./bin/carbon-cache.py
+    - start
+    - --debug
+
+  graphite-web: &graphite !Command
+    description: Run graphite-web (cantal can submit data to carbon). You
+                 must run graphite-init before running this command
+    container: graphite
+    work-dir: /opt/graphite/webapp/graphite
+    run:
+    - python
+    - manage.py
+    - runserver
+
+  init_graphite: !Command
+    description: Init graphite-web (cantal can submit data to carbon)
+    container: graphite
+    work-dir: /opt/graphite/webapp/graphite
+    run: |
+      python manage.py syncdb --noinput
+      mkdir -p /work/integrations/tmp/log/webapp
+
+  graphite: !Supervise
+    description: Run graphite-web (cantal can submit data to carbon). You
+                 must run graphite-init before running this command
+    children:
+      graphite: *graphite
+      carbon: *carbon
+
 containers:
 
   ubuntu:
@@ -172,8 +206,58 @@ containers:
     - !Alpine v3.1
     - !Install [py-sphinx, make]
 
-  msgpack:
+  graphite:
     setup:
-    - !Alpine v3.1
-    - !Py2Install [msgpack-python]
+    - !Alpine v3.3
+    - !Install [tzdata]
+    - !PipConfig { dependencies: true }
+    - !Py2Install
+      - twisted<12.0
+    - !TarInstall
+      url: https://launchpad.net/graphite/0.9/0.9.10/+download/whisper-0.9.10.tar.gz
+      script: python setup.py install
+    - !TarInstall
+      url: https://launchpad.net/graphite/0.9/0.9.10/+download/carbon-0.9.10.tar.gz
+      script: python setup.py install
+
+    - !EnsureDir /var/lib/carbon
+    - !EnsureDir /opt/graphite/conf
+    - !Copy
+      source: /work/integrations/carbon.conf
+      path: /opt/graphite/conf/carbon.conf
+    - !Copy
+      source: /work/integrations/storage-schemas.conf
+      path: /opt/graphite/conf/storage-schemas.conf
+
+    - !Install [py-cairo, rrdtool-dev]
+    - !Install
+      - ttf-dejavu
+      - ttf-liberation
+      - ttf-ubuntu-font-family
+    - !Py2Install
+      - django<1.6
+      - django-tagging<0.4
+      - twisted<12.0
+      - fields
+      - pyparsing
+      - rrdtool
+      - whitenoise
+      - python-memcached
+      - pytz
+    - !TarInstall
+      url: https://launchpad.net/graphite/0.9/0.9.10/+download/graphite-web-0.9.10.tar.gz
+      script: |
+        python check-dependencies.py
+        python setup.py install
+    - !Copy
+      source: /work/integrations/local_settings.py
+      path: /opt/graphite/webapp/graphite/local_settings.py
+    - !EnsureDir /opt/graphite/storage
+    - !Sh |
+        echo 'SECRET_KEY = "fails in local settings :("' \
+          >> /opt/graphite/webapp/graphite/settings.py
+    auto-clean: true
+    volumes:
+      /opt/graphite/storage: !BindRW /work/integrations/tmp
+
 
