@@ -12,6 +12,7 @@ use super::scan::machine;
 use super::scan::processes;
 use super::scan::values;
 use super::scan::time_ms;
+use super::scan::cgroups;
 use super::util::Cell;
 use super::storage::Buffer;
 use super::deps::{Dependencies, LockedDeps};
@@ -38,6 +39,7 @@ pub fn scan_loop(deps: Dependencies)
 
         let boot_time = machine::read(&mut tip);
 
+        let cgroups = cgroups::read();
         let processes = processes::read(&mut process_cache);
         processes::write_tip(&mut tip, &processes);
         values::read(&mut tip, &mut values_cache, &processes);

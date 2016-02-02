@@ -9,6 +9,7 @@ use cantal::itertools::NextValue;
 pub mod machine;
 pub mod processes;
 pub mod values;
+pub mod cgroups;
 
 // TODO(tailhook) use some time/date crate
 
