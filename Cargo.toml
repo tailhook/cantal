@@ -29,6 +29,9 @@ fern = "0.3"
 log = "0.3"
 matches = "0.1"
 mio = "0.5"
+quire = "0.1.5"
+rotor = "0.5.0"
+rotor-carbon = "0.1.0"
 
 [dependencies.probor]
 version = "0.1.3"

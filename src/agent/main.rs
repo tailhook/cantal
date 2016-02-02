@@ -19,6 +19,8 @@ extern crate websocket;
 extern crate byteorder;
 extern crate anymap;
 extern crate fern;
+extern crate rotor;
+extern crate rotor_carbon;
 
 extern crate cantal_values as cantal;
 extern crate cantal_history as history;
@@ -60,6 +62,7 @@ mod error;
 mod deps;
 mod ioutil;
 mod info;
+mod rotorloop;
 
 
 fn main() {
@@ -171,6 +174,8 @@ fn run() -> Result<(), Box<Error>> {
             storage::storage_loop(mydeps, &path);
         })
     });
+
+    deps.insert(rotorloop::start());
 
     let mydeps = deps.clone();
     let _scan = thread::spawn(move || {
