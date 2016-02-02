@@ -57,11 +57,11 @@ commands:
     container: ubuntu
     environ:
       RUST_LOG: debug
-    run: ./cantal-agent --host 0.0.0.0
+    run: ./cantal-agent --host 0.0.0.0 --config-dir /work/example-configs
 
   live: !Supervise
     description: Run cantal in container with live reload of frontend
-    children:
+    children: &live
       cantal: *run
       webpack: !Command
         container: ubuntu
@@ -131,10 +131,9 @@ commands:
     description: Run carbon (cantal can submit data to carbon)
     container: graphite
     work-dir: /opt/graphite
-    run:
-    - ./bin/carbon-cache.py
-    - start
-    - --debug
+    run: |
+      rm /work/integrations/tmp/carbon-cache-a.pid || true
+      ./bin/carbon-cache.py start --debug
 
   graphite-web: &graphite !Command
     description: Run graphite-web (cantal can submit data to carbon). You
@@ -154,10 +153,11 @@ commands:
       python manage.py syncdb --noinput
       mkdir -p /work/integrations/tmp/log/webapp
 
-  graphite: !Supervise
+  graphite-live: !Supervise
     description: Run graphite-web (cantal can submit data to carbon). You
                  must run graphite-init before running this command
     children:
+      <<: *live
       graphite: *graphite
       carbon: *carbon
 

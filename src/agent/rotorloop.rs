@@ -1,6 +1,7 @@
 use std::thread;
 use std::sync::mpsc::channel;
 
+use configs::Configs;
 use rotor::{Loop, Config};
 use rotor_carbon::{Sink, connect_ip};
 
@@ -9,28 +10,36 @@ struct Context;
 
 #[derive(Clone)] // currently required to insert into dependencies
 pub struct Rotor {
-    pub carbon: Sink,
+    pub carbon: Vec<(Sink, ())>,
 }
 
 
 // All new async things should be in rotor main loop
-pub fn start() -> Rotor {
+pub fn start(configs: &Configs) -> Rotor {
     let (tx, rx) = channel();
-    // We create a loop in the thread. It's simpler to use for demo.
-    // But it's perfectly okay to add rotor-carbon thing to your normal
-    // event loop
+
+    let configs = configs.clone(); // TODO(tailhook) optimize this
     thread::spawn(move || {
+
         let mut loop_creator = Loop::new(&Config::new()).unwrap();
-        loop_creator.add_machine_with(|scope| {
-            let (fsm, sink) = connect_ip(
-                &format!("{}:{}", "127.0.0.1", 2003).parse().unwrap(),
-                scope).unwrap();
-            tx.send(sink).unwrap();
-            Ok(fsm)
+
+        let mut carbon = vec!();
+        for cfg in configs.carbon {
+            loop_creator.add_machine_with(|scope| {
+                info!("Connecting to carbon at {}:{}", cfg.host, cfg.port);
+                let (fsm, sink) = connect_ip(
+                    &format!("{}:{}", cfg.host, cfg.port).parse().unwrap(),
+                    scope).unwrap();
+                carbon.push((sink, ()));
+                Ok(fsm)
+            }).unwrap();
+        }
+        tx.send(Rotor {
+            carbon: carbon,
         }).unwrap();
+
         loop_creator.run(Context).unwrap();
+
     });
-    Rotor {
-        carbon: rx.recv().unwrap()
-    }
+    rx.recv().unwrap()
 }

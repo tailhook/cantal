@@ -19,7 +19,9 @@ extern crate websocket;
 extern crate byteorder;
 extern crate anymap;
 extern crate fern;
+extern crate quire;
 extern crate rotor;
+extern crate scan_dir;
 extern crate rotor_carbon;
 
 extern crate cantal_values as cantal;
@@ -38,7 +40,7 @@ use std::process::exit;
 use std::error::Error;
 
 use nix::unistd::getpid;
-use argparse::{ArgumentParser, Store, ParseOption, StoreOption};
+use argparse::{ArgumentParser, Store, ParseOption, StoreOption, Parse};
 use rustc_serialize::hex::ToHex;
 
 use deps::{Dependencies, LockedDeps};
@@ -63,6 +65,8 @@ mod deps;
 mod ioutil;
 mod info;
 mod rotorloop;
+mod carbon;
+mod configs;
 
 
 fn main() {
@@ -81,6 +85,7 @@ fn run() -> Result<(), Box<Error>> {
     let mut host = "127.0.0.1".to_string();
     let mut port = 22682u16;
     let mut storage_dir = None::<PathBuf>;
+    let mut config_dir = PathBuf::from("/etc/cantal");
     let mut log_level = env::var("RUST_LOG").ok()
         .and_then(|x| FromStr::from_str(&x).ok());
     {
@@ -101,6 +106,9 @@ fn run() -> Result<(), Box<Error>> {
         ap.refer(&mut storage_dir)
             .add_option(&["-d", "--storage-dir"], ParseOption,
                 "A directory to serialize data to");
+        ap.refer(&mut config_dir)
+            .add_option(&["-c", "--config-dir"], Parse,
+                "A directory with configuration files");
         ap.refer(&mut log_level)
             .add_option(&["--log-level"], StoreOption,
                 "Log level");
@@ -123,6 +131,8 @@ fn run() -> Result<(), Box<Error>> {
     {
         panic!("Failed to initialize global logger: {}", e);
     }
+
+    let configs = configs::read(&config_dir);
 
     let hostname = info::hostname().unwrap();
     let addresses = info::my_addresses(port).unwrap();
@@ -175,7 +185,7 @@ fn run() -> Result<(), Box<Error>> {
         })
     });
 
-    deps.insert(rotorloop::start());
+    deps.insert(rotorloop::start(&configs));
 
     let mydeps = deps.clone();
     let _scan = thread::spawn(move || {

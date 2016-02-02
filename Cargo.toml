@@ -32,6 +32,7 @@ mio = "0.5"
 quire = "0.1.5"
 rotor = "0.5.0"
 rotor-carbon = "0.1.0"
+scan_dir = "0.3.2"
 
 [dependencies.probor]
 version = "0.1.3"
