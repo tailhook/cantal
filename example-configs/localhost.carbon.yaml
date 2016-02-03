@@ -1,2 +1,4 @@
 host: 127.0.0.1
 port: 2003
+interval: 10
+enable-cgroup-stats: true

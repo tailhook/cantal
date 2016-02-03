@@ -1,45 +1,50 @@
 use std::thread;
-use std::sync::mpsc::channel;
+use std::sync::{Arc, RwLock};
+
+use rotor::{Loop, Config, Machine, EventSet};
+use rotor_carbon::{Fsm as Carbon, connect_ip};
+use rotor_tools::timer::{IntervalFunc, interval_func};
+use rotor_tools::loop_ext::{LoopExt, LoopInstanceExt};
+use rotor_tools::{Duration};
 
 use configs::Configs;
-use rotor::{Loop, Config};
-use rotor_carbon::{Sink, connect_ip};
+use stats::Stats;
+use carbon;
 
-
-struct Context;
-
-#[derive(Clone)] // currently required to insert into dependencies
-pub struct Rotor {
-    pub carbon: Vec<(Sink, ())>,
+struct Context {
+    stats: Arc<RwLock<Stats>>,
 }
+
+rotor_compose!(enum Fsm/Seed<Context> {
+    Carbon(Carbon<Context>),
+    CarbonTimer(IntervalFunc<Context>),
+});
 
 
 // All new async things should be in rotor main loop
-pub fn start(configs: &Configs) -> Rotor {
-    let (tx, rx) = channel();
-
-    let configs = configs.clone(); // TODO(tailhook) optimize this
-    thread::spawn(move || {
-
-        let mut loop_creator = Loop::new(&Config::new()).unwrap();
-
-        let mut carbon = vec!();
-        for cfg in configs.carbon {
-            loop_creator.add_machine_with(|scope| {
-                info!("Connecting to carbon at {}:{}", cfg.host, cfg.port);
-                let (fsm, sink) = connect_ip(
-                    format!("{}:{}", cfg.host, cfg.port).parse().unwrap(),
-                    scope).unwrap();
-                carbon.push((sink, ()));
-                Ok(fsm)
-            }).unwrap();
-        }
-        tx.send(Rotor {
-            carbon: carbon,
-        }).unwrap();
-
-        loop_creator.run(Context).unwrap();
-
+pub fn start(configs: &Configs, stats: Arc<RwLock<Stats>>) {
+    let loop_creator = Loop::new(&Config::new()).unwrap();
+    let mut loop_inst = loop_creator.instantiate(Context {
+        stats: stats,
     });
-    rx.recv().unwrap()
+
+    for cfg in &configs.carbon {
+        let sink = loop_inst.add_and_fetch(Fsm::Carbon, |scope| {
+            info!("Connecting to carbon at {}:{}", cfg.host, cfg.port);
+            connect_ip(
+                format!("{}:{}", cfg.host, cfg.port).parse().unwrap(),
+                scope)
+        }).unwrap();
+        let cfg = cfg.clone();
+        loop_inst.add_machine_with(|scope| {
+            Ok(Fsm::CarbonTimer(interval_func(scope,
+                Duration::seconds(cfg.interval as i64), move |ctx| {
+                    carbon::send(sink.sender(), &cfg,
+                                 &*ctx.stats.read().unwrap());
+                })))
+        }).unwrap();
+    }
+    thread::spawn(move || {
+        loop_inst.run().unwrap();
+    });
 }

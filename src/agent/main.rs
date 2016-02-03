@@ -20,9 +20,10 @@ extern crate byteorder;
 extern crate anymap;
 extern crate fern;
 extern crate quire;
-extern crate rotor;
 extern crate scan_dir;
+#[macro_use] extern crate rotor;
 extern crate rotor_carbon;
+extern crate rotor_tools;
 
 extern crate cantal_values as cantal;
 extern crate cantal_history as history;
@@ -139,10 +140,11 @@ fn run() -> Result<(), Box<Error>> {
     let name = name.unwrap_or(hostname.clone());
     let machine_id = info::machine_id();
 
-    let mut deps = Dependencies::new();
-    deps.insert(Arc::new(RwLock::new(stats::Stats::new(
+    let stats = Arc::new(RwLock::new(stats::Stats::new(
         getpid(), name.clone(), hostname.clone(), machine_id.to_hex(),
-        addresses.iter().map(|x| x.to_string()).collect()))));
+        addresses.iter().map(|x| x.to_string()).collect())));
+    let mut deps = Dependencies::new();
+    deps.insert(stats.clone());
 
     let p2p_init = try!(p2p::p2p_init(&mut deps, &host, port,
         machine_id, addresses, hostname, name));
@@ -185,7 +187,6 @@ fn run() -> Result<(), Box<Error>> {
         })
     });
 
-    deps.insert(rotorloop::start(&configs));
 
     let mydeps = deps.clone();
     let _scan = thread::spawn(move || {
@@ -198,6 +199,8 @@ fn run() -> Result<(), Box<Error>> {
             .map_err(|e| error!("Error in p2p loop: {}", e))
             .ok();
     });
+
+    rotorloop::start(&configs, stats);
 
     try!(server::server_loop(server_init, deps));
 
