@@ -28,7 +28,7 @@ pub fn start(configs: &Configs) -> Rotor {
             loop_creator.add_machine_with(|scope| {
                 info!("Connecting to carbon at {}:{}", cfg.host, cfg.port);
                 let (fsm, sink) = connect_ip(
-                    &format!("{}:{}", cfg.host, cfg.port).parse().unwrap(),
+                    format!("{}:{}", cfg.host, cfg.port).parse().unwrap(),
                     scope).unwrap();
                 carbon.push((sink, ()));
                 Ok(fsm)
