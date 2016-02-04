@@ -55,8 +55,10 @@ pub fn scan(sender: &mut Sender, cfg: &Config, stats: &Stats) {
     }
     let timestamp = backlog.timestamps[0].0;
     let cut = timestamp - (cfg.interval as u64)*1000;
-    let num = backlog.timestamps.iter().enumerate().skip(1)
-        .take_while(|&(_, &(x, d))| x-d as u64 >= cut).last().unwrap().0;
+    let num = backlog.timestamps.iter().enumerate()
+        .skip_while(|&(_, &(x, d))| x-d as u64 > cut)
+        .next().map(|(x, _)| x)
+        .unwrap_or(backlog.timestamps.len() - 1);
     let unixtime = timestamp / 1000;
     for (key, value) in backlog.values.iter() {
         key.get_with("pid", |pid_str| {
@@ -118,7 +120,6 @@ pub fn scan(sender: &mut Sender, cfg: &Config, stats: &Stats) {
         });
     }
     for cgroup in cgroups {
-        println!("Cgroup {:?}", cgroup);
         sender.add_value_at(
             format_args!("cantal.{}.cgroups.{}.vsize",
                 stats.hostname, cgroup.name),
