@@ -61,6 +61,7 @@ pub fn scan_loop(deps: Dependencies)
             stats.last_scan = start;
             stats.boot_time = boot_time.or(stats.boot_time);
             stats.processes = processes;
+            stats.cgroups = cgroups;
 
             if start - last_store > SNAPSHOT_INTERVAL {
                 last_store = start;

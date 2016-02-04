@@ -8,11 +8,12 @@ use scan_dir::ScanDir;
 
 use super::processes::Pid;
 
-
-#[derive(Debug)]
-pub struct CGroups {
-    processes: HashMap<String, Vec<Pid>>,
+pub struct CGroup {
+    pub pids: Vec<Pid>,
 }
+
+pub type CGroups = HashMap<String, CGroup>;
+
 
 fn get_name_dir() -> Option<PathBuf> {
     let base = Path::new("/sys/fs/cgroup"); // should customize this?
@@ -59,7 +60,7 @@ fn make_name(path: &Path, skip_prefix: usize) -> String {
     for mut cmp in path.components().skip(skip_prefix) {
         if let Normal(name_os) = cmp {
             if let Some(mut name) = name_os.to_str() {
-                if name.ends_with(".slice") {
+                if name.ends_with(".slice") || name.ends_with(".scope") {
                     name = &name[..name.len()-6];
                 } else if name.ends_with(".service") {
                     name = &name[..name.len()-8];
@@ -104,12 +105,10 @@ pub fn read() -> CGroups {
                     .collect();
                 if pids.len() > 0 {
                     let name = make_name(&path, prefix_num);
-                    pro.insert(name, pids);
+                    pro.insert(name, CGroup { pids: pids });
                 }
             }
         }).map_err(|e| debug!("Error reading directory")).ok();
     }
-    CGroups {
-        processes: pro,
-    }
+    return pro;
 }

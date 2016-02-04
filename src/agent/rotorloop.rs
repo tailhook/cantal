@@ -30,7 +30,8 @@ pub fn start(configs: &Configs, stats: Arc<RwLock<Stats>>) {
 
     for cfg in &configs.carbon {
         let sink = loop_inst.add_and_fetch(Fsm::Carbon, |scope| {
-            info!("Connecting to carbon at {}:{}", cfg.host, cfg.port);
+            info!("Connecting to carbon at {}:{} (interval {})",
+                cfg.host, cfg.port, cfg.interval);
             connect_ip(
                 format!("{}:{}", cfg.host, cfg.port).parse().unwrap(),
                 scope)
@@ -39,8 +40,11 @@ pub fn start(configs: &Configs, stats: Arc<RwLock<Stats>>) {
         loop_inst.add_machine_with(|scope| {
             Ok(Fsm::CarbonTimer(interval_func(scope,
                 Duration::seconds(cfg.interval as i64), move |ctx| {
-                    carbon::send(sink.sender(), &cfg,
-                                 &*ctx.stats.read().unwrap());
+                    debug!("Sending data to carbon {}:{}",
+                        cfg.host, cfg.port);
+                    carbon::send(&mut sink.sender(), &cfg,
+                                 &*ctx.stats.read()
+                                   .expect("Can't lock stats"));
                 })))
         }).unwrap();
     }

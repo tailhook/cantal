@@ -144,41 +144,40 @@ pub fn write_tip(tip: &mut Tip, processes: &Vec<MinimalProcess>) {
     for p in processes {
         let pid = p.pid.to_string();
         tip.add(Key::pairs(&[
-            ("pid", &pid[..]),
             ("metric", "vsize"),
+            ("pid", &pid[..]),
             ]),
             Integer(p.vsize as i64));
         tip.add(Key::pairs(&[
-            ("pid", &pid[..]),
             ("metric", "rss"),
+            ("pid", &pid[..]),
             ]),
             Integer(p.rss as i64));
         tip.add(Key::pairs(&[
-            ("pid", &pid[..]),
             ("metric", "num_threads"),
+            ("pid", &pid[..]),
             ]),
             Integer(p.num_threads as i64));
         tip.add(Key::pairs(&[
-            ("pid", &pid[..]),
             ("metric", "user_time"),
+            ("pid", &pid[..]),
             ]),
             Counter(p.user_time as u64));
         tip.add(Key::pairs(&[
-            ("pid", &pid[..]),
             ("metric", "system_time"),
+            ("pid", &pid[..]),
             ]),
             Counter(p.system_time as u64));
         tip.add(Key::pairs(&[
-            ("pid", &pid[..]),
             ("metric", "read_bytes"),
+            ("pid", &pid[..]),
             ]),
             Counter(p.read_bytes));
         tip.add(Key::pairs(&[
-            ("pid", &pid[..]),
             ("metric", "write_bytes"),
+            ("pid", &pid[..]),
             ]),
             Counter(p.write_bytes));
-        // TODO(tailhook) io
         // TODO(tailhook) FDSize
     }
 }

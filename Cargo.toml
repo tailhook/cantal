@@ -31,7 +31,7 @@ matches = "0.1"
 mio = "0.5"
 quire = "0.1.5"
 rotor = "0.5.0"
-rotor-carbon = "0.2.0"
+rotor-carbon = "0.4.0"
 rotor-tools = "0.2.0"
 scan_dir = "0.3.2"
 

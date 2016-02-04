@@ -24,6 +24,7 @@ pub struct Stats {
     pub storage: StorageStats,
     pub history: History,
     pub processes: Vec<scan::processes::MinimalProcess>,
+    pub cgroups: scan::cgroups::CGroups,
 }
 
 impl Stats {
@@ -44,6 +45,7 @@ impl Stats {
             storage: Default::default(),
             history: History::new(),
             processes: Default::default(),
+            cgroups: Default::default(),
         };
     }
 }
