@@ -14,7 +14,7 @@ Contents:
    concepts
    api
    installation
-
+   carbon
 
 
 Indices and tables
