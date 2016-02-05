@@ -23,30 +23,12 @@ commands:
     environ:
       PATH: /bin:/usr/bin:/usr/local/bin:/usr/local/sbin:/usr/sbin:/sbin
     run: |
-      make
+      make bin js-release
       [ -d dist ] || mkdir dist
       checkinstall --default \
         --maintainer=paul@colomiets.name \
         --pkglicense=MIT --pkgname=cantal \
         --pkgversion="$(git describe | sed s/^v//)" \
-        --requires="libssl1.0.0" \
-        --nodoc --strip=no \
-        --pakdir=dist \
-        make install
-
-  build-precise-package: !Command
-    description: Build ubuntu (precise) package (must have js already built)
-    container: ubuntu-precise
-    write-mode: transient-hard-link-copy
-    environ:
-      PATH: /bin:/usr/bin:/usr/local/bin:/usr/local/sbin:/usr/sbin:/sbin
-    run: |
-      make bin
-      [ -d dist ] || mkdir dist
-      checkinstall --default \
-        --maintainer=paul@colomiets.name \
-        --pkglicense=MIT --pkgname=cantal \
-        --pkgversion="$(cat version.txt)" \
         --requires="libssl1.0.0" \
         --nodoc --strip=no \
         --pakdir=dist \

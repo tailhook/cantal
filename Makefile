@@ -21,6 +21,10 @@ js:
 	-mkdir public/js 2>/dev/null
 	cd web; $(WEBPACK)
 
+js-release:
+	-mkdir public/js 2>/dev/null
+	cd web; NODE_ENV=production $(WEBPACK) --optimize-minimize
+
 # ------------------ INSTALL -----------------------
 
 install:
