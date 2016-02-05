@@ -188,13 +188,13 @@ fn resolve(req: &Request, context: &mut Context)
     debug!("Got request {:?} {:?}", req.method, req.uri);
     match (&req.method, &req.uri) {
         (&Get, &P(ref x)) if &x[..] == "/"
-        => staticfiles::serve(req),
+        => staticfiles::serve(x),
         (&Get, &P(ref x)) if x.starts_with("/js/")
-        => staticfiles::serve(req),
+        => staticfiles::serve(x),
         (&Get, &P(ref x)) if x.starts_with("/css/")
-        => staticfiles::serve(req),
+        => staticfiles::serve(x),
         (&Get, &P(ref x)) if x.starts_with("/fonts/")
-        => staticfiles::serve(req),
+        => staticfiles::serve(&x[..x.find('?').unwrap_or(x.len())]),
         (&Get, &P(ref x)) if &x[..] == "/ws"
         => websock::respond_websock(req, context),
         (&Get, &P(ref x)) if &x[..] == "/status.json"
@@ -220,7 +220,8 @@ fn resolve(req: &Request, context: &mut Context)
         // TODO(tailhook) this should be post
         (&Post, &P(ref x)) if &x[..] == "/start_remote.json"
         => do_start_remote(req, context),
-        (&Get, _) => Err(Box::new(NotFound) as Box<http::Error>),
+        // Fallback route for frontend routing
+        (&Get, _) => staticfiles::serve("/"),
         _ => Err(Box::new(MethodNotAllowed) as Box<http::Error>),
     }
 }

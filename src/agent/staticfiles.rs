@@ -11,13 +11,8 @@ use super::http::{Error, BadRequest, NotFound, ServerError};
 use super::http::{Request, Response};
 
 
-pub fn serve(req: &Request) -> Result<Response, Box<Error>>
+pub fn serve(uri: &str) -> Result<Response, Box<Error>>
 {
-    let uri = if let AbsolutePath(ref uri) = req.uri {
-        uri
-    } else {
-        return Err(Box::new(BadRequest("Wrong URI kind")));
-    };
     let mut uripath = PathBuf::from(&format!(".{}", uri));
     if uri.ends_with("/") {
         uripath = uripath.join("index.html");
