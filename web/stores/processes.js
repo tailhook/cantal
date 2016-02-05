@@ -8,7 +8,7 @@ function build_tree(data) {
     for(var p of data.all) {
 
         p.uptime = format_uptime(till_now_ms(from_ms(
-                    p.start_time + data.uptime_base*1000)))
+                    p.start_time + data.boot_time*1000)))
 
         by_id[p.pid] = p;
         var lst = tree[p.ppid];
