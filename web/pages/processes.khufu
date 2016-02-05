@@ -91,7 +91,7 @@ view main():
           <div.name.head> "name"
           <div.uptime.head> "uptime"
           <div.mem.head> "mem (MiB)"
-        for pro of @query.toplevel:
+        for pro of @query.toplevel key pro.pid:
           _process_row(pro, @query.tree, 0)
 
 
