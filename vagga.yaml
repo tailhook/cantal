@@ -28,7 +28,7 @@ commands:
       checkinstall --default \
         --maintainer=paul@colomiets.name \
         --pkglicense=MIT --pkgname=cantal \
-        --pkgversion="$(git describe)" \
+        --pkgversion="$(git describe | sed s/^v//)" \
         --requires="libssl1.0.0" \
         --nodoc --strip=no \
         --pakdir=dist \
