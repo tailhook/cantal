@@ -3,6 +3,7 @@ import {main as enable_remote} from './pages/enable_remote.khufu'
 import {main as status} from './pages/status.khufu'
 import {main as processes} from './pages/processes.khufu'
 import {main as metrics} from './pages/metrics.khufu'
+import {main as peers} from './pages/peers.khufu'
 import {@router, toggle_remote, go} from './util/routing'
 
 style:
@@ -82,6 +83,8 @@ view main(version):
           processes()
         elif @router.page == 'metrics':
           metrics()
+        elif @router.page == 'peers':
+          peers()
         else:
           @router.page
       else:

@@ -1,0 +1,183 @@
+import {refresher, json} from '../middleware/request'
+import {peers} from '../stores/peers'
+import {bool, toggle, disable, init} from '../stores/simple'
+import {icon} from '../util/icon.khufu'
+import {format_uptime, format_diff, till_now_ms, from_ms} from '../util/time'
+
+style:
+  .title
+    display: flex
+    cursor: default
+  h1
+    flex-grow: 1
+    margin: 4px 16px
+  .title.error
+    background-color: red
+  span.error
+    color: white
+    align-self: center
+  .latency
+    color: gray
+    font-size: small
+    align-self: flex-end
+
+  .tiny
+    font-size: xx-small
+    color: gray
+  .tinyline
+    font-size: xx-small
+    color: gray
+    white-space: nowrap
+    overflow: hidden
+    text-overflow: ellipsis
+    max-width: 128px
+  .id
+    white-space: nowrap
+    overflow: hidden
+    text-overflow: ellipsis
+    max-width: 64px
+
+  .small
+    font-size: x-small
+  .text-muted
+    color: gray
+  .right
+    text-align: right
+
+view millis_delta(delta):
+  if delta:
+    if delta < 10000:
+      `${delta} ms`
+    else:
+      format_diff(delta)
+  else:
+    "never"
+
+view millis_time(tm):
+  millis_delta(till_now_ms(from_ms(tm)))
+
+
+view peer_row(p):
+  <tr>
+    <td>
+      <div.id>
+        p.id
+      <div.tiny>
+        p.id
+    <td.text-muted?(p.name == null)>
+      if p.primary_addr:
+        p.primary_addr
+      else:
+        "to-be-determined"
+      <div.tinyline>
+        `total: ${p.addresses.length}`
+    <td.text-muted?(p.name == null)>
+      if p.name:
+        p.name
+      else:
+        "unknown"
+      " "
+      let paddr = p.primary_addr or p.addresses[0] or ':22682'
+      let port = paddr.split(':')[1]
+      <a.pure-button.small href=`http://${ p.name }:${ port }`>
+        icon('play')
+      <div.tiny>
+        if p.hostname:
+          p.hostname
+        else:
+          "unknown"
+    <td.right.text-muted?(p.probe_time == null)>
+      millis_time(p.probe_time)
+      <dir.tiny>
+        p.probes_sent
+    <td.right.text-muted?(p.last_report_direct == null)>
+      if p.last_report_direct:
+        millis_time(p.last_report_direct)
+        <div.tiny>
+          `${p.pings_received} / ${p.pongs_received}`
+      else:
+        "∅"
+    <td.right.text-muted?(p.roundtrip == null)>
+      if p.roundtrip != null:
+        `${p.roundtrip}ms`
+        if p.random_peer_roundtrip:
+          <div.tiny title=(p.random_peer_roundtrip[0])>
+            millis_delta(p.random_peer_roundtrip[2])
+            " / "
+            format_diff(till_now_ms(from_ms(p.random_peer_roundtrip[1])))
+      else:
+        "∅"
+    <td.right.text-muted?(p.peers == null)>
+      if p.peers != null:
+        `${p.peers}`
+        <div.tiny>
+            millis_time(p.report)
+      else:
+        "∅"
+    <td.text-muted?(p.num_remote == null)>
+      if p.has_remote == null:
+        "∅"
+      elif p.has_remote:
+        icon('check')
+      else:
+        icon('close')
+
+view main():
+  <div>
+    store @query = peers | refresher | json('/all_peers.json')
+    <div.title.error?(@query.error)>
+      <h1>
+        "All Peers"
+        if @query.peers:
+          ` (${ @query.peers.length })`
+      if @query.error:
+        <span.error>
+          @query.error
+      elif @query.latency:
+        <span.latency
+          title="Latency of getting statistics (the request roundtrip time)">
+          `${@query.latency} ms`
+    if @query.peers == null:
+      "Loading..."
+    elif @query.peers.length == 0:
+      <div.panel.panel-warning>
+        <div.panel-heading>
+          "No known peers ☹"
+        <div.panel-body> "
+          You must add first peer by yourself
+          (or some other node might find you too)
+          "
+    else:
+      <table.pure-table>
+        <thead>
+          <tr>
+            <th> "ID"
+            <th> "IP"
+            <th> "Name"
+            <th> "Last Probe"
+            <th> "Last Report"
+            <th> "Roundtrip"
+            <th> "Peers"
+            <th> "Remote?"
+        <tbody>
+          for p of @query.peers key p.id:
+            if p.report and till_now_ms(from_ms(p.report)) <= 5*60*1000:
+              peer_row(p)
+      <h3> "Old/Inactive/Failing Peers"
+      <table.pure-table>
+        <thead>
+          <tr>
+            <th> "ID"
+            <th> "IP"
+            <th> "Name"
+            <th> "Last Probe"
+            <th> "Last Report"
+            <th> "Roundtrip"
+            <th> "Peers"
+            <th> "Remote?"
+        <tbody>
+          for p of @query.peers key p.id:
+            if not p.report or till_now_ms(from_ms(p.report)) > 5*60*1000:
+              peer_row(p)
+
+
