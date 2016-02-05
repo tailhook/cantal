@@ -26,9 +26,10 @@ function deserialize(path) {
         path = m[1];
     }
     let chunks = path.split('/');
+    let remote = chunks[1] == 'remote'
     let res = {
-        remote: chunks[1] == 'remote',
-        page: chunks[2],
+        remote,
+        page: chunks[2] || DEFAULT_PAGES[remote],
     }
     return res
 }
