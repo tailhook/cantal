@@ -54,6 +54,13 @@ function cpu_chart(metrics) {
     }
 }
 
+export var prefix_chart = prefix => map_metrics(metrics => {
+    return {
+        ...metrics.to_dict('metric', prefix),
+        timestamps: metrics.chunks[0][2],
+    }
+})
+
 var map_metrics = fun => (state, action) => {
     if(action.type == METRICS) {
         return fun(action.metrics)

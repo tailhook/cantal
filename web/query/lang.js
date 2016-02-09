@@ -8,8 +8,8 @@ class Query {
             ...this,
             series: {
                 ...this.series,
-                condition: this.condition
-                    ? ['And', this.condition, cond]
+                condition: this.series.condition.length
+                    ? ['And', this.series.condition, cond]
                     : cond,
             },
         })
@@ -19,7 +19,7 @@ class Query {
         return this.filter(["RegexLike", item, regex_str])
     }
     non_matching(item, regex_str) {
-        return this.filter(['Not', ['RegexLike', regex_str]])
+        return this.filter(['Not', ['RegexLike', item, regex_str]])
     }
 
     // Extractors
