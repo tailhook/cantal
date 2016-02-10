@@ -62,7 +62,7 @@ commands:
       n0: !Command
         container: ubuntu
         #environ: {RUST_LOG: debug}
-        run: ./cantal-agent --host 0.0.0.0 --port 20000
+        run: ./cantal-agent --host 0.0.0.0 --port 22682
       n1: !Command
         container: ubuntu
         #environ: {RUST_LOG: debug}
@@ -105,7 +105,7 @@ commands:
           sleep 2
           for i in $(seq 1 9); do
             wget http://localhost:$((20000+i))/add_host.json -nv -O- \
-              --method POST --body-data '{"addr": "127.0.0.1:20000"}'
+              --method POST --body-data '{"addr": "127.0.0.1:22682"}'
           done
           sleep 100000
 
