@@ -1,22 +1,23 @@
 use std::thread;
 use std::sync::{Arc, RwLock};
+use std::time::Duration;
 
-use rotor::{Loop, Config, Machine, EventSet};
+use rotor::{Loop, Config, Machine};
+use rotor::mio::tcp::TcpStream;
 use rotor_carbon::{Fsm as Carbon, connect_ip};
 use rotor_tools::timer::{IntervalFunc, interval_func};
 use rotor_tools::loop_ext::{LoopExt, LoopInstanceExt};
-use rotor_tools::{Duration};
 
 use configs::Configs;
 use stats::Stats;
 use carbon;
 
-struct Context {
+pub struct Context {
     stats: Arc<RwLock<Stats>>,
 }
 
 rotor_compose!(enum Fsm/Seed<Context> {
-    Carbon(Carbon<Context>),
+    Carbon(Carbon<Context, TcpStream>),
     CarbonTimer(IntervalFunc<Context>),
 });
 
@@ -38,14 +39,14 @@ pub fn start(configs: &Configs, stats: Arc<RwLock<Stats>>) {
         }).unwrap();
         let cfg = cfg.clone();
         loop_inst.add_machine_with(|scope| {
-            Ok(Fsm::CarbonTimer(interval_func(scope,
-                Duration::seconds(cfg.interval as i64), move |ctx| {
-                    debug!("Sending data to carbon {}:{}",
-                        cfg.host, cfg.port);
-                    carbon::send(&mut sink.sender(), &cfg,
-                                 &*ctx.stats.read()
-                                   .expect("Can't lock stats"));
-                })))
+            interval_func(scope,
+                Duration::new(cfg.interval as u64, 0), move |ctx| {
+                        debug!("Sending data to carbon {}:{}",
+                            cfg.host, cfg.port);
+                        carbon::send(&mut sink.sender(), &cfg,
+                                     &*ctx.stats.read()
+                                       .expect("Can't lock stats"));
+                }).wrap(Fsm::CarbonTimer)
         }).unwrap();
     }
     thread::spawn(move || {

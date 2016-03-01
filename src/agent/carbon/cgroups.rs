@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use rotor_carbon::Sender;
 use cantal::Value::{Integer};
 use history::Value::{self, Counter};
 use history::Backlog;
@@ -8,6 +7,7 @@ use history::Backlog;
 use stats::Stats;
 
 use super::config::Config;
+use super::Sender;
 
 #[derive(Debug)]
 struct CGroup<'a> {
@@ -39,7 +39,8 @@ fn get_counter_diff(val: &Value, blog: &Backlog, num: usize)
     }
 }
 
-pub fn scan(sender: &mut Sender, cfg: &Config, stats: &Stats) {
+pub fn scan(sender: &mut Sender, cfg: &Config, stats: &Stats)
+{
     let ref backlog = stats.history.fine;
     if backlog.timestamps.len() < 2 {
         return;
