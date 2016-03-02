@@ -3,13 +3,11 @@
 
 extern crate rustc_serialize;
 extern crate libc;
+#[macro_use] extern crate quick_error;
 #[macro_use] extern crate log;
 #[macro_use] extern crate probor;
 extern crate byteorder;
 
-use std::fmt::Display;
-use std::fmt::Formatter;
-use std::fmt::Result as FmtResult;
 use std::io::{Cursor, BufReader};
 use std::io::{Read, BufRead, Seek};
 use std::io::SeekFrom::{Current};
@@ -61,17 +59,40 @@ pub enum Type {
     Unknown(u16),
 }
 
-#[derive(Debug)]
-pub enum MetadataError {
-    Io(IoError),
-    // TODO(tailhook) add line numbers
-    Json(json::ParserError),
-    ParseError(&'static str),
-    BadLength(usize),
-    UnexpectedEOF,
+quick_error! {
+    #[derive(Debug)]
+    pub enum MetadataError {
+        Io(err: IoError) {
+            from()
+            description(err.description())
+            display("Error reading metadata: {}", err)
+            cause(err)
+        }
+        // TODO(tailhook) add line numbers
+        Json(err: json::ParserError) {
+            from()
+            description(err.description())
+            display("Error parsing metadata json: {}", err)
+            cause(err)
+        }
+        ParseError(desc: &'static str) {
+            from()
+            description(desc)
+            display("Error parsing metadata: {}", desc)
+        }
+        BadLength(len: usize) {
+            description("Bad length of a field")
+            display("Bad length of a field")
+        }
+        UnexpectedEOF {
+            description("Unexpected end of file")
+            display("Unexpected end of file")
+        }
+    }
 }
 
 
+#[derive(Debug)]
 pub struct Descriptor {
     pub kind: Type,
     pub textname: String,
@@ -230,72 +251,12 @@ impl Metadata {
     }
 }
 
-impl Error for MetadataError {
-    fn description(&self) -> &str {
-        match *self {
-            MetadataError::Io(ref err) => err.description(),
-            MetadataError::ParseError(_)
-            => "Error parsing metadata file",
-            MetadataError::BadLength(_)
-            => "Error parsing metadata file: wrong field length",
-            MetadataError::Json(_)
-            => "Error parsing metadata file: bad json",
-            MetadataError::UnexpectedEOF  // FIXME(tailhook) probably other err
-            => "Error parsing values file: unexpected eof",
-        }
-    }
-    fn cause<'x>(&'x self) -> Option<&'x Error> {
-        match *self {
-            MetadataError::Io(ref err) => Some(err as &Error),
-            MetadataError::Json(_) => None,  // json::ParserError sucks
-            MetadataError::ParseError(_) | MetadataError::BadLength(_) => None,
-            MetadataError::UnexpectedEOF => None,
-        }
-    }
-}
-
-impl Display for MetadataError {
-    fn fmt(&self, fmt: &mut Formatter) -> FmtResult {
-        match *self {
-            MetadataError::Io(ref err) => {
-                write!(fmt, "metadata file read error: {}", err)
-            }
-            MetadataError::Json(ref err) => {
-                write!(fmt, "metadata file read error: {:?}", err)
-            }
-            MetadataError::ParseError(desc) => {
-                write!(fmt, "error parsing metadata file: {}", desc)
-            }
-            MetadataError::BadLength(val) => {
-                write!(fmt, "error parsing metadata file: field length {} \
-                    is not supported", val)
-            }
-            MetadataError::UnexpectedEOF => {
-                // FIXME(tailhook) probably other err
-                write!(fmt, "error parsing values file: unexpected of")
-            }
-        }
-    }
-}
-
-impl From<IoError> for MetadataError {
-    fn from(err: IoError) -> MetadataError {
-        MetadataError::Io(err)
-    }
-}
-
 impl From<byteorder::Error> for MetadataError {
     fn from(err: byteorder::Error) -> MetadataError {
         match err {
             byteorder::Error::UnexpectedEOF => MetadataError::UnexpectedEOF,
             byteorder::Error::Io(err) => MetadataError::Io(err)
         }
-    }
-}
-
-impl From<json::ParserError> for MetadataError {
-    fn from(err: json::ParserError) -> MetadataError {
-        MetadataError::Json(err)
     }
 }
 
