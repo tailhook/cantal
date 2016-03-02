@@ -2,6 +2,7 @@ import {last_beacon as beacon, remote_enabled} from './websock'
 import {main as enable_remote} from './pages/enable_remote.khufu'
 import {main as status} from './pages/status.khufu'
 import {main as processes} from './pages/processes.khufu'
+import {main as states} from './pages/states.khufu'
 import {main as metrics} from './pages/metrics.khufu'
 import {main as peers} from './pages/peers.khufu'
 import {@router, toggle_remote, go} from './util/routing'
@@ -24,6 +25,10 @@ view _local_menu():
       "Processes"
       if beacon:
         ` [${ beacon.processes }]`
+  <li.pure-menu-item.pure-menu-active?(@router.page == 'states')>
+    <a.pure-menu-link href="/local/states">
+      link {click} go(event) -> @router
+      "States"
   <li.pure-menu-item.pure-menu-active?(@router.page == 'metrics')>
     <a.pure-menu-link href="/local/metrics">
       link {click} go(event) -> @router
@@ -81,6 +86,8 @@ view main(version):
           status()
         elif @router.page == 'processes':
           processes()
+        elif @router.page == 'states':
+          states()
         elif @router.page == 'metrics':
           metrics()
         elif @router.page == 'peers':

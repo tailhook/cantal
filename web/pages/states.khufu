@@ -1,0 +1,95 @@
+import {fine_grained} from '../query/lang.js'
+import {query} from '../middleware/local-query.js'
+import * as stores from '../stores/states.js'
+import {donut} from '../charts/donut.khufu'
+
+style:
+  .title
+    display: flex
+    cursor: default
+  h1
+    flex-grow: 1
+    margin: 4px 16px
+  .title.error
+    background-color: red
+  span.error
+    color: white
+    align-self: center
+  .latency
+    color: gray
+    font-size: small
+    align-self: flex-end
+
+  .chart-row
+    display: flex
+    flex-direction: row
+  .chart
+    display: flex
+    flex-direction: row
+    margin: 8px
+    flex-wrap: nowrap
+  .table
+    display: flex
+    flex-direction: column
+  .donut
+    margin: 8px
+  .table-title
+    font-weight: bold
+    text-align: center
+  .table-row
+    display: flex
+  .sample
+    display: inline-block
+    width: 1em
+    height: 1em
+    margin-right: 8px
+  .table-key
+    width: 160px
+
+view main():
+  <div>
+    store @states = stores.charts
+      | query(fine_grained()
+        .matching('metric', "^(duration|count)$")
+        .matching('state', ".")
+        .matching('pid', ".")
+        .diff())
+    <div>
+      <h1>
+        'All States'
+    if not @states.size:
+      "Loading..."
+    else:
+      <div>
+        <p>
+          <i> "Displays data for last 10 minutes"
+        for [name, charts] of @states.entries() key name:
+          <h2>
+            name
+          <div.chart-row>
+            <div.chart>
+              <div.table>
+                <div.table-title>
+                  "Duration"
+                for item of charts.duration.items key item.title:
+                  <div.table-row>
+                    <span.sample style=`background-color: ${item.color}`>
+                    <span.table-key>
+                      item.title
+                    <span.table-value>
+                      item.value
+              <div.donut>
+                donut(charts.duration.items, 160, 160, charts.duration.total)
+            <div.chart>
+              <div.table>
+                <div.table-title>
+                  "Count"
+                for item of charts.count.items key item.title:
+                  <div.table-row>
+                    <span.sample style=`background-color: ${item.color}`>
+                    <span.table-key>
+                      item.title
+                    <span.table-value>
+                      item.value
+              <div.donut>
+                donut(charts.count.items, 160, 160, charts.count.total)

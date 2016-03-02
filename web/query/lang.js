@@ -32,7 +32,13 @@ class Query {
     history(num=1100) {
         return new Query({
             ...this,
-            extract: ['HistoryByNum', 1100],
+            extract: ['HistoryByNum', num],
+        })
+    }
+    diff(num=300) { // ten minutes
+        return new Query({
+            ...this,
+            extract: ['DiffToAtMost', num],
         })
     }
     // Generic function
