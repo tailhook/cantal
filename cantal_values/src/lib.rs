@@ -197,7 +197,7 @@ impl Metadata {
                     let end = pos+(len as usize)-8;
                     let text = {
                         let buf = stream.get_ref();
-                        if buf.len() <= end {
+                        if buf.len() < end {
                             return Err(MetadataError::UnexpectedEOF);
                         }
                         let slice = &buf[pos..end];
