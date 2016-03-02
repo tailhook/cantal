@@ -108,6 +108,9 @@ fn read_values(cache: &ReadCache, path: &PathBuf)
     let mpath = path.with_extension("meta");
     if let Some(meta) = cache.metadata.get(path) {
         let data = meta.read_data(&path.with_extension("values"));
+        if let Err(ref e) = data {
+            debug!("Error reading {:?}: {}", mpath, e);
+        }
         // TODO(tailhook) check mtime of metadata
         if meta.still_fresh(&mpath) {
             return (data.ok(), None);
