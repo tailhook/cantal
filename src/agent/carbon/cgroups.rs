@@ -20,6 +20,7 @@ struct CGroup<'a> {
     system_cpu: f64,
     read_bytes: f64,
     write_bytes: f64,
+    user_metrics: HashMap<String, f64>,
 }
 
 fn get_counter_diff(val: &Value, blog: &Backlog, num: usize)
@@ -117,6 +118,18 @@ pub fn scan(sender: &mut Sender, cfg: &Config, stats: &Stats)
                         _ => {}
                     }
                 });
+                key.get_with("state", |statename| {
+                    key.get_with("metric", |metric| {
+                        let usermet = format!("{}.{}", statename, metric);
+                        let diff = get_counter_diff(value, backlog, num);
+                        if let Some((value, millis)) = diff {
+                            let mfloat = millis as f64;
+                            let valptr = grp.user_metrics.entry(usermet)
+                                         .or_insert(0.0);
+                            *valptr += (value as f64)*1000.0/mfloat
+                        }
+                    });
+                });
             }
         });
     }
@@ -153,6 +166,12 @@ pub fn scan(sender: &mut Sender, cfg: &Config, stats: &Stats)
             format_args!("cantal.{}.cgroups.{}.write_bps",
                 stats.hostname, cgroup.name),
             cgroup.write_bytes, unixtime);
+        for (key, value) in cgroup.user_metrics {
+            sender.add_value_at(
+                format_args!("cantal.{}.cgroups.{}.states.{}",
+                    stats.hostname, cgroup.name, key),
+                value, unixtime);
+        }
     }
 }
 
@@ -168,6 +187,7 @@ impl<'a> CGroup<'a> {
             system_cpu: 0.,
             read_bytes: 0.,
             write_bytes: 0.,
+            user_metrics: HashMap::new(),
         }
     }
 }

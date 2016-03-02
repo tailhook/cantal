@@ -87,3 +87,7 @@ CGroup statistics (enabled with ``enable-cgroup-stats``):
     * If the process is in group ``a.b`` it will not count for group ``a``,
       the statistics for ``a`` contains only processes immediately in the group
 
+* ``cantal.<HOSTNAME>.cgroups.<GROUP_NAME>.states.<STATE_NAME>.<METRIC_NAME>``
+  -- application-submitted metrics which have a ``state`` value
+
+
