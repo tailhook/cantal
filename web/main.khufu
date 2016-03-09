@@ -204,7 +204,10 @@ view main(version):
           @router.page
       else:
         if remote_enabled():
-
+          if @router.page == 'peers':
+            peers()
+          else:
+            @router.page
         else:
           enable_remote()
 
