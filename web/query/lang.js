@@ -55,6 +55,9 @@ class Query {
     sumby(item, calc_total=true) {
         return this.func('SumBy', item, 'Ignore', calc_total)
     }
+    sum() {
+        return this.func('Sum', 'Ignore')
+    }
 }
 
 export function fine_grained() {

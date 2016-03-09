@@ -1,0 +1,74 @@
+import {format_datetime} from '../util/time'
+import * as helpers from './compact-helpers'
+
+style:
+  .bar
+    height: 40px
+    position: relative
+    border: solid gray 2px
+    -webkit-border-radius: 3px
+    -moz-border-radius: 3px
+    border-radius: 3px
+  .title
+    font-family: Verdana, Tahoma, sans-serif
+    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5)
+    position: absolute
+    left: 12px
+    top: 8px
+    font-size: 18px
+  .value
+    font-family: Verdana, Tahoma, sans-serif
+    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5)
+    font-size: 18px
+    position: absolute
+    width: 0px
+    right: 0px
+    top: 0px
+    height: 32px
+  .value-text
+    position: absolute
+    padding-top: 8px
+    right: 4px
+  .value-text.back
+    left: 4px
+    right: null
+  .value.follow
+    border-right: solid black 1px
+
+view sparkline(width, timestamps, items):
+  <div>
+    store @pos = helpers.follow
+    <div>
+      link {mousemove, mouseenter, mouseleave} helpers.update_coords(event) -> @pos
+      let xaxis = helpers.xaxis(timestamps, width)
+      <div>
+        for item of items key item.title:
+          if item.values:
+            <div.bar style=({'width': width + 'px'})>
+              helpers.draw(xaxis, item.yaxis, item.values)
+              if @pos.x != null and @pos.x < width and @pos.x >= 0:
+                <div.value.follow style=({'right': width - @pos.x + 'px'})>
+                  <div.value-text.back?(@pos.x < width/2)>
+                    let px = xaxis.pixels[@pos.x]
+                    if px:
+                      if helpers.valid(item.values[px.index]):
+                        if item.yaxis.format:
+                          item.yaxis.format(item.values[px.index])
+                        else:
+                          item.values[px.index].toFixed(2)
+                    else:
+                      "--"
+              else:
+                <div.title>
+                  item.title
+                <div.value>
+                  <div.value-text>
+                    if helpers.valid(item.values[0]):
+                      if item.yaxis.format:
+                        item.yaxis.format(item.values[0])
+                      else:
+                        item.values[0].toFixed(2)
+          else:
+            <div.bar.nodata style=({'width': width+'px'})>
+              "-- no data --"
+

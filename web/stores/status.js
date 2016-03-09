@@ -70,3 +70,10 @@ var map_metrics = fun => (state, action) => {
 
 export var memory = map_metrics(mem_chart)
 export var cpu = map_metrics(cpu_chart)
+export var self_cpu = map_metrics(
+    x => {
+        console.log("CPU ", x)
+    return (x.value.value * 1000 /
+          (x.timestamps[0].getTime() - x.timestamps[1].getTime()))
+    })
+export var self_mem = map_metrics(x => x.values[0][1].value)
