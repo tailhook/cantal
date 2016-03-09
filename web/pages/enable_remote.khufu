@@ -1,3 +1,6 @@
+import {remote, enable_remote} from '../util/enable_remote.js'
+
+
 style:
   button
     background-color: orange
@@ -53,6 +56,7 @@ view main():
         //            `http://${peer.name}:${port}/`
         //          ` (${peer.primary_addr})`
         <p.right> //?(!peers_request.peers or peers_request.peers.length != 0)>
+          store @remote = remote
           <button.pure-button>
-            //link click = enable_remote
+            link {click} enable_remote() -> @remote
             "Enable"
