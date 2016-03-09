@@ -57,7 +57,7 @@ view main():
     <div>
       <h1>
         'All States'
-    if not @states.size:
+    if not @states != null:
       "Loading..."
     else:
       <div>

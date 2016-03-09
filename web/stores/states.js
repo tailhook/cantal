@@ -17,7 +17,7 @@ const FORMAT = {
     count: x => x,
 }
 
-export function charts(state=new Map(), action) {
+export function charts(state=null, action) {
     if(action.type == METRICS) {
         let index = {}
         let result = new Map()
