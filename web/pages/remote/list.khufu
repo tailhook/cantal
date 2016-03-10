@@ -1,0 +1,206 @@
+import {refresher, json} from '../../middleware/request'
+import {peer_map, stats} from '../../stores/remote_list'
+import {bool, toggle, disable, init} from '../../stores/simple'
+import {icon} from '../../util/icon.khufu'
+import {format_uptime, format_diff, till_now_ms, from_ms} from '../../util/time'
+import {pprint} from '../../util/view'
+
+style:
+  .title
+    display: flex
+    cursor: default
+  h1
+    flex-grow: 1
+    margin: 4px 16px
+  .title.error
+    background-color: red
+  span.error
+    color: white
+    align-self: center
+  .latency
+    color: gray
+    font-size: small
+    align-self: flex-end
+
+  .tiny
+    font-size: xx-small
+    color: gray
+  .tinyline
+    font-size: xx-small
+    color: gray
+    white-space: nowrap
+    overflow: hidden
+    text-overflow: ellipsis
+    max-width: 128px
+  .id
+    white-space: nowrap
+    overflow: hidden
+    text-overflow: ellipsis
+    max-width: 64px
+
+  .small
+    font-size: x-small
+  .text-muted
+    color: gray
+  .right
+    text-align: right
+
+  .tiny
+    display: inline
+    font-size: xx-small
+    color: gray
+
+  td.beacon
+    display: flex
+    flex-direction: row
+    align-items: center
+  td.beacon.expanded
+    align-items: flex-start
+  button.right
+    margin-left: 10px
+
+view millis_delta(delta):
+  if delta:
+    if delta < 10000:
+      `${delta} ms`
+    else:
+      format_diff(delta)
+  else:
+    "never"
+
+view millis_time(tm):
+  millis_delta(till_now_ms(from_ms(tm)))
+
+
+view peer_row(p, pi):
+  <tr>
+    <td>
+      <div>
+        p.id
+    <td.text-muted?(p.name == null)>
+      if p.current_addr:
+        p.current_addr
+      else:
+        "∅"
+    <td.text-muted?(p.name == null)>
+      if pi.name:
+        pi.name
+      else:
+        "unknown"
+      " "
+      let paddr = p.current_addr or p.addresses[0] or ':22682'
+      let port = paddr.split(':')[1]
+      <a.pure-button.small href=`http://${ pi.name }:${ port }`>
+        icon('play')
+    <td.right.text-muted?(not p.connected)
+        title=(p.last_attempt and p.last_attempt[1])>
+      if p.connected:
+        p.connected
+      else:
+        "no,"
+        <span.tiny>
+          if p.last_attempt:
+            format_diff(till_now_ms(from_ms(p.last_attempt[0])))
+          else:
+            "???"
+    <td.text-muted?(p.last_beacon_time == null)>
+      if p.last_beacon_time:
+        let val = p.last_beacon_time
+        if val < 10000:
+          `${val} ms`
+        else:
+          format_diff(till_now_ms(from_ms(p.last_beacon_time)))
+      else:
+        "never"
+
+    store @toggle = bool | init(false)
+    <td.beacon.text-muted?(p.last_beacon == null).expanded?(@toggle)>
+      if p.last_beacon:
+        if @toggle:
+          <pre>
+            pprint(p.last_beacon, null, '  ')
+        else:
+          <div.beacon>
+            <span title="Number of values which are being tracked at node">
+              p.last_beacon.values
+            " / "
+            <span title="Number of peers which are reachable by host">
+              p.last_beacon.peers
+        <button.pure-button.small.right>
+          link {click} toggle(@toggle) -> @toggle
+          if @toggle:
+            icon('arrow-up')
+          else:
+            icon('arrow-down')
+      else:
+        "∅"
+
+    <td.text-muted?(p.last_beacon_time == null)>
+      if p.last_beacon:
+        `${p.last_beacon_time - p.last_beacon.current_time}ms`
+      else:
+        "∅"
+
+view main():
+  <div>
+    store @peers = peer_map | refresher | json('/all_peers.json')
+    store @stats = stats | refresher | json('/remote_stats.json')
+    <div.title.error?(@peers.error or @stats.error)>
+      <h1>
+        "All Peers"
+        if @stats.peers:
+          ` (${ @stats.peers.length })`
+      if @stats.error:
+        <span.error>
+          @stats.error
+      elif @peers.error:
+        <span.error>
+          @peers.error
+      elif @stats.latency:
+        <span.latency
+          title="Latency of getting statistics (the request roundtrip time)">
+          `${@stats.latency} ms`
+    if @stats.peers == null:
+      "Loading..."
+    elif @stats.peers.length == 0:
+      <div.panel.panel-warning>
+        <div.panel-heading>
+          "No known peers ☹"
+        <div.panel-body> "
+          You must add first peer by yourself
+          (or some other node might find you too)
+          "
+    else:
+      <table.pure-table>
+        <thead>
+          <tr>
+            <th> "ID"
+            <th> "IP"
+            <th> "Name"
+            <th> "Connected"
+            <th> "Last Beacon"
+            <th> "Beacon"
+            <th> "Latency"
+        <tbody>
+          for p of @stats.peers key p.id:
+            let pi = @peers[p.id]
+            if pi.report and till_now_ms(from_ms(pi.report)) <= 5*60*1000:
+              peer_row(p, pi)
+      <h3> "Old/Inactive/Failing Peers"
+      <table.pure-table>
+        <thead>
+          <tr>
+            <th> "ID"
+            <th> "IP"
+            <th> "Name"
+            <th> "Connected"
+            <th> "Last Beacon"
+            <th> "Beacon"
+            <th> "Latency"
+        <tbody>
+          for p of @stats.peers key p.id:
+            let pi = @peers[p.id]
+            if pi.report and till_now_ms(from_ms(pi.report)) > 5*60*1000:
+              peer_row(p, pi)
+
+

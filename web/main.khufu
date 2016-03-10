@@ -1,7 +1,7 @@
 import {last_beacon as beacon, remote_enabled} from './websock'
 import {@router, toggle_remote, go} from './util/routing'
 import {format_uptime, format_diff, till_now_ms, from_ms} from './util/time'
-import {memory, cpu, self_cpu, self_mem} from './stores/status.js'
+import {memory, cpu, self_cpu, self_mem} from './stores/status'
 import {query} from './middleware/local-query.js'
 import {fine_grained} from './query/lang.js'
 import {donut} from './charts/donut.khufu'
@@ -14,6 +14,7 @@ import {main as processes} from './pages/processes.khufu'
 import {main as states} from './pages/states.khufu'
 import {main as metrics} from './pages/metrics.khufu'
 import {main as peers} from './pages/peers.khufu'
+import {main as remote_list} from './pages/remote/list.khufu'
 
 style:
   .info
@@ -206,6 +207,8 @@ view main(version):
         if remote_enabled():
           if @router.page == 'peers':
             peers()
+          elif @router.page == 'list':
+            remote_list()
           else:
             @router.page
         else:
