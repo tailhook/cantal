@@ -42,7 +42,7 @@ use std::error::Error;
 
 use nix::unistd::getpid;
 use argparse::{ArgumentParser, Store, ParseOption, StoreOption, Parse};
-use rustc_serialize::hex::ToHex;
+use rustc_serialize::hex::{ToHex, FromHex};
 
 use deps::{Dependencies, LockedDeps};
 
@@ -87,6 +87,7 @@ fn run() -> Result<(), Box<Error>> {
     let mut port = 22682u16;
     let mut storage_dir = None::<PathBuf>;
     let mut config_dir = PathBuf::from("/etc/cantal");
+    let mut machine_id = None::<String>;
     let mut log_level = env::var("RUST_LOG").ok()
         .and_then(|x| FromStr::from_str(&x).ok());
     {
@@ -104,6 +105,12 @@ fn run() -> Result<(), Box<Error>> {
                 `hostname` is used, but you may want to use fully qualified
                 domain name or some name that is visible behind proxy.
             ");
+        ap.refer(&mut machine_id)
+            .add_option(&["--override-machine-id"], StoreOption, "
+                Overrides machine id. Do not use in production, put the
+                file `/etc/machine-id` instead. This should only be used
+                for tests which run multiple nodes in single filesystem
+                image");
         ap.refer(&mut storage_dir)
             .add_option(&["-d", "--storage-dir"], ParseOption,
                 "A directory to serialize data to");
@@ -138,7 +145,9 @@ fn run() -> Result<(), Box<Error>> {
     let hostname = info::hostname().unwrap();
     let addresses = info::my_addresses(port).unwrap();
     let name = name.unwrap_or(hostname.clone());
-    let machine_id = info::machine_id();
+    let machine_id = machine_id
+        .map(|x| x.from_hex().expect("valid machine-id"))
+        .unwrap_or_else(info::machine_id);
 
     let stats = Arc::new(RwLock::new(stats::Stats::new(
         getpid(), name.clone(), hostname.clone(), machine_id.to_hex(),
