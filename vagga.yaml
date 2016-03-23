@@ -65,43 +65,63 @@ commands:
       n0: !Command
         container: ubuntu
         #environ: {RUST_LOG: debug}
-        run: ./cantal-agent --host 0.0.0.0 --port 22682
+        run: "./cantal-agent --host 0.0.0.0 \
+          --config-dir=/work/example-configs \
+          --port 22682"
       n1: !Command
         container: ubuntu
         #environ: {RUST_LOG: debug}
-        run: ./cantal-agent --host 0.0.0.0 --port 20001
+        run: "./cantal-agent --host 0.0.0.0 \
+          --config-dir=/work/example-configs \
+          --port 20001"
       n2: !Command
         container: ubuntu
         #environ: {RUST_LOG: debug}
-        run: ./cantal-agent --host 0.0.0.0 --port 20002
+        run: "./cantal-agent --host 0.0.0.0 \
+          --config-dir=/work/example-configs \
+          --port 20002"
       n3: !Command
         container: ubuntu
         #environ: {RUST_LOG: debug}
-        run: ./cantal-agent --host 0.0.0.0 --port 20003
+        run: "./cantal-agent --host 0.0.0.0 \
+          --config-dir=/work/example-configs \
+          --port 20003"
       n4: !Command
         container: ubuntu
         #environ: {RUST_LOG: debug}
-        run: ./cantal-agent --host 0.0.0.0 --port 20004
+        run: "./cantal-agent --host 0.0.0.0 \
+          --config-dir=/work/example-configs \
+          --port 20004"
       n5: !Command
         container: ubuntu
         #environ: {RUST_LOG: debug}
-        run: ./cantal-agent --host 0.0.0.0 --port 20005
+        run: "./cantal-agent --host 0.0.0.0 \
+          --config-dir=/work/example-configs \
+          --port 20005"
       n6: !Command
         container: ubuntu
         #environ: {RUST_LOG: debug}
-        run: ./cantal-agent --host 0.0.0.0 --port 20006
+        run: "./cantal-agent --host 0.0.0.0 \
+          --config-dir=/work/example-configs \
+          --port 20006"
       n7: !Command
         container: ubuntu
         #environ: {RUST_LOG: debug}
-        run: ./cantal-agent --host 0.0.0.0 --port 20007
+        run: "./cantal-agent --host 0.0.0.0 \
+          --config-dir=/work/example-configs \
+          --port 20007"
       n8: !Command
         container: ubuntu
         #environ: {RUST_LOG: debug}
-        run: ./cantal-agent --host 0.0.0.0 --port 20008
+        run: "./cantal-agent --host 0.0.0.0 \
+          --config-dir=/work/example-configs \
+          --port 20008"
       n9: !Command
         container: ubuntu
         #environ: {RUST_LOG: debug}
-        run: ./cantal-agent --host 0.0.0.0 --port 20009
+        run: "./cantal-agent --host 0.0.0.0 \
+          --config-dir=/work/example-configs \
+          --port 20009"
       connector: !Command
         container: ubuntu
         run: |
