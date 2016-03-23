@@ -5,10 +5,6 @@ style:
   .bar
     height: 40px
     position: relative
-    border: solid gray 2px
-    -webkit-border-radius: 3px
-    -moz-border-radius: 3px
-    border-radius: 3px
   .title
     font-family: Verdana, Tahoma, sans-serif
     text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5)

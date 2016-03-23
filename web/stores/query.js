@@ -91,30 +91,6 @@ export class BaseQuery {
     }
 }
 
-export class CborQuery extends BaseQuery {
-    constructor(url, schema, post_data=null, interval=2000) {
-        super(url, post_data, 'arraybuffer', interval)
-        this.schema = schema
-    }
-    decode(response) {
-        try {
-            return decode(this.schema, response)
-        } catch(e) {
-            console.error("Error parsing cbor at", this.url, e.stack)
-            this.error = Error("Bad Cbor")
-            return;
-        }
-    }
-}
-export class JsonQuery extends BaseQuery {
-    constructor(url, post_data=null, interval=2000) {
-        super(url, post_data, 'json', interval)
-    }
-    decode(data) {
-        return data;
-    }
-}
-
 let chunk = new Enum(function() {
     class State {
         constructor([ts, value]) {
@@ -297,32 +273,7 @@ QueryResponse.probor_protocol = new Struct([
     ["values", null, new Dict(new Str(), dataset)],
     ])
 
-
-export class Query extends CborQuery {
-    constructor(interval, rules) {
-        super('/query.cbor', QueryResponse, JSON.stringify({
-            'rules': rules,
-        }), interval)
-        this.start()
-    }
-    apply(response) {
-        this.values = response.values
-    }
-}
-
-var hosts_response = new Dict(new Str(), new Dict(new Str(), dataset))
-
-export class QueryRemote extends CborQuery {
-    constructor(rules) {
-        super('/remote/query_by_host.cbor', hosts_response, JSON.stringify({
-            'rules': rules,
-        }), 6000)
-        this.start()
-    }
-    apply(obj) {
-        this.response = obj
-    }
-}
+export var hosts_response = new Dict(new Str(), new Dict(new Str(), dataset))
 
 let value = new Enum(function() {
     class State {
@@ -364,24 +315,3 @@ export class MetricsResponse extends SimpleStruct { }
 MetricsResponse.probor_protocol = new Struct([
     ["metrics", null, new List(new Tuple(new Key(), new Timestamp(), value))],
     ])
-
-
-export class RemoteStats extends JsonQuery {
-    constructor(interval=5000) {
-        super('/remote_stats.json', null, interval)
-        this.start()
-    }
-    apply(response) {
-        this.response = response
-    }
-}
-
-export class PeersRequest extends JsonQuery {
-    constructor(only_remote, interval=5000) {
-        super('/peers_with_remote.json', null, interval)
-        this.start()
-    }
-    apply(json) {
-        this.peers = json.peers
-    }
-}

@@ -1,0 +1,94 @@
+import {refresher, json} from '../../middleware/request'
+import {fine_grained} from '../../query/lang.js'
+import * as stores from '../../stores/remote_grid'
+import {bool, toggle, disable, init} from '../../stores/simple'
+import {icon} from '../../util/icon.khufu'
+import {donut} from '../../charts/donut.khufu'
+import {query} from '../../middleware/remote-query.js'
+import {pprint} from '../../util/view'
+import {sparkline} from '../../charts/sparkline.khufu'
+import {CPU_YAXIS} from '../../settings/cpugraph'
+
+style:
+  .title
+    display: flex
+    cursor: default
+  h1
+    flex-grow: 1
+    margin: 4px 16px
+  .title.error
+    background-color: red
+  span.error
+    color: white
+    align-self: center
+  .latency
+    color: gray
+    font-size: small
+    align-self: flex-end
+
+  .peers
+    display: flex
+    flex-wrap: wrap
+  .peer
+    width: 124px
+    border: solid lightgreen 4px
+    border-radius: 4px
+    margin: 4px
+    display: flex
+    flex-direction: column
+  .name
+    text-overflow: ellipsis
+    padding: 3px 6px
+    overflow: hidden
+  .id
+    text-overflow: ellipsis
+    overflow: hidden
+    padding: 3px 6px
+    font-size: xx-small
+  .cpugraph
+    margin: 2px
+  .memgraph
+    align-self: center
+    margin: 4px
+
+view main():
+  <div>
+    store @peers = stores.peer_list | refresher | json('/all_peers.json')
+    store @mem = stores.memory
+      | query(fine_grained().matching('metric', '^memory\\.').tip())
+    store @cpu = stores.cpu
+      | query(fine_grained().matching('metric', '^cpu\\.')
+        .derivative().sumby('metric').history(150))
+    // TODO(tailhook) check errors everywhere
+    <div.title.error?(@peers.error)>
+      <h1>
+        "Grid"
+        if @peers.list != null:
+          ` (${@peers.list.length})`
+    if @peers.list == null or @cpu == null:
+      "Loading..."
+    elif @peers.list.length == 0:
+      <div.panel.panel-warning>
+        <div.panel-heading>
+          "No known peers ☹"
+        <div.panel-body> "
+          You must add first peer by yourself
+          (or some other node might find you too)
+          "
+    else:
+      <div.peers>
+        for peer of @peers.list key peer.id:
+          <div.peer>
+            <div.name title=`${peer.hostname} / ${peer.name}`>
+              peer.name
+            <div.id>
+              peer.id
+            if @cpu.get(peer.id):
+              <div.memgraph>
+                donut(@mem.get(peer.id).items, 100, 100, @mem.get(peer.id).total)
+              <div.cpugraph>
+                sparkline(120, @cpu.get(peer.id).timestamps, [{
+                    'title': 'Cpu',
+                    'values': @cpu.get(peer.id).total,
+                    'yaxis': CPU_YAXIS,
+                    }])

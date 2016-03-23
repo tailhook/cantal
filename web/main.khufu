@@ -7,6 +7,7 @@ import {fine_grained} from './query/lang.js'
 import {donut} from './charts/donut.khufu'
 import {sparkline} from './charts/sparkline.khufu'
 import {already_percent_formatter, bytes_formatter} from './util/format'
+import {CPU_YAXIS} from './settings/cpugraph'
 
 import {main as enable_remote} from './pages/enable_remote.khufu'
 import {main as status} from './pages/status.khufu'
@@ -15,6 +16,7 @@ import {main as states} from './pages/states.khufu'
 import {main as metrics} from './pages/metrics.khufu'
 import {main as peers} from './pages/peers.khufu'
 import {main as remote_list} from './pages/remote/list.khufu'
+import {main as remote_grid} from './pages/remote/grid.khufu'
 
 style:
   .info
@@ -45,6 +47,11 @@ style:
     justify-content: space-around
     align-items: center
     padding: 8px
+  .cpugraph
+    border: solid gray 2px
+    -webkit-border-radius: 3px
+    -moz-border-radius: 3px
+    border-radius: 3px
 
 
 view _local_menu():
@@ -102,24 +109,11 @@ view self_status(beacon):
       | query(fine_grained().matching('metric', '^cpu\\.').history()
               .derivative().sumby('metric'))
     if @cpu:
-      let cpu_yaxis = {
-        height: 40,
-        bg_color: 'rgb(237,248,233)',
-        skip_color: "white",
-        format: already_percent_formatter(),
-        colors: [
-            [100, 'rgb(186,228,179)'],
-            [200,'rgb(116,196,118)'],
-            [800, 'rgb(49,163,84)'],
-            [1600, 'rgb(0,109,44)'],
-            [6400, "black"]
-            ]
-        }
       <div.cpugraph>
         sparkline(120, @cpu.timestamps, [{
             'title': 'Cpu',
             'values': @cpu.total,
-            'yaxis': cpu_yaxis
+            'yaxis': CPU_YAXIS
             }])
 
   <div.machine-up>
@@ -209,6 +203,8 @@ view main(version):
             peers()
           elif @router.page == 'list':
             remote_list()
+          elif @router.page == 'grid':
+            remote_grid()
           else:
             @router.page
         else:
