@@ -1,6 +1,7 @@
 RUSTC ?= rustc -C opt-level=3
 
 PREFIX ?= /usr
+CONFIGDIR ?= /etc/verwalter
 DESTDIR ?=
 WEBPACK ?= webpack
 export CANTAL_VERSION = $(shell git describe)
@@ -30,6 +31,7 @@ js-release:
 install:
 	install -d $(DESTDIR)$(PREFIX)/bin
 	install -d $(DESTDIR)$(PREFIX)/lib/cantal
+	install -d $(DESTDIR)$(CONFIGDIR)
 	#install -m 755 ./target/release/cantal $(DESTDIR)$(PREFIX)/bin/cantal
 
 	install -m 755 ./target/release/cantal-agent $(DESTDIR)$(PREFIX)/lib/cantal/cantal-agent
