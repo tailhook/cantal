@@ -1,7 +1,7 @@
 use std::rc::Rc;
 use std::io::{BufReader, BufRead};
 use std::fs::{File};
-use std::ffi::OsStr;
+use std::ffi::{OsStr, OsString};
 use std::os::unix::prelude::OsStrExt;
 use std::path::{Path, PathBuf};
 use std::collections::{HashMap};
@@ -102,12 +102,21 @@ fn match_mountpoint(cache: &ReadCache, pid: Pid, path: &Path)
     return Err(());
 }
 
+fn add_suffix<P: AsRef<Path>, E: AsRef<OsStr>>(path: P, ext: E) -> PathBuf
+{
+    let result: &Path = path.as_ref();
+    let mut name = result.file_name().map(OsString::from)
+                   .unwrap_or_else(OsString::new);
+    name.push(ext);
+    result.with_file_name(name)
+}
+
 fn read_values(cache: &ReadCache, path: &PathBuf)
     -> (Option<Vec<(Rc<Descriptor>, Value)>>, Option<Metadata>)
 {
-    let mpath = path.with_extension("meta");
+    let mpath = add_suffix(path, ".meta");
     if let Some(meta) = cache.metadata.get(path) {
-        let data = meta.read_data(&path.with_extension("values"));
+        let data = meta.read_data(&add_suffix(path, ".values"));
         if let Err(ref e) = data {
             debug!("Error reading {:?}: {}", mpath, e);
         }
@@ -120,7 +129,7 @@ fn read_values(cache: &ReadCache, path: &PathBuf)
         let mres = Metadata::read(&mpath);
         if let Ok(meta) = mres {
             debug!("Read new metadata {:?}", path);
-            let data = meta.read_data(&path.with_extension("values"));
+            let data = meta.read_data(&add_suffix(path, ".values"));
             if !meta.still_fresh(&mpath) {
                 continue;
             }
@@ -182,5 +191,30 @@ impl ReadCache {
             metadata: HashMap::new(),
             mountpoints: parse_mountpoints().unwrap(),
         }
+    }
+}
+
+#[cfg(test)]
+mod test_add_suffix {
+    use std::path::{Path, PathBuf};
+    use super::add_suffix;
+
+    #[test]
+    fn normal() {
+        assert_eq!(add_suffix(&Path::new("/hello/world"), ".x"),
+                   PathBuf::from("/hello/world.x"));
+        assert_eq!(add_suffix(&Path::new("/hello/world.1.2"), ".values"),
+                   PathBuf::from("/hello/world.1.2.values"));
+        assert_eq!(add_suffix(&Path::new("/hello.1/world"), ".values"),
+                   PathBuf::from("/hello.1/world.values"));
+    }
+
+    /// This test here is to keep track of ugly behavior of the function
+    /// this kind of behavior is not carved in stone and kept here until
+    /// we find more clear way to deal with this kind of paths
+    #[test]
+    fn ugly_behavior() {
+        assert_eq!(add_suffix(&Path::new("/hello/world/"), ".values"),
+                   PathBuf::from("/hello/world.values"));
     }
 }
