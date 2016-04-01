@@ -10,6 +10,11 @@ commands:
     container: ubuntu
     run: [cargo]
 
+  cargo-outdated: !Command
+    description: Check for outdated dependencies
+    container: outdated
+    run: [cargo, outdated]
+
   docs: !Command
     description: Build HTML docs
     container: docs
@@ -183,10 +188,16 @@ containers:
       script: "./install.sh --prefix=/usr \
                 --components=rustc,rust-std-x86_64-unknown-linux-gnu,cargo"
 
-    environ:
+    environ: &environ
       HOME: /work/target
       PATH: /bin:/usr/bin:/usr/local/bin
       NODE_PATH: /usr/local/lib/node_modules
+
+  outdated:
+    setup:
+    - !Container ubuntu
+    - !Sh cargo install --root=/usr cargo-outdated
+    environ: *environ
 
   ubuntu-precise:
     # Only things needed for building binary

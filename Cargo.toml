@@ -23,20 +23,20 @@ unicase = "1.1"
 hyper = "0.7"
 num = "0.1"
 websocket = "0.14"
-byteorder = "0.4"
+byteorder = "0.5.1"
 anymap = "0.11"
 fern = "0.3"
 log = "0.3"
 matches = "0.1"
 mio = "0.5"
 quire = "0.1.5"
-rotor = "0.6.1"
-rotor-carbon = "0.5.1"
-rotor-tools = "0.3.1"
+rotor = "0.6.3"
+rotor-carbon = "0.6.0"
+rotor-tools = "0.3.2"
 scan_dir = "0.3.2"
 
 [dependencies.probor]
-version = "0.1.3"
+version = "0.2.0"
 features = ["regex_serde"]
 
 [dependencies.cantal_values]

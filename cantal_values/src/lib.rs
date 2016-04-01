@@ -251,15 +251,6 @@ impl Metadata {
     }
 }
 
-impl From<byteorder::Error> for MetadataError {
-    fn from(err: byteorder::Error) -> MetadataError {
-        match err {
-            byteorder::Error::UnexpectedEOF => MetadataError::UnexpectedEOF,
-            byteorder::Error::Io(err) => MetadataError::Io(err)
-        }
-    }
-}
-
 impl Type {
     fn len(&self) -> usize {
         match *self {
