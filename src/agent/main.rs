@@ -41,7 +41,7 @@ use std::process::exit;
 use std::error::Error;
 
 use nix::unistd::getpid;
-use argparse::{ArgumentParser, Store, ParseOption, StoreOption, Parse};
+use argparse::{ArgumentParser, Store, ParseOption, StoreOption, Parse, Print};
 use rustc_serialize::hex::{ToHex, FromHex};
 
 use deps::{Dependencies, LockedDeps};
@@ -92,6 +92,9 @@ fn run() -> Result<(), Box<Error>> {
         .and_then(|x| FromStr::from_str(&x).ok());
     {
         let mut ap = ArgumentParser::new();
+        ap.add_option(&["--version"],
+            Print(env!("CARGO_PKG_VERSION").to_string()),
+            "Show version and exit");
         ap.refer(&mut port)
             .add_option(&["-p", "--port"], Store,
                 "Port for http interface");
