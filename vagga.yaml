@@ -15,9 +15,9 @@ commands:
     container: outdated
     run: [cargo, outdated]
 
-  docs: !Command
+  doc: !Command
     description: Build HTML docs
-    container: docs
+    container: doc
     work-dir: docs
     run: [make, html]
 
@@ -217,10 +217,10 @@ containers:
       PATH: /bin:/usr/bin:/usr/local/bin
       NODE_PATH: /usr/local/lib/node_modules
 
-  docs:
+  doc:
     setup:
-    - !Alpine v3.1
-    - !Install [py-sphinx, make]
+    - !Alpine v3.3
+    - !Install [py-sphinx, py-sphinx_rtd_theme, make]
 
   graphite:
     setup:
