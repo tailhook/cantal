@@ -63,11 +63,16 @@ Metadata File Format
 File format of the meta data is simple: every next line is the metric (or a
 padding). Format of the line::
 
-    TYPE NUMBER_OF_BYTES: JSON_METADATA
+    TYPE NUMBER_OF_BYTES TYPE_PARAM: JSON_METADATA
 
 For example::
 
-    counter 8:  {"metric": "memoryusage"}
+    level 8 signed:  {"metric": "memoryusage"}
+    counter 8:  {"metric": "requests_processed"}
+
+The ``TYPE_PARAM`` is optional and is currently used for ``level`` type, which
+can be one of the ``signed`` or ``float`` (``unsigned`` will be added in
+future)
 
 The ``JSON_METADATA`` field is a subset of a JSON, and is currently limited to
 (we may extend it to a larger subset of or full JSON later):
