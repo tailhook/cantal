@@ -1,8 +1,9 @@
 use std::collections::HashMap;
 
 use cantal::Value::{Integer};
-use history::Value::{self, Counter};
+use history::Value;
 use history::Backlog;
+use history::CounterHistory;
 
 use stats::Stats;
 
@@ -23,20 +24,46 @@ struct CGroup<'a> {
     user_metrics: HashMap<String, f64>,
 }
 
+fn get_rate_from_counter(hist: &CounterHistory, blog: &Backlog, num: usize)
+    -> Option<(u64, u64)>
+{
+    hist.history(blog.age).enumerate().skip(1).take(num)
+    .filter_map(|(idx, x)| x.map(|y| (idx, y))).last()
+    .map(|(idx, x)| {
+        let cur = (blog.age - hist.age()) as usize;
+        assert!(idx >= cur);
+        (hist.tip().saturating_sub(x),
+            (blog.timestamps[cur].0 - blog.timestamps[idx].0))
+    })
+}
+
 fn get_counter_diff(val: &Value, blog: &Backlog, num: usize)
     -> Option<(u64, u64)>
 {
-    if let &Counter(ref hist) = val {
-        hist.history(blog.age).enumerate().skip(1).take(num)
-         .filter_map(|(idx, x)| x.map(|y| (idx, y))).last()
-         .map(|(idx, x)| {
-            let cur = (blog.age - hist.age()) as usize;
-            assert!(idx >= cur);
-            (hist.tip().saturating_sub(x),
-                (blog.timestamps[cur].0 - blog.timestamps[idx].0))
-        })
-    } else {
-        None
+    use history::Value::Counter;
+    match val {
+        &Counter(ref hist) => {
+            get_rate_from_counter(hist, blog, num)
+        }
+        _ => None,
+    }
+}
+
+fn graphite_data(val: &Value, blog: &Backlog, num: usize)
+    -> Option<f64>
+{
+    use history::Value::{Counter, Integer};
+    match val {
+        &Counter(ref hist) => {
+            get_rate_from_counter(hist, blog, num)
+            .map(|(value, millis)| {
+                (value as f64)*1000.0/(millis as f64)
+            })
+        }
+        &Integer(ref hist) => {
+            Some(hist.tip() as f64)
+        }
+        _ => None,
     }
 }
 
@@ -118,15 +145,26 @@ pub fn scan(sender: &mut Sender, cfg: &Config, stats: &Stats)
                         _ => {}
                     }
                 });
+                // TODO(tailhook) get metrics with "group" but not state
                 key.get_with("state", |statename| {
                     key.get_with("metric", |metric| {
-                        let usermet = format!("{}.{}", statename, metric);
-                        let diff = get_counter_diff(value, backlog, num);
-                        if let Some((value, millis)) = diff {
-                            let mfloat = millis as f64;
+                        if let Some(v) = graphite_data(value, backlog, num) {
+                            let usermet = format!("states.{}.{}",
+                                statename, metric);
                             let valptr = grp.user_metrics.entry(usermet)
                                          .or_insert(0.0);
-                            *valptr += (value as f64)*1000.0/mfloat
+                            *valptr += v;
+                        }
+                    });
+                });
+                key.get_with("group", |group| {
+                    key.get_with("metric", |metric| {
+                        if let Some(v) = graphite_data(value, backlog, num) {
+                            let usermet = format!("groups.{}.{}",
+                                group, metric);
+                            let valptr = grp.user_metrics.entry(usermet)
+                                         .or_insert(0.0);
+                            *valptr += v;
                         }
                     });
                 });
@@ -168,7 +206,7 @@ pub fn scan(sender: &mut Sender, cfg: &Config, stats: &Stats)
             cgroup.write_bytes, unixtime);
         for (key, value) in cgroup.user_metrics {
             sender.add_value_at(
-                format_args!("cantal.{}.cgroups.{}.states.{}",
+                format_args!("cantal.{}.cgroups.{}.{}",
                     stats.hostname, cgroup.name, key),
                 value, unixtime);
         }

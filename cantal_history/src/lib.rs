@@ -28,6 +28,7 @@ use serialize::json::Json;
 pub type TimeStamp = u64;  // Milliseconds
 pub type TimeDelta = u32;  // Milliseconds
 pub type SnapTime = (TimeStamp, TimeDelta);
+pub type CounterHistory = backlog::Inner<u64, deltabuf::DeltaBuf<u64>>;
 
 #[derive(Debug)]
 pub struct History {
@@ -66,8 +67,6 @@ impl History {
             ].into_iter().collect());
     }
 }
-
-
 
 #[cfg(test)]
 mod test {
