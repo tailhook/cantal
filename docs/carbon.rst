@@ -89,5 +89,7 @@ CGroup statistics (enabled with ``enable-cgroup-stats``):
 
 * ``cantal.<HOSTNAME>.cgroups.<GROUP_NAME>.states.<STATE_NAME>.<METRIC_NAME>``
   -- application-submitted metrics which have a ``state`` value
+* ``cantal.<HOSTNAME>.cgroups.<GROUP_NAME>.groups.<STATE_NAME>.<METRIC_NAME>``
+  -- application-submitted metrics which have a ``group`` value
 
 
