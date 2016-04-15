@@ -14,6 +14,7 @@ pub struct Stats {
     pub addresses_str: Vec<String>,
     pub name: String,
     pub hostname: String,
+    pub cluster_name: Option<String>,
 
     pub startup_time: u64,
     pub last_scan: u64,
@@ -29,7 +30,8 @@ pub struct Stats {
 
 impl Stats {
     pub fn new(pid: pid_t, name: String, hostname: String,
-        id_hex: String, addresses_str: Vec<String>)
+        cluster_name: Option<String>, id_hex: String,
+        addresses_str: Vec<String>)
         -> Stats
     {
         return Stats {
@@ -38,6 +40,7 @@ impl Stats {
             addresses_str: addresses_str,
             name: name,
             hostname: hostname,
+            cluster_name: cluster_name,
             startup_time: time_ms(),
             last_scan: 0,
             scan_duration: 0,

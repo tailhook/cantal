@@ -172,7 +172,8 @@ view main(version):
             <li.info>
               `${ beacon.version } / ${ version }`
             <li.info>
-              `${ beacon.hostname } / ${ beacon.name }`
+              `${ beacon.hostname } / ${ beacon.name } /
+                ${ beacon.cluster_name or "standalone" }`
             <li.info.offset-bottom>
               `${ beacon.id }`
           if @router.remote:

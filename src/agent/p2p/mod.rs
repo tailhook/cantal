@@ -33,7 +33,7 @@ const ADD_HOST_RETRY_INTERVAL: u64 = 1000;
 
 pub fn p2p_init(deps: &mut Dependencies, host: &str, port: u16,
     machine_id: Vec<u8>, addresses: Vec<SocketAddr>,
-    hostname: String, name: String)
+    hostname: String, name: String, cluster_name: Option<String>)
     -> Result<Init, Error>
 {
     let server = try!(udp::UdpSocket::bound(&SocketAddr::V4(
@@ -54,6 +54,7 @@ pub fn p2p_init(deps: &mut Dependencies, host: &str, port: u16,
         addresses: addresses,
         hostname: hostname,
         name: name,
+        cluster_name: cluster_name,
         eloop: eloop,
     })
 }
@@ -69,6 +70,7 @@ pub fn p2p_loop(init: Init, deps: Dependencies)
         addresses: init.addresses,
         hostname: init.hostname,
         name: init.name,
+        cluster_name: init.cluster_name,
         deps: deps,
     })
 }
@@ -93,6 +95,7 @@ pub struct Init {
     addresses: Vec<SocketAddr>,
     hostname: String,
     name: String,
+    cluster_name: Option<String>, // TODO(tailhook) disable entirely if None
     eloop: EventLoop<Context>,
 }
 
@@ -103,6 +106,7 @@ struct Context {
     addresses: Vec<SocketAddr>,
     hostname: String,
     name: String,
+    cluster_name: Option<String>, // TODO(tailhook) disable entirely if None
     deps: Dependencies,
 }
 

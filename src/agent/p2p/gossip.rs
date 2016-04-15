@@ -76,11 +76,13 @@ pub const MAX_PACKET_SIZE: usize = 8192;
 #[derive(Debug, Clone, RustcEncodable, RustcDecodable)]
 pub enum Packet {
     Ping {
+        cluster: String,
         me: MyInfo,
         now: u64,
         friends: Vec<FriendInfo>,
     },
     Pong {
+        cluster: String,
         me: MyInfo,
         ping_time: u64,
         peer_time: u64,
@@ -212,11 +214,16 @@ impl Context {
     }
     pub fn send_gossip(&self, addr: SocketAddr, stats: &GossipStats)
     {
+        let cluster = if let Some(ref name) = self.cluster_name { name } else {
+            debug!("Skipping gossip {}, no cluster name", addr);
+            return;
+        };
         debug!("Sending gossip {}", addr);
         let mut buf = Vec::with_capacity(MAX_PACKET_SIZE);
         {
             let mut e = Encoder::from_writer(&mut buf);
             e.encode(&[&Packet::Ping {
+                cluster: cluster.clone(),
                 me: MyInfo {
                     id: self.machine_id.clone(),
                     addresses: self.addresses.iter()
@@ -257,8 +264,12 @@ impl Context {
             };
 
         match packet {
-            Packet::Ping { me: info, now, friends } => {
+            Packet::Ping { cluster,  me: info, now, friends } => {
                 {
+                    if Some(&cluster) != self.cluster_name.as_ref() {
+                        info!("Got packet from cluster {:?}", cluster);
+                        return;
+                    }
                     let id = info.id.clone();
                     let peer = stats.peers.entry(id.clone())
                         .or_insert_with(|| Peer::new(id.clone()));
@@ -280,6 +291,7 @@ impl Context {
                 {
                     let mut e = Encoder::from_writer(&mut buf);
                     e.encode(&[&Packet::Pong {
+                        cluster: cluster,
                         me: MyInfo {
                             id: self.machine_id.clone(),
                             addresses: self.addresses.iter()
@@ -312,8 +324,13 @@ impl Context {
                         addr, e))
                     .ok();
             }
-            Packet::Pong { me: info, ping_time, peer_time, friends } => {
+            Packet::Pong { cluster, me: info, ping_time, peer_time, friends }
+            => {
                 {
+                    if Some(&cluster) != self.cluster_name.as_ref() {
+                        info!("Got packet from cluster {:?}", cluster);
+                        return;
+                    }
                     let id = info.id.clone();
                     let peer = stats.peers.entry(id.clone())
                         .or_insert_with(|| Peer::new(id.clone()));

@@ -88,6 +88,7 @@ fn run() -> Result<(), Box<Error>> {
     let mut storage_dir = None::<PathBuf>;
     let mut config_dir = PathBuf::from("/etc/cantal");
     let mut machine_id = None::<String>;
+    let mut cluster_name = None::<String>;
     let mut log_level = env::var("RUST_LOG").ok()
         .and_then(|x| FromStr::from_str(&x).ok());
     {
@@ -107,6 +108,12 @@ fn run() -> Result<(), Box<Error>> {
                 communication is doing without resolving names. By default
                 `hostname` is used, but you may want to use fully qualified
                 domain name or some name that is visible behind proxy.
+            ");
+        ap.refer(&mut cluster_name)
+            .add_option(&["-n", "--cluster-name"], StoreOption, "
+                A name of the cluster. If cantal receives ping packet with
+                mismatching cluster name it discards the packet. If name is
+                not specified, cantal will not support discovery.
             ");
         ap.refer(&mut machine_id)
             .add_option(&["--override-machine-id"], StoreOption, "
@@ -153,13 +160,14 @@ fn run() -> Result<(), Box<Error>> {
         .unwrap_or_else(info::machine_id);
 
     let stats = Arc::new(RwLock::new(stats::Stats::new(
-        getpid(), name.clone(), hostname.clone(), machine_id.to_hex(),
+        getpid(), name.clone(), hostname.clone(), cluster_name.clone(),
+        machine_id.to_hex(),
         addresses.iter().map(|x| x.to_string()).collect())));
     let mut deps = Dependencies::new();
     deps.insert(stats.clone());
 
     let p2p_init = try!(p2p::p2p_init(&mut deps, &host, port,
-        machine_id, addresses, hostname, name));
+        machine_id, addresses, hostname, name, cluster_name.clone()));
     let server_init = try!(server::server_init(&mut deps, &host, port));
 
     deps.insert(Arc::new(util::Cell::<storage::Buffer>::new()));
