@@ -99,6 +99,7 @@ let chunk = new Enum(function() {
         }
     }
     State.probor_enum_protocol = [new Tuple(new Timestamp(), new Str())]
+    State.metric_type = "State"
 
     class Counter {
         constructor(values) {
@@ -106,18 +107,21 @@ let chunk = new Enum(function() {
         }
     }
     Counter.probor_enum_protocol = [new List(new Optional(new Int()))]
+    Counter.metric_type = "Counter"
     class Integer {
         constructor(values) {
             this.values = values
         }
     }
     Integer.probor_enum_protocol = [new List(new Optional(new Int()))]
+    Integer.metric_type = "Integer"
     class Float {
         constructor(values) {
             this.values = values
         }
     }
     Float.probor_enum_protocol = [new List(new Optional(new FloatProto()))]
+    Float.metric_type = "Float"
 
     return {
         0: State,
@@ -134,6 +138,7 @@ let tip = new Enum(function() {
         }
     }
     State.probor_enum_protocol = [new Timestamp(), new Str()]
+    State.metric_type = "State"
 
     class Counter {
         constructor(value) {
@@ -141,18 +146,21 @@ let tip = new Enum(function() {
         }
     }
     Counter.probor_enum_protocol = [new Int()]
+    Counter.metric_type = "Counter"
     class Integer {
         constructor(value) {
             this.value = value
         }
     }
     Integer.probor_enum_protocol = [new Int()]
+    Integer.metric_type = "Integer"
     class Float {
         constructor(value) {
             this.value = value
         }
     }
     Float.probor_enum_protocol = [new FloatProto()]
+    Float.metric_type = "Float"
 
     return {
         0: State,
@@ -283,6 +291,7 @@ let value = new Enum(function() {
         }
     }
     State.probor_enum_protocol = [new Tuple(new Timestamp(), new Str())]
+    State.metric_type = "State"
 
     class Counter {
         constructor(v) {
@@ -290,18 +299,21 @@ let value = new Enum(function() {
         }
     }
     Counter.probor_enum_protocol = [new Int()]
+    Counter.metric_type = "Counter"
     class Integer {
         constructor(value) {
             this.value = value
         }
     }
     Integer.probor_enum_protocol = [new Int()]
+    Integer.metric_type = "Integer"
     class Float {
         constructor(value) {
             this.value = value
         }
     }
     Float.probor_enum_protocol = [new FloatProto()]
+    Float.metric_type = "Float"
 
     return {
         0: State,

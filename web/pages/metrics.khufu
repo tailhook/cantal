@@ -43,7 +43,8 @@ style:
 
 view main():
   <div>
-    store @query = metrics | refresher | probor('/all_metrics.cbor', MetricsResponse, 120000)
+    store @query = metrics | refresher
+      | probor('/all_metrics.cbor', MetricsResponse, 120000)
     <div.title.error?(@query.error)>
       <h1>
         'All Metrics'
@@ -70,4 +71,4 @@ view main():
             <div.timestamp>
               ts
             <div.value>
-              `${ val.constructor.name } (${ val.value })`
+              `${ val.constructor.metric_type } (${ val.value })`

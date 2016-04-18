@@ -1,0 +1,48 @@
+import {refresher, json} from '../middleware/request'
+import {fine_grained} from '../query/lang.js'
+import {query} from '../middleware/local-query.js'
+import * as stores from '../stores/process_metrics.js'
+import {repr} from '../util/view'
+
+style:
+  .timestamp
+    font-size: xx-small
+    color: gray
+
+view main():
+  <div>
+    store @processes = stores.processes | refresher
+      | json('/all_processes.json')
+    store @metrics = stores.metrics
+      | query(fine_grained()
+        .matching('metric', ".")
+        .matching('group', ".")
+        .matching('pid', ".")
+        .tip())
+    <div>
+      <h1>
+        'Process Metrics'
+    if @metrics == null or @processes == null:
+      "Loading..."
+    else:
+      <table.pure-table>
+        <thead>
+          <tr>
+            <th> "Pid"
+            <th> "Metric"
+            <th> "Value"
+            <th> "Timestamp"
+        <tbody>
+        for tuple of @metrics.values key repr(tuple[0]):
+          let k = tuple[0]
+          let val = tuple[1]
+          let ts = tuple[2]
+          <tr>
+            <td>
+              k.pid
+            <td>
+              `${k.group}.${k.metric}`
+            <td>
+              `${ val.constructor.metric_type } (${ val.value })`
+            <td.timestamp>
+              ts[0]

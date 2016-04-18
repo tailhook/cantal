@@ -13,6 +13,7 @@ import {main as enable_remote} from './pages/enable_remote.khufu'
 import {main as status} from './pages/status.khufu'
 import {main as processes} from './pages/processes.khufu'
 import {main as states} from './pages/states.khufu'
+import {main as process_metrics} from './pages/process_metrics.khufu'
 import {main as metrics} from './pages/metrics.khufu'
 import {main as peers} from './pages/peers.khufu'
 import {main as remote_list} from './pages/remote/list.khufu'
@@ -69,6 +70,10 @@ view _local_menu():
     <a.pure-menu-link href="/local/states">
       link {click} go(event) -> @router
       "States"
+  <li.pure-menu-item.pure-menu-active?(@router.page == 'process_metrics')>
+    <a.pure-menu-link href="/local/process_metrics">
+      link {click} go(event) -> @router
+      "Process Metrics"
   <li.pure-menu-item.pure-menu-active?(@router.page == 'metrics')>
     <a.pure-menu-link href="/local/metrics">
       link {click} go(event) -> @router
@@ -192,6 +197,8 @@ view main(version):
           processes()
         elif @router.page == 'states':
           states()
+        elif @router.page == 'process_metrics':
+          process_metrics()
         elif @router.page == 'metrics':
           metrics()
         elif @router.page == 'peers':
