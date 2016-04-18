@@ -12,12 +12,10 @@ use super::Tip;
 use super::super::util::tree_collect;
 use history::Key;
 use super::processes::{Pid, MinimalProcess};
-use super::super::mountpoints::{MountPrefix, parse_mount_point};
 
 
 pub struct ReadCache {
     metadata: HashMap<PathBuf, Metadata>,
-    mountpoints: HashMap<(i32, i32), Vec<MountPrefix>>,
 }
 
 fn get_env_var(pid: u32) -> Option<PathBuf> {
@@ -51,55 +49,6 @@ fn relative_from(path: &Path, prefix: &Path) -> PathBuf {
             return path_iter.as_path().to_path_buf();
         }
     }
-}
-
-fn match_mountpoint(cache: &ReadCache, pid: Pid, path: &Path)
-    -> Result<PathBuf, ()>
-{
-    let mut best_match = None;
-    let mut file = BufReader::new(try!(
-        File::open(&format!("/proc/{}/mountinfo", pid))
-        .map_err(|e| debug!("Error reading mountinfo: {}", e))));
-    loop {
-        let mut line = String::with_capacity(256);
-        try!(file.read_line(&mut line)
-            .map_err(|e| error!("Error reading mountinfo: {}", e)));
-        if line.len() == 0 { break; }
-        let mp = try!(parse_mount_point(&line)
-            .map_err(|()| error!("Error parsing mount point: {:?}", line)));
-        if path.starts_with(mp.mounted_at) {
-            if let Some((ref mut pref, ref mut pt, ref mut dev)) = best_match {
-                // Modify only if new path is longer
-                if Path::new(mp.mounted_at).starts_with(&pt) {
-                    *pref = PathBuf::from(mp.prefix);
-                    *pt = PathBuf::from(mp.mounted_at);
-                    *dev = mp.device_id;
-                }
-            } else {
-                best_match = Some((
-                    PathBuf::from(mp.prefix),
-                    PathBuf::from(mp.mounted_at),
-                    mp.device_id));
-            }
-        }
-    }
-    let (prefix, mountpoint, device) = try!(best_match.ok_or(()));
-    let suffix = prefix.join(&relative_from(&path, &mountpoint));
-    if let Some(ref mprefixes) = cache.mountpoints.get(&device) {
-        for pref in mprefixes.iter() {
-            if Path::new(&pref.prefix) == Path::new("/") ||
-                suffix.starts_with(&pref.prefix)
-            {
-                // TODO(tailhook) check name_to_handle_at
-                return Ok(pref.mounted_at.join(
-                    &relative_from(&suffix, &pref.prefix)));
-            }
-        }
-    }
-    info!("Can't find mountpoint for \
-           dev: {:?}, pid: {}, prefix: {:?}, path: {:?}",
-        device, pid, prefix, path);
-    return Err(());
 }
 
 fn add_suffix<P: AsRef<Path>, E: AsRef<OsStr>>(path: P, ext: E) -> PathBuf
@@ -149,47 +98,30 @@ pub fn read(tip: &mut Tip, cache: &mut ReadCache, processes: &[MinimalProcess])
     for prc in processes.iter() {
         if let Some(path) = get_env_var(prc.pid) {
             // TODO(tailhook) check if not already visited
-            if let Ok(realpath) = match_mountpoint(cache, prc.pid, &path) {
-                let (data, new_meta) = read_values(cache, &realpath);
-                if let Some(data) = data {
-                    for (desc, value) in data.into_iter() {
-                        let pid = &format!("{}", prc.pid);
-                        if let Ok(key) = Key::from_json(
-                            &desc.json, &[("pid", pid)])
-                        {
-                            tip.add(key, value);
-                        }
+            let realpath = Path::new(&format!("/proc/{}/root", prc.pid))
+                .join(path.strip_prefix("/").unwrap_or(&path));
+            let (data, new_meta) = read_values(cache, &realpath);
+            if let Some(data) = data {
+                for (desc, value) in data.into_iter() {
+                    let pid = &format!("{}", prc.pid);
+                    if let Ok(key) = Key::from_json(
+                        &desc.json, &[("pid", pid)])
+                    {
+                        tip.add(key, value);
                     }
                 }
-                if let Some(meta) = new_meta {
-                    cache.metadata.insert(realpath, meta);
-                }
+            }
+            if let Some(meta) = new_meta {
+                cache.metadata.insert(realpath, meta);
             }
         }
     }
-}
-
-fn parse_mountpoints() -> Result<HashMap<(i32, i32), Vec<MountPrefix>>, ()> {
-    let mut tmp = vec!();
-    let mut file = BufReader::new(try!(File::open("/proc/self/mountinfo")
-        .map_err(|e| error!("Error reading mountinfo: {}", e))));
-    loop {
-        let mut line = String::with_capacity(256);
-        try!(file.read_line(&mut line)
-            .map_err(|e| error!("Error reading mountinfo: {}", e)));
-        if line.len() == 0 { break; }
-        let mp = try!(parse_mount_point(&line)
-            .map_err(|()| error!("Error parsing mount point: {:?}", line)));
-        tmp.push((mp.device_id, MountPrefix::from_mount_point(&mp)));
-    }
-    return Ok(tree_collect(tmp.into_iter()));
 }
 
 impl ReadCache {
     pub fn new() -> ReadCache {
         ReadCache {
             metadata: HashMap::new(),
-            mountpoints: parse_mountpoints().unwrap(),
         }
     }
 }

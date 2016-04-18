@@ -54,7 +54,6 @@ mod stats;
 mod staticfiles;
 mod scanner;
 mod scan;
-mod mountpoints;
 mod storage;
 mod p2p;
 mod http;
