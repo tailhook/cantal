@@ -1,12 +1,12 @@
 extern crate argparse;
-extern crate cantal;
+extern crate cantal_values;
 
 use std::path::{Path, PathBuf};
 use std::error::Error;
 
 use argparse::{ArgumentParser, ParseList};
 
-use cantal::Metadata;
+use cantal_values::Metadata;
 
 
 fn main() {
