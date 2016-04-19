@@ -13,11 +13,10 @@ use super::scan::processes;
 use super::scan::values;
 use super::scan::time_ms;
 use super::scan::cgroups;
-use super::util::Cell;
-use super::storage::Buffer;
 use super::deps::{Dependencies, LockedDeps};
 use cantal::Value;
 use history::VersionInfo;
+use storage::{Storage, MetricBuffer};
 
 
 const SNAPSHOT_INTERVAL: u64 = 60000;
@@ -26,7 +25,7 @@ const SNAPSHOT_INTERVAL: u64 = 60000;
 pub fn scan_loop(deps: Dependencies)
 {
     let stats: &RwLock<Stats> = &*deps.copy();
-    let cell = deps.get::<Arc<Cell<Buffer>>>().map(|x| &*x);
+    let storage = deps.get::<Arc<Storage>>().map(|x| &*x);
     let server_msg = deps.get::<mio::Sender<server::Message>>().unwrap();
     let mut last_store = time_ms();
     let mut last_hourly = last_store / 3_600_000;
@@ -84,8 +83,8 @@ pub fn scan_loop(deps: Dependencies)
                     let buf = enc.into_writer();
                     last_buffer_size = buf.len();
 
-                    if let Some(cell) = cell {
-                        cell.put(Buffer {
+                    if let Some(storage) = storage {
+                        storage.store_metrics(MetricBuffer {
                             timestamp: start,
                             snapshot: snapshot,
                             data: buf.into_boxed_slice(),

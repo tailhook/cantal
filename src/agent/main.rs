@@ -169,7 +169,7 @@ fn run() -> Result<(), Box<Error>> {
         machine_id, addresses, hostname, name, cluster_name.clone()));
     let server_init = try!(server::server_init(&mut deps, &host, port));
 
-    deps.insert(Arc::new(util::Cell::<storage::Buffer>::new()));
+    deps.insert(Arc::new(storage::Storage::new()));
 
     let _storage = storage_dir.as_ref().map(|path| {
         let mydeps = deps.clone();
