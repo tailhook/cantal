@@ -28,7 +28,7 @@ commands:
     environ:
       PATH: /bin:/usr/bin:/usr/local/bin:/usr/local/sbin:/usr/sbin:/sbin
     run: |
-      make bin js-release
+      make bin js-release cli-release
       [ -d dist ] || mkdir dist
       checkinstall --default \
         --maintainer=paul@colomiets.name \
