@@ -34,15 +34,18 @@ use std::thread;
 use std::io::BufReader;
 use std::io::Read;
 use std::fs::File;
+use std::net::SocketAddr;
 use std::str::FromStr;
 use std::path::PathBuf;
 use std::sync::{RwLock,Arc};
 use std::process::exit;
 use std::error::Error;
 
+use mio::Sender;
 use nix::unistd::getpid;
 use argparse::{ArgumentParser, Store, ParseOption, StoreOption, Parse, Print};
 use rustc_serialize::hex::{ToHex, FromHex};
+use rustc_serialize::json::Json;
 
 use deps::{Dependencies, LockedDeps};
 
@@ -204,8 +207,27 @@ fn run() -> Result<(), Box<Error>> {
         thread::spawn(move || {
             storage::storage_loop(mydeps, &path);
         })
-    });
 
+
+    });
+    if let Some(ref path) = storage_dir {
+        let p2p_chan = deps.get::<Sender<_>>().unwrap();
+        File::open(&path.join("peers.json"))
+        .map_err(|e| error!("Error reading peers: {}. Ignoring...", e))
+        .and_then(|mut x| Json::from_reader(&mut x)
+        .map_err(|e| error!("Error reading peers: {}. Ignoring...", e)))
+        .map(|x| x.find("ip_addresses").and_then(|x| x.as_array())
+            .map(|lst| {
+                for item in lst {
+                    item.as_string()
+                    .and_then(|x| SocketAddr::from_str(x).ok())
+                    .and_then(|x| {
+                        p2p_chan.send(p2p::Command::AddGossipHost(x)).ok()
+                    }); // ignore bad hosts
+                }
+            }))
+        .ok();
+    }
 
     let mydeps = deps.clone();
     let _scan = thread::spawn(move || {
