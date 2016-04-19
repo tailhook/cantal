@@ -20,6 +20,9 @@ style:
     cursor: pointer
     text-align: center
     border-top: solid rgb(203, 203, 203) 1px
+  .center
+    display: flex
+    justify-content: center
 
 view memtable(mem):
   <table.pure-table>
