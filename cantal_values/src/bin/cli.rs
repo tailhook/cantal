@@ -9,7 +9,7 @@ use std::ffi::OsStr;
 use std::str::{FromStr, from_utf8};
 use std::process::exit;
 use std::os::unix::ffi::OsStrExt;
-use std::fs::{File, read_link, read_dir};
+use std::fs::File;
 
 use argparse::{ArgumentParser, ParseList};
 
@@ -43,6 +43,7 @@ fn read_from_pid(pid: u32) -> Result<(), Box<Error>> {
         }
     }
     drop(file);
+
     // The same logic as in cantal-py and cantal-go
     if let Some(mut bytes) = cantal_path {
         bytes.extend(b".values");
@@ -54,17 +55,25 @@ fn read_from_pid(pid: u32) -> Result<(), Box<Error>> {
         } else {
             Path::new("/tmp")
         };
+
         // We don't know process pid in namespace so we just scan
-        // open files to find matching file.
-        for entry in try!(read_dir(format!("/proc/{}/fd", pid))) {
-            let path = try!(entry).path();
-            let path = try!(read_link(&path));
-            if path.starts_with(prefix) &&
-                path.extension() == Some(OsStr::new("values"))
-            {
-                try!(read_file(pid,
-                    &Path::new(&format!("/proc/{}/root", pid))
-                    .join(path.strip_prefix("/").unwrap())));
+        // memory mapped files to find matching file.
+        let mut buf = String::with_capacity(1024);
+        let mut file = BufReader::new(try!(
+            File::open(format!("/proc/{}/maps", pid))));
+        loop {
+            buf.clear();
+            let bytes = try!(file.read_line(&mut buf));
+            if bytes == 0 { break }
+            if let Some(x) = buf.split_whitespace().skip(5).next() {
+                let path = Path::new(x);
+                if path.starts_with(prefix) &&
+                    path.extension() == Some(OsStr::new("values"))
+                {
+                    try!(read_file(pid,
+                        &Path::new(&format!("/proc/{}/root", pid))
+                        .join(path.strip_prefix("/").unwrap())));
+                }
             }
         }
     }
