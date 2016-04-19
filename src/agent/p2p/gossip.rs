@@ -1,5 +1,7 @@
+use std::io::Write;
 use std::net::{SocketAddr, SocketAddrV4};
 use std::mem::replace;
+use std::sync::Arc;
 use std::collections::HashMap;
 use std::os::unix::io::AsRawFd;
 
@@ -7,7 +9,9 @@ use mio::Sender;
 use rand::{thread_rng, Rng, sample};
 use cbor::Encoder;
 use rustc_serialize::hex::ToHex;
+use rustc_serialize::json::Json;
 
+use storage::Storage;
 use super::Context;
 use super::peer::{Peer, Report};
 use super::super::server::Message::Touch;
@@ -370,5 +374,24 @@ impl Context {
                     true
                 }
             }).collect();
+    }
+
+    pub fn store_peers(&mut self) {
+        let data = {
+            let mut buf = Vec::with_capacity(1024);
+            let mut statsguard = self.deps.write::<GossipStats>();
+            let ref mut stats = &mut *statsguard;
+            let addrs = stats.peers.iter()
+                .flat_map(|(id, peer)| peer.addresses.iter())
+                .map(|x| Json::String(x.to_string()))
+                .collect();
+            write!(&mut buf, "{}", Json::Object(vec![
+                (String::from("ip_addresses"), Json::Array(addrs)),
+                ].into_iter().collect())).unwrap();
+            buf.into_boxed_slice()
+        };
+        self.deps.get::<Arc<Storage>>().map(|storage| {
+            storage.store_peers(data);
+        });
     }
 }

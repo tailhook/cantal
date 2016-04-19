@@ -56,6 +56,11 @@ impl Storage {
         lock.metrics = Some(value);
         self.cond.notify_all();
     }
+    pub fn store_peers(&self, value: Box<[u8]>) {
+        let mut lock = self.value.lock().unwrap();
+        lock.peers = Some(value);
+        self.cond.notify_all();
+    }
     pub fn get(&self) -> Task {
         let mut lock = self.value.lock().expect("storage lock");
         loop {
@@ -70,7 +75,7 @@ impl Storage {
     }
 }
 
-pub fn store_metrics(path: &Path, buf: MetricBuffer, stats: &RwLock<Stats>) {
+fn store_metrics(path: &Path, buf: MetricBuffer, stats: &RwLock<Stats>) {
     let tmp = path.join("current.tmp");
     let tmplink = path.join("current.tmp.link");
     let current = path.join("current.cbor");
@@ -122,13 +127,22 @@ pub fn store_metrics(path: &Path, buf: MetricBuffer, stats: &RwLock<Stats>) {
     }).map_err(|e| error!("Can't read dir: {}", e)).ok();
 }
 
+fn store_peers(path: &Path, buf: Box<[u8]>) {
+    let tmp = path.join("peers.json.tmp");
+    let target = path.join("peers.json");
+    File::create(&tmp)
+    .and_then(|mut f| f.write_all(&*buf))
+    .and_then(|()| rename(&tmp, &target))
+    .map_err(|e| error!("Can't write peers: {}", e)).ok();
+}
+
 pub fn storage_loop(deps: Dependencies, path: &Path) {
     let cell: &Storage = &*deps.copy();
     let stats: &RwLock<Stats> = &*deps.copy();
     loop {
         match cell.get() {
             Task::Metrics(buf) => store_metrics(path, buf, stats),
-            Task::Peers(buf) => unimplemented!(),
+            Task::Peers(buf) => store_peers(path, buf),
         }
     }
 }

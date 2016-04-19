@@ -183,6 +183,7 @@ impl Handler for Context {
             }
             Timer::GarbageCollector => {
                 self.remove_failed_nodes();
+                self.store_peers();
                 eloop.timeout_ms(Timer::GarbageCollector,
                                  GARBAGE_COLLECTOR_INTERVAL).unwrap();
             }
