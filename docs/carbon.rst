@@ -83,7 +83,7 @@ CGroup statistics (enabled with ``enable-cgroup-stats``):
       ``/sys/fs/cgroup/systemd/system.slice/nscd.service`` will turn
       into ``system.nscd``
     * The ``.swap`` and ``.mount`` (systemd-specific) groups are skipped
-
+    * The root group ``user`` (upstart- and systemd-specific) group is ignored
     * If the process is in group ``a.b`` it will not count for group ``a``,
       the statistics for ``a`` contains only processes immediately in the group
 

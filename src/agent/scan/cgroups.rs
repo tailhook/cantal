@@ -1,8 +1,10 @@
 use std::fs::File;
 use std::io::Read;
+use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::path::Component::Normal;
 use std::collections::HashMap;
+use std::os::unix::ffi::OsStrExt;
 
 use scan_dir::ScanDir;
 
@@ -83,13 +85,23 @@ pub fn read() -> CGroups {
     // TODO(tailhook) should this be cached?
     if let Some(name_dir) = get_name_dir() {
         let prefix_num = name_dir.components().count();
-        ScanDir::dirs().walk(name_dir, |iter| {
-            for (entry, name) in iter {
+        ScanDir::dirs().walk(name_dir, |mut iter| {
+            while let Some((entry, name)) = iter.next() {
                 if name.ends_with(".swap") || name.ends_with(".mount") {
                     // Systemd stuff, not very interesting here
                     continue;
                 }
                 let mut path = entry.path();
+                if path.file_stem() == Some(OsStr::from_bytes(b"user")) &&
+                    path.components().count() == prefix_num + 1
+                {
+                    // Skip "user" cgroup. We don't care about it for
+                    // servers, and when writing to graphite it generates
+                    // lots of almost random cgroup names so generates
+                    // gigabytes of pointless metrics
+                    iter.exit_current_dir();
+                    continue;
+                }
                 path.push("cgroup.procs");
                 buf.truncate(0);
                 if File::open(&path)
