@@ -51,6 +51,17 @@ commands:
         --pakdir=dist \
         make install
 
+  build-static-cli-package: !Command
+    description: Build static command-line tool package
+    container: rust-musl
+    run: |
+      set -ex
+      (cd cantal_values; cargo build --target=x86_64-unknown-linux-musl)
+      [ -d dist ] || mkdir dist
+      tar -czf dist/cantal-cli-$(git describe).tar.gz \
+        -C ./cantal_values/target/x86_64-unknown-linux-musl/release \
+        cantal
+
   run: &run !Command
     description: Runs cantal (is not very useful run in container)
     container: ubuntu
