@@ -171,43 +171,45 @@ pub fn scan(sender: &mut Sender, cfg: &Config, stats: &Stats)
             }
         });
     }
+    let cls = stats.cluster_name.as_ref().map(|x| &x[..])
+              .unwrap_or("no-cluster");
     for cgroup in cgroups {
         sender.add_value_at(
-            format_args!("cantal.{}.cgroups.{}.vsize",
-                stats.hostname, cgroup.name),
+            format_args!("cantal.{}.{}.cgroups.{}.vsize",
+                cls, stats.hostname, cgroup.name),
             cgroup.vsize, unixtime);
         sender.add_value_at(
-            format_args!("cantal.{}.cgroups.{}.rss",
-                stats.hostname, cgroup.name),
+            format_args!("cantal.{}.{}.cgroups.{}.rss",
+                cls, stats.hostname, cgroup.name),
             cgroup.rss, unixtime);
         sender.add_value_at(
-            format_args!("cantal.{}.cgroups.{}.num_processes",
-                stats.hostname, cgroup.name),
+            format_args!("cantal.{}.{}.cgroups.{}.num_processes",
+                cls, stats.hostname, cgroup.name),
             cgroup.num_processes, unixtime);
         sender.add_value_at(
-            format_args!("cantal.{}.cgroups.{}.num_threads",
-                stats.hostname, cgroup.name),
+            format_args!("cantal.{}.{}.cgroups.{}.num_threads",
+                cls, stats.hostname, cgroup.name),
             cgroup.num_threads, unixtime);
         sender.add_value_at(
-            format_args!("cantal.{}.cgroups.{}.user_cpu_percent",
-                stats.hostname, cgroup.name),
+            format_args!("cantal.{}.{}.cgroups.{}.user_cpu_percent",
+                cls, stats.hostname, cgroup.name),
             cgroup.user_cpu, unixtime);
         sender.add_value_at(
-            format_args!("cantal.{}.cgroups.{}.system_cpu_percent",
-                stats.hostname, cgroup.name),
+            format_args!("cantal.{}.{}.cgroups.{}.system_cpu_percent",
+                cls, stats.hostname, cgroup.name),
             cgroup.system_cpu, unixtime);
         sender.add_value_at(
-            format_args!("cantal.{}.cgroups.{}.read_bps",
-                stats.hostname, cgroup.name),
+            format_args!("cantal.{}.{}.cgroups.{}.read_bps",
+                cls, stats.hostname, cgroup.name),
             cgroup.read_bytes, unixtime);
         sender.add_value_at(
-            format_args!("cantal.{}.cgroups.{}.write_bps",
-                stats.hostname, cgroup.name),
+            format_args!("cantal.{}.{}.cgroups.{}.write_bps",
+                cls, stats.hostname, cgroup.name),
             cgroup.write_bytes, unixtime);
         for (key, value) in cgroup.user_metrics {
             sender.add_value_at(
-                format_args!("cantal.{}.cgroups.{}.{}",
-                    stats.hostname, cgroup.name, key),
+                format_args!("cantal.{}.{}.cgroups.{}.{}",
+                    cls, stats.hostname, cgroup.name, key),
                 value, unixtime);
         }
     }

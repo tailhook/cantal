@@ -65,7 +65,7 @@ By default cantal sends nothing, even if connection params are set.
 
 CGroup statistics (enabled with ``enable-cgroup-stats``):
 
-* ``cantal.<HOSTNAME>.cgroups.<GROUP_NAME>.<METRIC_NAME>``
+* ``cantal.<CLUSTER_NAME>.<HOSTNAME>.cgroups.<GROUP_NAME>.<METRIC_NAME>``
 
     * Metrics (all represent the sum for all processes in the group):
 
@@ -87,9 +87,12 @@ CGroup statistics (enabled with ``enable-cgroup-stats``):
     * If the process is in group ``a.b`` it will not count for group ``a``,
       the statistics for ``a`` contains only processes immediately in the group
 
-* ``cantal.<HOSTNAME>.cgroups.<GROUP_NAME>.states.<STATE_NAME>.<METRIC_NAME>``
+* ``cantal.<CLUSTER_NAME>.<HOSTNAME>.cgroups.<GROUP_NAME>.states.<STATE_NAME>.<METRIC_NAME>``
   -- application-submitted metrics which have a ``state`` value
-* ``cantal.<HOSTNAME>.cgroups.<GROUP_NAME>.groups.<STATE_NAME>.<METRIC_NAME>``
+* ``cantal.<CLUSTER_NAME>.<HOSTNAME>.cgroups.<GROUP_NAME>.groups.<STATE_NAME>.<METRIC_NAME>``
   -- application-submitted metrics which have a ``group`` value
+
+``CLUSTER_NAME`` is ``no-cluster`` if no ``--cluster-name=something`` is
+specified in the command-line.
 
 
