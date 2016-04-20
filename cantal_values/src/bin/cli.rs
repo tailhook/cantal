@@ -36,10 +36,10 @@ fn read_from_pid(pid: u32) -> Result<(), Box<Error>> {
         let bytes = try!(file.read_until(0, &mut buf));
         if bytes == 0 { break }
         if buf[..bytes].starts_with(b"CANTAL_PATH=") {
-            cantal_path = Some(buf[12..bytes].to_owned());
+            cantal_path = Some(buf[12..bytes-1].to_owned());
         }
         if buf[..bytes].starts_with(b"XDG_RUNTIME_DIR=") {
-            xdg_runtime_dir = Some(buf[16..bytes].to_owned());
+            xdg_runtime_dir = Some(buf[16..bytes-1].to_owned());
         }
     }
     drop(file);
@@ -48,7 +48,9 @@ fn read_from_pid(pid: u32) -> Result<(), Box<Error>> {
     if let Some(mut bytes) = cantal_path {
         bytes.extend(b".values");
         let path = Path::new(OsStr::from_bytes(&bytes));
-        try!(read_file(pid, path));
+        try!(read_file(pid,
+            &Path::new(&format!("/proc/{}/root", pid))
+            .join(path.strip_prefix("/").unwrap())));
     } else {
         let prefix = if let Some(ref bytes) = xdg_runtime_dir {
             Path::new(OsStr::from_bytes(bytes))
