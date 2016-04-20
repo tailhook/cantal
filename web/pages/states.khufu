@@ -55,8 +55,8 @@ view main():
     store @states = stores.charts
       | query(fine_grained()
         .matching('metric', "^(duration|count)$")
-        .matching('state', ".")
-        .matching('pid', ".")
+        .has('state')
+        .has('pid')
         .diff())
     <div>
       <h1>

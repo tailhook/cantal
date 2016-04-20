@@ -18,6 +18,17 @@ class Query {
     matching(item, regex_str) {
         return this.filter(["RegexLike", item, regex_str])
     }
+    has(...items) {
+        let flt = null;
+        for(let item of items) {
+            if(flt) {
+                flt = ['Or', ['Has', item], flt];
+            } else {
+                flt = ['Has', item];
+            }
+        }
+        return this.filter(flt)
+    }
     non_matching(item, regex_str) {
         return this.filter(['Not', ['RegexLike', item, regex_str]])
     }

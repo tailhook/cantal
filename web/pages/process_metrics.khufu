@@ -15,9 +15,9 @@ view main():
       | json('/all_processes.json')
     store @metrics = stores.metrics
       | query(fine_grained()
-        .matching('metric', ".")
-        .matching('group', ".")
-        .matching('pid', ".")
+        .has('metric')
+        .has('group', 'state')
+        .has('pid')
         .tip())
     <div>
       <h1>
@@ -41,7 +41,7 @@ view main():
             <td>
               k.pid
             <td>
-              `${k.group}.${k.metric}`
+              `${k.group or k.state}.${k.metric}`
             <td>
               `${ val.constructor.metric_type } (${ val.value })`
             <td.timestamp>
