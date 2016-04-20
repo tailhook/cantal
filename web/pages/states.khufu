@@ -2,6 +2,7 @@ import {fine_grained} from '../query/lang.js'
 import {query} from '../middleware/local-query.js'
 import * as stores from '../stores/states.js'
 import {donut} from '../charts/donut.khufu'
+import {percent_formatter} from '../util/format.js'
 
 style:
   .title
@@ -44,7 +45,10 @@ style:
     height: 1em
     margin-right: 8px
   .table-key
-    width: 160px
+    min-width: 160px
+  .table-value
+    min-width: 60px
+    text-align: right
 
 view main():
   <div>
@@ -78,6 +82,9 @@ view main():
                       item.title
                     <span.table-value>
                       item.value
+                    <span.table-value>
+                      if charts.duration.total:
+                        percent_formatter()(item.value/charts.duration.total)
               <div.donut>
                 donut(charts.duration.items, 160, 160, charts.duration.total)
             <div.chart>
@@ -91,5 +98,8 @@ view main():
                       item.title
                     <span.table-value>
                       item.value
+                    <span.table-value>
+                      if charts.duration.total:
+                        percent_formatter()(item.value/charts.count.total)
               <div.donut>
                 donut(charts.count.items, 160, 160, charts.count.total)
