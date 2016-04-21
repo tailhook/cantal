@@ -29,8 +29,9 @@ style:
   .c-row
     display: flex
     align-items: center
+    margin: 2px
   .c-title
-    width: 300px
+    min-width: 400px
   .cpugraph
     margin-left: 12px
     border: solid gray 2px
@@ -56,14 +57,20 @@ view main():
         <h2>
           host
         <div> // remove the wrapper when khufu fixed
-          for graph of containers key graph.title:
+          for [cgroup, data] of containers key cgroup:
             <div.c-row>
               <div.c-title>
-                graph.title
+                cgroup
               <div.cpugraph>
-                sparkline(120, graph.timestamps, [{
-                    'title': 'Cpu',
-                    'values': graph.values,
+                sparkline(120, data.timestamps, [{
+                    'title': 'User',
+                    'values': data.user_time,
+                    'yaxis': CPU_YAXIS,
+                    }])
+              <div.cpugraph>
+                sparkline(120, data.timestamps, [{
+                    'title': 'System',
+                    'values': data.system_time,
                     'yaxis': CPU_YAXIS,
                     }])
 

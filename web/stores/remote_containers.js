@@ -5,12 +5,16 @@ import {last_beacon} from '../websock'
 
 
 function machine(mach_data) {
-    let res = mach_data.chunks.map(([key, values, timestamps]) => { return {
-        title: key.cgroup,
-        values: values.values.map(x => x*1),
-        timestamps: timestamps,
-    }});
-    res.sort((x, y) => x.title.localeCompare(y.title))
+    let res = new Map();
+    mach_data.chunks.sort((x, y) => x[0].cgroup.localeCompare(y[0].cgroup))
+    mach_data.chunks.map(([key, values, timestamps]) => {
+        if(!res.get(key.cgroup)) {
+            res.set(key.cgroup, {
+                timestamps: timestamps
+            })
+        }
+        res.get(key.cgroup)[key.metric] = values.values.map(x => x+0)
+    });
     return res
 }
 
