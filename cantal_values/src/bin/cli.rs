@@ -11,7 +11,7 @@ use std::process::exit;
 use std::os::unix::ffi::OsStrExt;
 use std::fs::File;
 
-use argparse::{ArgumentParser, ParseList};
+use argparse::{ArgumentParser, ParseList, Print};
 
 use cantal_values::Metadata;
 
@@ -89,6 +89,9 @@ fn main() {
         ap.refer(&mut files)
             .add_argument("file_or_pid", ParseList, "Pid of the process,
             or file name of the `.values` file, or list of files.");
+        ap.add_option(&["-V", "--version"],
+            Print(env!("CARGO_PKG_VERSION").to_string()),
+            "Show version and exit");
         ap.parse_args_or_exit();
     }
     let mut retcode = 0;
