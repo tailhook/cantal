@@ -18,6 +18,7 @@ import {main as metrics} from './pages/metrics.khufu'
 import {main as peers} from './pages/peers.khufu'
 import {main as remote_list} from './pages/remote/list.khufu'
 import {main as remote_grid} from './pages/remote/grid.khufu'
+import {main as remote_containers} from './pages/remote/containers.khufu'
 
 style:
   .info
@@ -100,6 +101,11 @@ view _remote_menu():
     <a.pure-menu-link href="/remote/grid">
       link {click} go(event) -> @router
       "Grid"
+
+  <li.pure-menu-item.pure-menu-active?(@router.page == 'containers')>
+    <a.pure-menu-link href="/remote/containers">
+      link {click} go(event) -> @router
+      "Containers"
 
 
 view self_status(beacon):
@@ -213,6 +219,8 @@ view main(version):
             remote_list()
           elif @router.page == 'grid':
             remote_grid()
+          elif @router.page == 'containers':
+            remote_containers()
           else:
             @router.page
         else:

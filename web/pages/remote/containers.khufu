@@ -1,0 +1,70 @@
+import {refresher, json} from '../../middleware/request'
+import {fine_grained} from '../../query/lang.js'
+import * as stores from '../../stores/remote_containers'
+import {bool, toggle, disable, init} from '../../stores/simple'
+import {icon} from '../../util/icon.khufu'
+import {query} from '../../middleware/remote-query.js'
+import {pprint} from '../../util/view'
+import {sparkline} from '../../charts/sparkline.khufu'
+import {CPU_YAXIS} from '../../settings/cpugraph'
+import {repr} from '../../util/view'
+
+style:
+  .title
+    display: flex
+    cursor: default
+  h1
+    flex-grow: 1
+    margin: 4px 16px
+  .title.error
+    background-color: red
+  span.error
+    color: white
+    align-self: center
+  .latency
+    color: gray
+    font-size: small
+    align-self: flex-end
+
+  .c-row
+    display: flex
+    align-items: center
+  .c-title
+    width: 300px
+  .cpugraph
+    margin-left: 12px
+    border: solid gray 2px
+    -webkit-border-radius: 3px
+    -moz-border-radius: 3px
+    border-radius: 3px
+
+view main():
+  <div>
+    store @cpu = stores.cpu
+      | query(fine_grained()
+        .matching('metric', '^user_time|system_time$')
+        .has('cgroup')
+        .derivative().history(150))
+    // TODO(tailhook) check errors everywhere
+    <div.title.error?(@cpu and @cpu.error)>
+      <h1>
+        "Containers"
+    if @cpu == null:
+      "Loading..."
+    else:
+      for [host, containers] of @cpu.entries() key host:
+        <h2>
+          host
+        <div> // remove the wrapper when khufu fixed
+          for graph of containers key graph.title:
+            <div.c-row>
+              <div.c-title>
+                graph.title
+              <div.cpugraph>
+                sparkline(120, graph.timestamps, [{
+                    'title': 'Cpu',
+                    'values': graph.values,
+                    'yaxis': CPU_YAXIS,
+                    }])
+
+
