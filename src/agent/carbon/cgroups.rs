@@ -11,8 +11,7 @@ use super::config::Config;
 use super::Sender;
 
 #[derive(Debug)]
-struct CGroup<'a> {
-    name: &'a str,
+struct CGroup {
     vsize: u64,
     rss: u64,
     num_threads: u64,
@@ -73,15 +72,7 @@ pub fn scan(sender: &mut Sender, cfg: &Config, stats: &Stats)
     if backlog.timestamps.len() < 2 {
         return;
     }
-    let mut cgroups = Vec::with_capacity(stats.cgroups.len());
-    let mut pids = HashMap::with_capacity(stats.processes.len());
-    for (name, cgroup) in &stats.cgroups {
-        let idx = cgroups.len();
-        cgroups.push(CGroup::new(name));
-        for pid in &cgroup.pids {
-            pids.insert(*pid, idx);
-        }
-    }
+    let mut cgroups = HashMap::<String, CGroup>::new();
     let timestamp = backlog.timestamps[0].0;
     let cut = timestamp - (cfg.interval as u64)*1000;
     let num = backlog.timestamps.iter().enumerate()
@@ -90,135 +81,127 @@ pub fn scan(sender: &mut Sender, cfg: &Config, stats: &Stats)
         .unwrap_or(backlog.timestamps.len() - 1);
     let unixtime = timestamp / 1000;
     for (key, value) in backlog.values.iter() {
-        key.get_with("pid", |pid_str| {
-            let pid = pid_str.parse().ok();
-            if let Some(&grp_num) = pid.and_then(|x| pids.get(&x)) {
-                let ref mut grp = cgroups[grp_num];
-                key.get_with("metric", |metric| {
-                    match metric {
-                        "vsize" => {
-                            if let Integer(val) = value.tip_value() {
-                                grp.vsize += val as u64;
-                            }
+        key.get_with("cgroup", |cgroup| {
+            key.get_with("metric", |metric| {
+                let grp = cgroups.entry(cgroup.to_owned())
+                    .or_insert_with(CGroup::new);
+                match metric {
+                    "vsize" => {
+                        if let Integer(val) = value.tip_value() {
+                            grp.vsize += val as u64;
                         }
-                        "rss" => {
-                            if let Integer(val) = value.tip_value() {
-                                grp.rss += val as u64;
-                            }
+                    }
+                    "rss" => {
+                        if let Integer(val) = value.tip_value() {
+                            grp.rss += val as u64;
                         }
-                        "num_threads" => {
-                            if let Integer(val) = value.tip_value() {
-                                grp.num_threads += val as u64;
-                                grp.num_processes += 1;
-                            }
+                    }
+                    "num_threads" => {
+                        if let Integer(val) = value.tip_value() {
+                            grp.num_threads += val as u64;
+                            grp.num_processes += 1;
                         }
-                        "user_time" => {
-                            let diff = get_counter_diff(value, backlog, num);
-                            if let Some((value, millis)) = diff {
-                                // TODO(tailhook) div by cpu ticks not millis
-                                let mfloat = millis as f64;
-                                grp.user_cpu += (value as f64)*1000.0/mfloat;
-                            }
+                    }
+                    "user_time" => {
+                        let diff = get_counter_diff(value, backlog, num);
+                        if let Some((value, millis)) = diff {
+                            // TODO(tailhook) div by cpu ticks not millis
+                            let mfloat = millis as f64;
+                            grp.user_cpu += (value as f64)*1000.0/mfloat;
                         }
-                        "system_time" => {
-                            let diff = get_counter_diff(value, backlog, num);
-                            if let Some((value, millis)) = diff {
-                                // TODO(tailhook) div by cpu ticks not millis
-                                let mfloat = millis as f64;
-                                grp.system_cpu += (value as f64)*1000.0/mfloat;
-                            }
+                    }
+                    "system_time" => {
+                        let diff = get_counter_diff(value, backlog, num);
+                        if let Some((value, millis)) = diff {
+                            // TODO(tailhook) div by cpu ticks not millis
+                            let mfloat = millis as f64;
+                            grp.system_cpu += (value as f64)*1000.0/mfloat;
                         }
-                        "read_bytes" => {
-                            let diff = get_counter_diff(value, backlog, num);
-                            if let Some((value, millis)) = diff {
-                                let mfloat = millis as f64;
-                                grp.read_bytes += (value as f64)*1000.0/mfloat;
-                            }
+                    }
+                    "read_bytes" => {
+                        let diff = get_counter_diff(value, backlog, num);
+                        if let Some((value, millis)) = diff {
+                            let mfloat = millis as f64;
+                            grp.read_bytes += (value as f64)*1000.0/mfloat;
                         }
-                        "write_bytes" => {
-                            let diff = get_counter_diff(value, backlog, num);
-                            if let Some((value, millis)) = diff {
-                                let mfloat = millis as f64;
-                                grp.write_bytes += (value as f64)*1000.0/mfloat;
-                            }
+                    }
+                    "write_bytes" => {
+                        let diff = get_counter_diff(value, backlog, num);
+                        if let Some((value, millis)) = diff {
+                            let mfloat = millis as f64;
+                            grp.write_bytes += (value as f64)*1000.0/mfloat;
                         }
-                        _ => {}
+                    }
+                    _ => {}
+                }
+                key.get_with("state", |statename| {
+                    if let Some(v) = graphite_data(value, backlog, num) {
+                        let usermet = format!("states.{}.{}",
+                            statename, metric);
+                        let valptr = grp.user_metrics.entry(usermet)
+                                     .or_insert(0.0);
+                        *valptr += v;
                     }
                 });
-                // TODO(tailhook) get metrics with "group" but not state
-                key.get_with("state", |statename| {
-                    key.get_with("metric", |metric| {
-                        if let Some(v) = graphite_data(value, backlog, num) {
-                            let usermet = format!("states.{}.{}",
-                                statename, metric);
-                            let valptr = grp.user_metrics.entry(usermet)
-                                         .or_insert(0.0);
-                            *valptr += v;
-                        }
-                    });
-                });
                 key.get_with("group", |group| {
-                    key.get_with("metric", |metric| {
-                        if let Some(v) = graphite_data(value, backlog, num) {
-                            let usermet = format!("groups.{}.{}",
-                                group, metric);
-                            let valptr = grp.user_metrics.entry(usermet)
-                                         .or_insert(0.0);
-                            *valptr += v;
-                        }
-                    });
+                    if let Some(v) = graphite_data(value, backlog, num) {
+                        let usermet = format!("groups.{}.{}",
+                            group, metric);
+                        let valptr = grp.user_metrics.entry(usermet)
+                                     .or_insert(0.0);
+                        *valptr += v;
+                    }
                 });
-            }
+            });
         });
     }
     let cls = stats.cluster_name.as_ref().map(|x| &x[..])
               .unwrap_or("no-cluster");
-    for cgroup in cgroups {
+    for (name, cgroup) in cgroups {
         sender.add_value_at(
             format_args!("cantal.{}.{}.cgroups.{}.vsize",
-                cls, stats.hostname, cgroup.name),
+                cls, stats.hostname, name),
             cgroup.vsize, unixtime);
         sender.add_value_at(
             format_args!("cantal.{}.{}.cgroups.{}.rss",
-                cls, stats.hostname, cgroup.name),
+                cls, stats.hostname, name),
             cgroup.rss, unixtime);
         sender.add_value_at(
             format_args!("cantal.{}.{}.cgroups.{}.num_processes",
-                cls, stats.hostname, cgroup.name),
+                cls, stats.hostname, name),
             cgroup.num_processes, unixtime);
         sender.add_value_at(
             format_args!("cantal.{}.{}.cgroups.{}.num_threads",
-                cls, stats.hostname, cgroup.name),
+                cls, stats.hostname, name),
             cgroup.num_threads, unixtime);
         sender.add_value_at(
             format_args!("cantal.{}.{}.cgroups.{}.user_cpu_percent",
-                cls, stats.hostname, cgroup.name),
+                cls, stats.hostname, name),
             cgroup.user_cpu, unixtime);
         sender.add_value_at(
             format_args!("cantal.{}.{}.cgroups.{}.system_cpu_percent",
-                cls, stats.hostname, cgroup.name),
+                cls, stats.hostname, name),
             cgroup.system_cpu, unixtime);
         sender.add_value_at(
             format_args!("cantal.{}.{}.cgroups.{}.read_bps",
-                cls, stats.hostname, cgroup.name),
+                cls, stats.hostname, name),
             cgroup.read_bytes, unixtime);
         sender.add_value_at(
             format_args!("cantal.{}.{}.cgroups.{}.write_bps",
-                cls, stats.hostname, cgroup.name),
+                cls, stats.hostname, name),
             cgroup.write_bytes, unixtime);
         for (key, value) in cgroup.user_metrics {
             sender.add_value_at(
                 format_args!("cantal.{}.{}.cgroups.{}.{}",
-                    cls, stats.hostname, cgroup.name, key),
+                    cls, stats.hostname, name, key),
                 value, unixtime);
         }
     }
 }
 
-impl<'a> CGroup<'a> {
-    fn new(name: &str) -> CGroup {
+impl CGroup {
+    fn new() -> CGroup {
         CGroup {
-            name: name,
             vsize: 0,
             rss: 0,
             num_threads: 0,

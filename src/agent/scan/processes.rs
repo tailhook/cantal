@@ -7,6 +7,7 @@ use libc;
 use cantal::itertools::{NextValue, NextStr};
 use super::Tip;
 use history::Key;
+use scan::cgroups::CGroups;
 
 pub type Pid = u32;
 
@@ -138,45 +139,41 @@ impl ReadCache {
     }
 }
 
-pub fn write_tip(tip: &mut Tip, processes: &Vec<MinimalProcess>) {
-    use cantal::Value::*;
+fn key(metric: &str, pid: &str, cgroup: Option<&str>) -> Key {
+    if let Some(cgrp) = cgroup {
+        Key::pairs(&[
+            ("cgroup", cgrp),
+            ("metric", metric),
+            ("pid", pid),
+            ])
+    } else {
+        Key::pairs(&[
+            ("metric", metric),
+            ("pid", pid),
+            ])
+    }
+}
 
+pub fn write_tip(tip: &mut Tip, processes: &Vec<MinimalProcess>,
+    cgroups: &CGroups)
+{
+    use cantal::Value::*;
     for p in processes {
         let pid = p.pid.to_string();
-        tip.add(Key::pairs(&[
-            ("metric", "vsize"),
-            ("pid", &pid[..]),
-            ]),
+        let cgroup = cgroups.get(&p.pid).map(|x| &x[..]);
+        tip.add(key("vsize", &pid, cgroup),
             Integer(p.vsize as i64));
-        tip.add(Key::pairs(&[
-            ("metric", "rss"),
-            ("pid", &pid[..]),
-            ]),
+        tip.add(key("rss", &pid, cgroup),
             Integer(p.rss as i64));
-        tip.add(Key::pairs(&[
-            ("metric", "num_threads"),
-            ("pid", &pid[..]),
-            ]),
+        tip.add(key("num_threads", &pid, cgroup),
             Integer(p.num_threads as i64));
-        tip.add(Key::pairs(&[
-            ("metric", "user_time"),
-            ("pid", &pid[..]),
-            ]),
+        tip.add(key("user_time", &pid, cgroup),
             Counter(p.user_time as u64));
-        tip.add(Key::pairs(&[
-            ("metric", "system_time"),
-            ("pid", &pid[..]),
-            ]),
+        tip.add(key("system_time", &pid, cgroup),
             Counter(p.system_time as u64));
-        tip.add(Key::pairs(&[
-            ("metric", "read_bytes"),
-            ("pid", &pid[..]),
-            ]),
+        tip.add(key("read_bytes", &pid, cgroup),
             Counter(p.read_bytes));
-        tip.add(Key::pairs(&[
-            ("metric", "write_bytes"),
-            ("pid", &pid[..]),
-            ]),
+        tip.add(key("write_bytes", &pid, cgroup),
             Counter(p.write_bytes));
         // TODO(tailhook) FDSize
     }

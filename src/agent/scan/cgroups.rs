@@ -1,4 +1,5 @@
 use std::fs::File;
+use std::rc::Rc;
 use std::io::Read;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
@@ -10,11 +11,7 @@ use scan_dir::ScanDir;
 
 use super::processes::Pid;
 
-pub struct CGroup {
-    pub pids: Vec<Pid>,
-}
-
-pub type CGroups = HashMap<String, CGroup>;
+pub type CGroups = HashMap<Pid, Rc<String>>;
 
 
 fn get_name_dir() -> Option<PathBuf> {
@@ -112,12 +109,11 @@ pub fn read() -> CGroups {
                 {
                     continue;
                 }
-                let pids: Vec<Pid> = buf.split_whitespace()
-                    .filter_map(|x| x.parse().ok())
-                    .collect();
-                if pids.len() > 0 {
-                    let name = make_name(&path, prefix_num);
-                    pro.insert(name, CGroup { pids: pids });
+                let name = Rc::new(make_name(&path, prefix_num));
+                let pids = buf.split_whitespace()
+                    .filter_map(|x| x.parse().ok());
+                for pid in pids {
+                    pro.insert(pid, name.clone());
                 }
             }
         }).map_err(|e| debug!("Error reading directory")).ok();

@@ -40,8 +40,8 @@ pub fn scan_loop(deps: Dependencies)
 
         let cgroups = cgroups::read();
         let processes = processes::read(&mut process_cache);
-        processes::write_tip(&mut tip, &processes);
-        values::read(&mut tip, &mut values_cache, &processes);
+        processes::write_tip(&mut tip, &processes, &cgroups);
+        values::read(&mut tip, &mut values_cache, &processes, &cgroups);
 
         let scan_duration = (time_ms() - start) as u32;
 
@@ -60,7 +60,6 @@ pub fn scan_loop(deps: Dependencies)
             stats.last_scan = start;
             stats.boot_time = boot_time.or(stats.boot_time);
             stats.processes = processes;
-            stats.cgroups = cgroups;
 
             if start - last_store > SNAPSHOT_INTERVAL {
                 last_store = start;

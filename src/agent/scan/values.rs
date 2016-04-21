@@ -7,11 +7,13 @@ use std::path::{Path, PathBuf};
 use std::collections::{HashMap};
 
 use cantal::{Metadata, Value, Descriptor};
+use rustc_serialize::json::Json;
 
 use super::Tip;
 use super::super::util::tree_collect;
 use history::Key;
 use super::processes::{Pid, MinimalProcess};
+use scan::cgroups::CGroups;
 
 
 pub struct ReadCache {
@@ -93,20 +95,33 @@ fn read_values(cache: &ReadCache, path: &PathBuf)
     return (None, None);
 }
 
-pub fn read(tip: &mut Tip, cache: &mut ReadCache, processes: &[MinimalProcess])
+fn key(pid: &str, cgroup: Option<&str>, json: &Json) -> Result<Key, ()> {
+    if let Some(cgrp) = cgroup {
+        Key::from_json(json, &[
+            ("cgroup", cgrp),
+            ("pid", pid),
+            ])
+    } else {
+        Key::from_json(json, &[
+            ("pid", pid),
+            ])
+    }
+}
+
+pub fn read(tip: &mut Tip, cache: &mut ReadCache, processes: &[MinimalProcess],
+    cgroups: &CGroups)
 {
     for prc in processes.iter() {
         if let Some(path) = get_env_var(prc.pid) {
+            let pid = prc.pid.to_string();
+            let cgroup = cgroups.get(&prc.pid).map(|x| &x[..]);
             // TODO(tailhook) check if not already visited
             let realpath = Path::new(&format!("/proc/{}/root", prc.pid))
                 .join(path.strip_prefix("/").unwrap_or(&path));
             let (data, new_meta) = read_values(cache, &realpath);
             if let Some(data) = data {
                 for (desc, value) in data.into_iter() {
-                    let pid = &format!("{}", prc.pid);
-                    if let Ok(key) = Key::from_json(
-                        &desc.json, &[("pid", pid)])
-                    {
+                    if let Ok(key) = key(&pid, cgroup, &desc.json) {
                         tip.add(key, value);
                     }
                 }
