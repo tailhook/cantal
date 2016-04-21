@@ -1,6 +1,7 @@
 import {refresher, json} from '../../middleware/request'
 import {fine_grained} from '../../query/lang.js'
 import * as stores from '../../stores/remote_containers'
+import {peer_list} from '../../stores/remote_grid'
 import {bool, toggle, disable, init} from '../../stores/simple'
 import {icon} from '../../util/icon.khufu'
 import {query} from '../../middleware/remote-query.js'
@@ -26,6 +27,9 @@ style:
     font-size: small
     align-self: flex-end
 
+  .id
+    font-size: xx-small
+    color: gray
   .c-row
     display: flex
     align-items: center
@@ -41,6 +45,7 @@ style:
 
 view main():
   <div>
+    store @peers = peer_list | refresher | json('/all_peers.json')
     store @cpu = stores.cpu
       | query(fine_grained()
         .matching('metric', '^user_time|system_time$')
@@ -53,25 +58,29 @@ view main():
     if @cpu == null:
       "Loading..."
     else:
-      for [host, containers] of @cpu.entries() key host:
-        <h2>
-          host
+      for peer of @peers.list key peer.id:
+        <h2 title=`${peer.hostname} / ${peer.name}`>
+          peer.name
+          <span.id>
+            peer.id
         <div> // remove the wrapper when khufu fixed
-          for [cgroup, data] of containers key cgroup:
-            <div.c-row>
-              <div.c-title>
-                cgroup
-              <div.cpugraph>
-                sparkline(120, data.timestamps, [{
-                    'title': 'User',
-                    'values': data.user_time,
-                    'yaxis': CPU_YAXIS,
-                    }])
-              <div.cpugraph>
-                sparkline(120, data.timestamps, [{
-                    'title': 'System',
-                    'values': data.system_time,
-                    'yaxis': CPU_YAXIS,
-                    }])
+          let containers = @cpu.get(peer.id)
+          if containers:
+            for [cgroup, data] of containers key cgroup:
+              <div.c-row>
+                <div.c-title>
+                  cgroup
+                <div.cpugraph>
+                  sparkline(120, data.timestamps, [{
+                      'title': 'User',
+                      'values': data.user_time,
+                      'yaxis': CPU_YAXIS,
+                      }])
+                <div.cpugraph>
+                  sparkline(120, data.timestamps, [{
+                      'title': 'System',
+                      'values': data.system_time,
+                      'yaxis': CPU_YAXIS,
+                      }])
 
 
