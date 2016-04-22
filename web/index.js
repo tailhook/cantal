@@ -35,8 +35,13 @@ if(!DEBUG) {
     websock.start('ws://' + location.host  + '/ws',
         khufu_instance.queue_render)
 } else {
-    websock.start('ws://' + location.hostname  + ':22682/ws',
-        khufu_instance.queue_render)
+    if(location.port != 8080) {
+        websock.start('ws://' + location.host + '/ws',
+            khufu_instance.queue_render)
+    } else {
+        websock.start('ws://' + location.hostname  + ':22682/ws',
+            khufu_instance.queue_render)
+    }
 }
 
 if(module.hot) {
