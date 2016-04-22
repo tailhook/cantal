@@ -16,3 +16,18 @@ export function peers(state={}, action) {
     return state
 }
 
+export function peers_with_remote(state={}, action) {
+    switch(action.type) {
+        case DATA:
+            state = {
+                latency: action.latency,
+                peers: action.data.peers.filter(x => x.has_remote),
+            }
+            break;
+        case ERROR:
+            state = {error: action.error, ...state}
+            break;
+    }
+    return state
+}
+

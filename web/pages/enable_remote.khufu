@@ -1,4 +1,6 @@
+import {refresher, json} from '../middleware/request'
 import {remote, enable_remote} from '../util/enable_remote.js'
+import {peers_with_remote} from '../stores/peers'
 
 
 style:
@@ -38,25 +40,32 @@ view main():
           " which has remote stats enabled
             instead of enabling them here.
           "
-        //store @peers_request = new PeersRequest(true, 20000)
-        //if not peers_request.peers:
-        //  <p>
-        //    "Loading node list..."
-        //elif peers_request.peers.length == 0:
-        //  <p>
-        //    <i>
-        //      "Unfortunately no nodes are known to have remote tab enabled"
-        //else:
-        //  <ul>
-        //    for peer of peers_request.peers:
-        //      if peer.name:
-        //        <li>
-        //          let port = get_port(peer)
-        //          <a href=`http://${peer.name}:${port}/`>
-        //            `http://${peer.name}:${port}/`
-        //          ` (${peer.primary_addr})`
-        <p.right> //?(!peers_request.peers or peers_request.peers.length != 0)>
+        store @peers = peers_with_remote | refresher | json('/all_peers.json')
+        if not @peers.peers:
+          <p>
+            "Loading node list..."
+        elif @peers.peers.length == 0:
+          <p>
+            <i>
+              "Unfortunately no nodes are known to have remote tab enabled"
+        else:
+          <p>
+            <b>"Here are the links:"
+          <ul>
+            for p of @peers.peers key p.primary_addr:
+              if p.name:
+                <li>
+                  let paddr = p.primary_addr or p.addresses[0] or ':22682'
+                  let port = paddr.split(':')[1]
+                  <a href=`http://${p.name}:${port}/`>
+                    `http://${p.name}:${port}/`
+                  ` (${p.primary_addr})`
+
+        <p.right?(@peers.peers.length > 0)>
           store @remote = remote
           <button.pure-button>
             link {click} enable_remote() -> @remote
-            "Enable"
+            if @peers.peers.length > 0:
+              "Yes, please, enable it on this node anyway"
+            else:
+              "Enable"
