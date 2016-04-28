@@ -169,9 +169,13 @@ mod serde {
         {
             let value = try!(d.bytes().map_err(|e|
                 DecodeError::WrongType("bytes expected", e)));
-            try!(validate_key(&value[..]).map_err(|e|
-                DecodeError::WrongValue(e)));
-            Ok(Some(Key(Some(value.into_boxed_slice()))))
+            if value.len() == 0 {
+                Ok(Some(Key(None)))
+            } else {
+                try!(validate_key(&value[..]).map_err(|e|
+                    DecodeError::WrongValue(e)));
+                Ok(Some(Key(Some(value.into_boxed_slice()))))
+            }
         }
     }
 
