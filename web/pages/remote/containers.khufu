@@ -61,6 +61,7 @@ view main():
       for peer of @peers.list key peer.id:
         <h2 title=`${peer.hostname} / ${peer.name}`>
           peer.name
+          " "
           <span.id>
             peer.id
         <div> // remove the wrapper when khufu fixed
