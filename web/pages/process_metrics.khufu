@@ -8,9 +8,14 @@ style:
   .timestamp
     font-size: xx-small
     color: gray
+  .cli
+    font-family: Hack, monospace
+    font-size: small
+  .content
+    padding: 8px 16px
 
 view main():
-  <div>
+  <div.content>
     store @processes = stores.processes | refresher
       | json('/all_processes.json')
     store @metrics = stores.metrics
@@ -25,24 +30,27 @@ view main():
     if @metrics == null or @processes == null:
       "Loading..."
     else:
-      <table.pure-table>
-        <thead>
-          <tr>
-            <th> "Pid"
-            <th> "Metric"
-            <th> "Value"
-            <th> "Timestamp"
-        <tbody>
-        for tuple of @metrics.values key repr(tuple[0]):
-          let k = tuple[0]
-          let val = tuple[1]
-          let ts = tuple[2]
-          <tr>
-            <td>
-              k.pid
-            <td>
-              `${k.group or k.state}.${k.metric}`
-            <td>
-              `${ val.constructor.metric_type } (${ val.value })`
-            <td.timestamp>
-              ts[0]
+      for [pid, proc_metrics] of @metrics.entries() key pid:
+        let proc = @processes.get(pid)
+        <h2>
+          pid
+          ". "
+          proc.name
+        if proc:
+          <pre.cli>
+            proc.cmdline
+        <table.pure-table>
+          <thead>
+            <tr>
+              <th> "Metric"
+              <th> "Value"
+              <th> "Timestamp"
+          <tbody>
+          for [k, val, ts] of proc_metrics key repr(k):
+            <tr>
+              <td>
+                `${k.group or k.state}.${k.metric}`
+              <td>
+                `${ val.constructor.metric_type } (${ val.value })`
+              <td.timestamp>
+                ts[0]
