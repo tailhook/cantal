@@ -1,7 +1,7 @@
 RUSTC ?= rustc -C opt-level=3
 
 PREFIX ?= /usr
-CONFIGDIR ?= /etc/verwalter
+CONFIGDIR ?= /etc/cantal
 DESTDIR ?=
 WEBPACK ?= webpack
 export CANTAL_VERSION = $(shell git describe)
