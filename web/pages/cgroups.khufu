@@ -1,0 +1,47 @@
+import {refresher, json} from '../middleware/request'
+import {fine_grained} from '../query/lang.js'
+import {query} from '../middleware/local-query.js'
+import * as stores from '../stores/cgroups.js'
+import {repr} from '../util/view'
+
+style:
+  .timestamp
+    font-size: xx-small
+    color: gray
+  .cli
+    font-family: Hack, monospace
+    font-size: small
+  .content
+    padding: 8px 16px
+
+view main():
+  <div.content>
+    store @processes = stores.processes | refresher
+      | json('/all_processes.json')
+    store @groups = stores.groups
+      | query(fine_grained()
+        .has('cgroup')
+        .matching('metric', '^user_time$|^system_time$')
+        .tip())
+    <div>
+      <h1>
+        'CGroups'
+    if @groups == null or @processes == null:
+      "Loading..."
+    else:
+      for [supergroup, group] of @groups.entries() key supergroup:
+        <h2>
+          supergroup
+        <div>
+          for [gname, processes] of group.entries() key gname:
+            <h3>
+              gname
+            <div>
+              for proc of processes key proc.pid:
+                <div.process>
+                  let p = @processes.get(proc.pid)
+                  <code>
+                    proc.pid
+                    if p:
+                      ": "
+                      p.cmdline
