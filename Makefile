@@ -33,17 +33,27 @@ js-release:
 	cd web; NODE_ENV=production $(WEBPACK) --optimize-minimize
 
 # ------------------ INSTALL -----------------------
+#
+install: install-agent install-cli
 
-install:
+install-cli:
+	install -D -m 755 ./cantal_values/target/release/cantal $(DESTDIR)$(PREFIX)/bin/cantal
+
+install-agent:
 	install -d $(DESTDIR)$(PREFIX)/bin
 	install -d $(DESTDIR)$(PREFIX)/lib/cantal
 	install -d $(DESTDIR)$(CONFIGDIR)
-	install -m 755 ./cantal_values/target/release/cantal $(DESTDIR)$(PREFIX)/bin/cantal
 
 	install -m 755 ./target/release/cantal-agent $(DESTDIR)$(PREFIX)/lib/cantal/cantal-agent
-	ln -s ../lib/cantal/cantal-agent $(DESTDIR)$(PREFIX)/bin/cantal-agent
+	ln -sfn ../lib/cantal/cantal-agent $(DESTDIR)$(PREFIX)/bin/cantal-agent
 	cp -r public $(DESTDIR)$(PREFIX)/lib/cantal/
 
+install-systemd:
+	install -D ./systemd.service $(DESTDIR)$(PREFIX)/lib/systemd/system/cantal.service
 
-.PHONY: all install test bin js js-release cli cli-release
+install-upstart:
+	install -D ./upstart.conf $(DESTDIR)/etc/init/cantal.conf
+
+
+.PHONY: all install test bin js js-release cli cli-release install-agent install-cli install-systemd install-upstart
 .DELETE_ON_ERROR:

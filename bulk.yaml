@@ -1,0 +1,177 @@
+minimum-bulk: v0.4.1
+
+metadata:
+  name: cantal
+  short-description: Cantal is an monitoring and statistics solution.
+  long-description: |
+    Cantal is an expermimental heartbeating, monitoring and statistics solution
+
+    Main design goals:
+
+     * Nearly zero-cost for application to send data
+     * Fine grained statistics and current state info
+     * Decentralized and highly available
+
+  depends: libssl1.0.0
+
+repositories:
+
+# trusty
+- kind: debian
+  suite: trusty
+  component: cantal
+  keep-releases: 1
+  match-version: ^\d+\.\d+\.\d+\+trusty1$
+
+- kind: debian
+  suite: trusty
+  component: cantal-stable
+  keep-releases: 1000
+  match-version: ^\d+\.\d+\.\d+\+trusty1$
+
+- kind: debian
+  suite: trusty
+  component: cantal-testing
+  keep-releases: 100
+  match-version: \+trusty1$
+
+- kind: debian
+  suite: trusty
+  component: cantal-noinit
+  keep-releases: 1
+  match-version: ^\d+\.\d+\.\d+\+trusty1.noinit$
+
+- kind: debian
+  suite: trusty
+  component: cantal-noinit-stable
+  keep-releases: 1000
+  match-version: ^\d+\.\d+\.\d+\+trusty1.noinit$
+
+- kind: debian
+  suite: trusty
+  component: cantal-noinit-testing
+  keep-releases: 100
+  match-version: \+trusty1.noinit$
+
+# precise
+- kind: debian
+  suite: precise
+  component: cantal
+  keep-releases: 1
+  match-version: ^\d+\.\d+\.\d+\+precise1$
+
+- kind: debian
+  suite: precise
+  component: cantal-stable
+  keep-releases: 1000
+  match-version: ^\d+\.\d+\.\d+\+precise1$
+
+- kind: debian
+  suite: precise
+  component: cantal-testing
+  keep-releases: 100
+  match-version: \+precise1$
+
+- kind: debian
+  suite: precise
+  component: cantal-noinit
+  keep-releases: 1
+  match-version: ^\d+\.\d+\.\d\+precise1.noinit$
+
+- kind: debian
+  suite: precise
+  component: cantal-noinit-stable
+  keep-releases: 1000
+  match-version: ^\d+\.\d+\.\d\+precise1.noinit$
+
+- kind: debian
+  suite: precise
+  component: cantal-noinit-testing
+  keep-releases: 100
+  match-version: \+precise1.noinit$
+
+# xenial
+- kind: debian
+  suite: xenial
+  component: cantal
+  keep-releases: 1
+  match-version: ^\d+\.\d+\.\d+\+xenial1$
+
+- kind: debian
+  suite: xenial
+  component: cantal-stable
+  keep-releases: 1000
+  match-version: ^\d+\.\d+\.\d+\+xenial1$
+
+- kind: debian
+  suite: xenial
+  component: cantal-testing
+  keep-releases: 100
+  match-version: \+xenial1$
+
+- kind: debian
+  suite: xenial
+  component: cantal-noinit
+  keep-releases: 1
+  match-version: ^\d+\.\d+\.\d\+xenial1.noinit$
+
+- kind: debian
+  suite: xenial
+  component: cantal-noinit-stable
+  keep-releases: 1000
+  match-version: ^\d+\.\d+\.\d\+xenial1.noinit$
+
+- kind: debian
+  suite: xenial
+  component: cantal-noinit-testing
+  keep-releases: 100
+  match-version: \+xenial1.noinit$
+
+
+versions:
+
+- files:
+  - Cargo.toml
+  - cantal_history/Cargo.toml
+  - cantal_values/Cargo.toml
+  - cantal_query/Cargo.toml
+  block-start: ^\[package\]
+  block-end: ^\[.*\]
+  regex: ^version\s*=\s*"(\S+)"
+
+- file: docs/conf.py
+  regex: ^version\s*=\s*'(\S+)'
+  partial-version: ^\d+\.\d+
+
+- file: docs/conf.py
+  regex: ^release\s*=\s*'(\S+)'
+
+  # need to update lock files, because cargo fails
+
+- files:
+  - Cargo.lock
+  block-start: ^\[root\]
+  regex: ^version\s*=\s*"(\S+)"
+  block-end: ^\[.*\]
+
+- files:
+  - Cargo.lock
+  block-start: ^name\s*=\s*"cantal_values"
+  regex: ^version\s*=\s*"(\S+)"
+  block-end: ^\[.*\]
+
+- files:
+  - Cargo.lock
+  block-start: ^name\s*=\s*"cantal_history"
+  regex: ^version\s*=\s*"(\S+)"
+  block-end: ^\[.*\]
+
+- files:
+  - Cargo.lock
+  block-start: ^name\s*=\s*"cantal_query"
+  regex: ^version\s*=\s*"(\S+)"
+  block-end: ^\[.*\]
+
+- files:
+  - Cargo.lock
+  regex: ^\s+"cantal_(?:history|query|values)\s+(\S+)"

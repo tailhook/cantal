@@ -30,10 +30,10 @@ module.exports = {
         ],
     },
     resolve: {
-        root: ["/usr/local/lib/node_modules"],
+        root: ["/usr/lib/node_modules"],
     },
     resolveLoader: {
-        root: ["/usr/local/lib/node_modules"],
+        root: ["/usr/lib/node_modules"],
     },
     devServer: {
         contentBase: '../public',

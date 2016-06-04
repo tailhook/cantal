@@ -1,0 +1,31 @@
+minimum-bulk: v0.4.0
+
+metadata:
+  name: cantal-cli
+  short-description: Command-line to peek the statistics from process
+  long-description: |
+    While cantal-agent is a daemon that periodically for metrics on all
+    processes.  This is a command-line utility that scan a single process and
+    is useful on development node to look at application's metrics without
+    running a daemon.
+
+    It is statically compiled binary so works for any distribution
+
+repositories:
+
+- kind: debian
+  suite: static
+  component: cantal-cli
+  keep-releases: 1
+  match-version: ^\d+\.\d+\.\d+$
+
+- kind: debian
+  suite: static
+  component: cantal-cli-stable
+  keep-releases: 1000
+  match-version: ^\d+\.\d+\.\d+$
+
+- kind: debian
+  suite: static
+  component: cantal-cli-testing
+  keep-releases: 100

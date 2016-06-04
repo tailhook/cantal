@@ -1,13 +1,23 @@
 commands:
 
+  make-js: !Command
+    description: Build javascripts
+    container: js
+    work-dir: web
+    accepts-arguments: true
+    run: |
+      [ -d ../public/js ] || mkdir ../public/js
+      exec webpack "$@"
+
   make: !Command
     description: Build cantal binaries and javascript in ubuntu container
-    container: ubuntu
-    run: [make]
+    container: trusty
+    prerequisites: [make-js]
+    run: [cargo, build, --release]
 
   cargo: !Command
     description: Run arbitrary cargo command
-    container: ubuntu
+    container: trusty
     run: [cargo]
 
   cargo-outdated: !Command
@@ -33,24 +43,6 @@ commands:
       Binary is build and placed in:
         cantal_values/target/x86_64-unknown-linux-musl/{release,debug}/cantal
 
-  build-ubuntu-package: !Command
-    description: Build ubuntu (trusty) package
-    container: ubuntu
-    write-mode: transient-hard-link-copy
-    environ:
-      PATH: /bin:/usr/bin:/usr/local/bin:/usr/local/sbin:/usr/sbin:/sbin
-    run: |
-      make bin js-release cli-release
-      [ -d dist ] || mkdir dist
-      checkinstall --default \
-        --maintainer=paul@colomiets.name \
-        --pkglicense=MIT --pkgname=cantal \
-        --pkgversion="$(git describe | sed s/^v//)" \
-        --requires="libssl1.0.0" \
-        --nodoc --strip=no \
-        --pakdir=dist \
-        make install
-
   build-static-cli-package: !Command
     description: Build static command-line tool package
     container: rust-musl
@@ -64,7 +56,7 @@ commands:
 
   run: &run !Command
     description: Runs cantal (is not very useful run in container)
-    container: ubuntu
+    container: trusty
     environ:
       RUST_LOG: debug
     run:
@@ -77,7 +69,7 @@ commands:
     children: &live
       cantal: *run
       webpack: !Command
-        container: ubuntu
+        container: trusty
         work-dir: web
         environ:
           CANTAL_VERSION: "0.1.live"
@@ -91,67 +83,67 @@ commands:
     description: Runs ten cantals so you can test "remote" subsystem
     children:
       n0: !Command
-        container: ubuntu
+        container: trusty
         #environ: {RUST_LOG: debug}
         run: "./cantal-agent --host 0.0.0.0 \
           --cluster-name=local-test \
           --port 22682"
       n1: !Command
-        container: ubuntu
+        container: trusty
         #environ: {RUST_LOG: debug}
         run: "./cantal-agent --host 0.0.0.0 \
           --cluster-name=local-test \
           --port 20001"
       n2: !Command
-        container: ubuntu
+        container: trusty
         #environ: {RUST_LOG: debug}
         run: "./cantal-agent --host 0.0.0.0 \
           --cluster-name=local-test \
           --port 20002"
       n3: !Command
-        container: ubuntu
+        container: trusty
         #environ: {RUST_LOG: debug}
         run: "./cantal-agent --host 0.0.0.0 \
           --cluster-name=local-test \
           --port 20003"
       n4: !Command
-        container: ubuntu
+        container: trusty
         #environ: {RUST_LOG: debug}
         run: "./cantal-agent --host 0.0.0.0 \
           --cluster-name=local-test \
           --port 20004"
       n5: !Command
-        container: ubuntu
+        container: trusty
         #environ: {RUST_LOG: debug}
         run: "./cantal-agent --host 0.0.0.0 \
           --cluster-name=local-test \
           --port 20005"
       n6: !Command
-        container: ubuntu
+        container: trusty
         #environ: {RUST_LOG: debug}
         run: "./cantal-agent --host 0.0.0.0 \
           --cluster-name=local-test \
           --port 20006"
       n7: !Command
-        container: ubuntu
+        container: trusty
         #environ: {RUST_LOG: debug}
         run: "./cantal-agent --host 0.0.0.0 \
           --cluster-name=local-test \
           --port 20007"
       n8: !Command
-        container: ubuntu
+        container: trusty
         #environ: {RUST_LOG: debug}
         run: "./cantal-agent --host 0.0.0.0 \
           --cluster-name=local-test \
           --port 20008"
       n9: !Command
-        container: ubuntu
+        container: trusty
         #environ: {RUST_LOG: debug}
         run: "./cantal-agent --host 0.0.0.0 \
           --cluster-name=local-test \
           --port 20009"
       connector: !Command
-        container: ubuntu
+        container: trusty
         run: |
           sleep 2
           for i in $(seq 1 9); do
@@ -194,51 +186,120 @@ commands:
       graphite: *graphite
       carbon: *carbon
 
+  _package-cli: !Command
+    container: rust-musl
+    prerequisites: [make-js]
+    run: |
+      set -ex
+      rm -rf dist/pkg || true
+      version="$(git describe --dirty)"
+      bulk with-version $version make cli-release
+      make install-cli DESTDIR=/work/dist/pkg
+      bulk pack \
+        --package-version="${version}" \
+        --config bulk-cli.yaml --dir dist/pkg --dest-dir dist
+
+  _package-trusty: &package-upstart !Command
+    container: trusty
+    prerequisites: [make-js]
+    run: |
+      set -ex
+      rm -rf dist/pkg || true
+      rm -rf target/release/cantal-agent || true
+      version="$(git describe --dirty | cut -c2-)"
+      bulk with-version $version make bin
+      make install-agent DESTDIR=/work/dist/pkg
+      bulk pack \
+        --package-version="${version}+$(lsb_release --codename --short)1.noinit" \
+        --config bulk.yaml --dir dist/pkg --dest-dir dist
+      make install-upstart DESTDIR=/work/dist/pkg
+      bulk pack \
+        --package-version="${version}+$(lsb_release --codename --short)1" \
+        --config bulk.yaml --dir dist/pkg --dest-dir dist
+
+  _package-precise: !Command
+    container: precise
+    <<: *package-upstart
+
+  _package-xenial: !Command
+    container: xenial
+    run: |
+      set -ex
+      rm -rf dist/pkg || true
+      rm -rf target/release/cantal-agent || true
+      version="$(git describe --dirty | cut -c2-)"
+      bulk with-version $version make bin
+      make install-agent DESTDIR=/work/dist/pkg
+      bulk pack \
+        --package-version="${version}+$(lsb_release --codename --short)1.noinit" \
+        --config bulk.yaml --dir dist/pkg --dest-dir dist
+      make install-systemd DESTDIR=/work/dist/pkg
+      bulk pack \
+        --package-version="${version}+$(lsb_release --codename --short)1" \
+        --config bulk.yaml --dir dist/pkg --dest-dir dist
+
+  packages: !Command
+    container: trusty
+    description: Build packages and repostories (mostly for CI)
+    prerequisites: [_package-trusty, _package-precise, _package-xenial,
+                    _package-cli]
+    accepts_arguments: true
+    run: |
+      bulk repo-add --config bulk-cli.yaml --repository-base dist/repos \
+        dist/cantal-cli-*.deb "$@"
+      bulk repo-add --config bulk.yaml --repository-base dist/repos \
+        dist/cantal-[0-9]*.deb "$@"
+
 containers:
 
-  ubuntu:
+  js:
     setup:
-    - !Ubuntu trusty
-    - !UbuntuUniverse ~
-    - !Install [make, checkinstall, wget, ca-certificates, libssl-dev, git]
-
+    - !Alpine v3.3
     - !NpmDependencies
       file: "web/package.json"
       optional: true
+    environ:
+      NODE_PATH: /usr/lib/node_modules
 
-    - !TarInstall
-      url: "http://static.rust-lang.org/dist/rust-1.8.0-x86_64-unknown-linux-gnu.tar.gz"
+  precise:
+    setup:
+    - !Ubuntu precise
+    - &pkgs !Install [git, make, ca-certificates, gcc, libssl-dev, lsb-release]
+    - !Install [lsb-release]
+    - &rust !TarInstall
+      url: "http://static.rust-lang.org/dist/rust-1.9.0-x86_64-unknown-linux-gnu.tar.gz"
       script: "./install.sh --prefix=/usr \
                 --components=rustc,rust-std-x86_64-unknown-linux-gnu,cargo"
 
+    - &bulk !Tar
+      url: "http://files.zerogw.com/bulk/bulk-0.4.1.tar.gz"
+      sha256: df4488ce6c6c856c35356b2d5bdf5774bb915420820eefdc09165e0bd34ec43e
+      path: /
     environ: &environ
       HOME: /work/target
-      PATH: /bin:/usr/bin:/usr/local/bin
-      NODE_PATH: /usr/local/lib/node_modules
+
+  trusty:
+    setup:
+    - !Ubuntu trusty
+    - *pkgs
+    - *rust
+    - *bulk
+    environ: *environ
+
+  xenial:
+    setup:
+    - !Ubuntu xenial
+    - *pkgs
+    - *rust
+    - *bulk
+    environ: *environ
+
 
   outdated:
     setup:
-    - !Container ubuntu
+    - !Container trusty
     - !Sh cargo install --root=/usr cargo-outdated
     environ: *environ
-
-  ubuntu-precise:
-    # Only things needed for building binary
-    setup:
-    - !Ubuntu precise
-    - !UbuntuUniverse ~
-    - !Install [make, checkinstall, wget, ca-certificates, libssl-dev]
-    - !Install [build-essential]
-
-    - !TarInstall
-      url: "http://static.rust-lang.org/dist/rust-1.7.0-x86_64-unknown-linux-gnu.tar.gz"
-      script: "./install.sh --prefix=/usr \
-                --components=rustc,rust-std-x86_64-unknown-linux-gnu,cargo"
-
-    environ:
-      HOME: /work/target
-      PATH: /bin:/usr/bin:/usr/local/bin
-      NODE_PATH: /usr/local/lib/node_modules
 
   doc:
     setup:
@@ -306,11 +367,10 @@ containers:
       PATH: /musl/bin:/usr/local/bin:/usr/bin:/bin
       HOME: /work/target
     setup:
-    - !Ubuntu trusty
+    - !Ubuntu xenial
     - !UbuntuUniverse
-    - !Install [build-essential, ca-certificates]
-    - !Install [file]  # dependency of checkinstall (bug #46)
-    - !BuildDeps [cmake, libc++-dev, curl, autoconf, automake, libtool]
+    - *pkgs
+    - !BuildDeps [build-essential, cmake, libc++-dev, curl, autoconf, automake, libtool]
     # Build script derived from
     # https://github.com/rust-lang/rust-buildbot/blob/master/slaves/linux/build-musl.sh
     - !TarInstall
@@ -329,15 +389,11 @@ containers:
         cmake . -DLLVM_PATH=/tmp/llvm/llvm-3.8.0.src -DLIBUNWIND_ENABLE_SHARED=0
         make -j2
         cp lib/libunwind.a /musl/lib
+    - *rust
     - !TarInstall
-      url: "http://static.rust-lang.org/dist/rust-1.8.0-x86_64-unknown-linux-gnu.tar.gz"
-      script: "./install.sh --prefix=/usr --components=rustc,rust-std-x86_64-unknown-linux-gnu,cargo"
-    - !TarInstall
-      url: "http://static.rust-lang.org/dist/rust-std-1.8.0-x86_64-unknown-linux-musl.tar.gz"
+      url: "http://static.rust-lang.org/dist/rust-std-1.9.0-x86_64-unknown-linux-musl.tar.gz"
       script: "./install.sh --prefix=/musl \
                --components=rust-std-x86_64-unknown-linux-musl"
     - !Sh 'ln -s /musl/lib/rustlib/x86_64-unknown-linux-musl /usr/lib/rustlib/x86_64-unknown-linux-musl'
-
-    # For packaging
-    - !Install [make, checkinstall, git, uidmap, wget, gcc, libc6-dev, ca-certificates]
+    - *bulk
 
