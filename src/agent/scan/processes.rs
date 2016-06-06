@@ -1,5 +1,5 @@
 use std::str::FromStr;
-use std::io::{Read};
+use std::io::{Read, BufReader, BufRead};
 use std::str::from_utf8;
 use std::fs::{File, read_dir};
 use libc;
@@ -19,6 +19,8 @@ pub struct ReadCache {
 pub struct MinimalProcess {
     pub pid: Pid,
     pub ppid: Pid,
+    pub uid: u32,
+    pub gid: u32,
     pub name: String,
     pub state: char,
     pub vsize: u64,
@@ -37,6 +39,64 @@ pub struct MinimalProcess {
 fn page_size() -> usize {
     // TODO(tailhook) use env::page_size when that's stabilized
     return 4096;
+}
+
+fn parse_io(pid: Pid) -> Result<(u64, u64), ()> {
+    let mut buf = String::with_capacity(512);
+    try!(File::open(&format!("/proc/{}/io", pid))
+        .and_then(|mut f| f.read_to_string(&mut buf))
+        .map_err(|e| debug!("Can't read io file: {}", e)));
+    let mut read_bytes = None;
+    let mut write_bytes = None;
+    for line in buf.split('\n') {
+        let mut pieces = line.split_whitespace();
+        let name = pieces.next();
+        if name == Some("read_bytes:") {
+            read_bytes = pieces.next().and_then(|x| FromStr::from_str(x).ok());
+        } else if name == Some("write_bytes:") {
+            write_bytes = pieces.next().and_then(|x| FromStr::from_str(x).ok());
+        }
+    }
+    let read_bytes = try!(read_bytes.ok_or(())
+        .map_err(|_| error!("Can't parse /proc/{}/io", pid)));
+    let write_bytes = try!(write_bytes.ok_or(())
+        .map_err(|_| error!("Can't parse /proc/{}/io", pid)));
+    Ok((read_bytes, write_bytes))
+}
+
+fn parse_status(pid: Pid) -> Result<(u32, u32), ()> {
+    let buf = BufReader::new(try!(File::open(&format!("/proc/{}/status", pid))
+        .map_err(|e| debug!("Can't read io file: {}", e))));
+    let mut uid = None;
+    let mut gid = None;
+    for line in buf.lines() {
+        let line = try!(line
+            .map_err(|e| debug!("Can't read io file: {}", e)));
+        let mut pair = line.split(':');
+        match (pair.next(), pair.next()) {
+            (Some("Uid"), Some(v)) => {
+                // The line is:
+                //  Uid:    1000    1000    1000    1000
+                // We pick first field -- a real user id
+                uid = v.split_whitespace().next()
+                    .and_then(|x| x.parse().ok());
+            }
+            (Some("Gid"), Some(v)) => {
+                // The line is:
+                //  Gid:    100     100     100     100
+                // We pick first field -- a real group id
+                gid = v.split_whitespace().next()
+                    .and_then(|x| x.parse().ok());
+            }
+            _ => {}
+        }
+        if uid.is_some() && gid.is_some() { break; }
+    }
+    let uid = try!(uid.ok_or(())
+        .map_err(|_| error!("Can't parse /proc/{}/status", pid)));
+    let gid = try!(gid.ok_or(())
+        .map_err(|_| error!("Can't parse /proc/{}/status", pid)));
+    Ok((uid, gid))
 }
 
 fn read_process(cache: &mut ReadCache, pid: Pid)
@@ -73,28 +133,13 @@ fn read_process(cache: &mut ReadCache, pid: Pid)
         .map_err(|e| debug!("Can't decode stat file: {}", e)));
     let mut words = stat_line.split_whitespace();
 
-    let mut buf = String::with_capacity(512);
-    try!(File::open(&format!("/proc/{}/io", pid))
-        .and_then(|mut f| f.read_to_string(&mut buf))
-        .map_err(|e| debug!("Can't read io file: {}", e)));
-    let mut read_bytes = None;
-    let mut write_bytes = None;
-    for line in buf.split('\n') {
-        let mut pieces = line.split_whitespace();
-        let name = pieces.next();
-        if name == Some("read_bytes:") {
-            read_bytes = pieces.next().and_then(|x| FromStr::from_str(x).ok());
-        } else if name == Some("write_bytes:") {
-            write_bytes = pieces.next().and_then(|x| FromStr::from_str(x).ok());
-        }
-    }
-    let read_bytes = try!(read_bytes.ok_or(())
-        .map_err(|_| error!("Can't parse /proc/{}/io", pid)));
-    let write_bytes = try!(write_bytes.ok_or(())
-        .map_err(|_| error!("Can't parse /proc/{}/io", pid)));
+    let (read_bytes, write_bytes) = try!(parse_io(pid));
+    let (uid, gid) = try!(parse_status(pid));
 
     return Ok(MinimalProcess {
         pid: pid,
+        uid: uid,
+        gid: gid,
         name: name,
         state: try!(words.next_str()).chars().next().unwrap_or('-'),
         ppid: try!(words.next_value()),

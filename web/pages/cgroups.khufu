@@ -2,6 +2,7 @@ import {refresher, json} from '../middleware/request'
 import {fine_grained} from '../query/lang.js'
 import {query} from '../middleware/local-query.js'
 import * as stores from '../stores/cgroups.js'
+import {bool, enable, disable, toggle} from '../stores/simple.js'
 import {repr} from '../util/view'
 
 style:
@@ -13,6 +14,8 @@ style:
     font-size: small
   .content
     padding: 8px 16px
+  .small
+    font-size: 70%
 
 view main():
   <div.content>
@@ -30,18 +33,34 @@ view main():
       "Loading..."
     else:
       for [supergroup, group] of @groups.entries() key supergroup:
-        <h2>
-          supergroup
         <div>
-          for [gname, processes] of group.entries() key gname:
-            <h3>
-              gname
-            <div>
-              for proc of processes key proc.pid:
-                <div.process>
-                  let p = @processes.get(proc.pid)
-                  <code>
-                    proc.pid
-                    if p:
-                      ": "
-                      p.cmdline
+          store @showgroup = bool | toggle(supergroup == "system")
+          <h2>
+            supergroup
+            " "
+            <button.pure-button.small>
+              link {click} toggle(@showgroup) -> @showgroup
+              if @showgroup:
+                "collapse"
+              else:
+                "expand"
+          if @showgroup:
+            for [gname, processes] of group.entries() key gname:
+              <div>
+                store @show = bool | disable()
+                <h3>
+                  gname
+                  " "
+                  <button.pure-button.small>
+                    link {click} toggle(@show) -> @show
+                    "toggle hidden"
+                <div>
+                  for proc of processes key proc.pid:
+                    let p = @processes.get(proc.pid)
+                    if p or @show:
+                      <div.process>
+                        <code>
+                          proc.pid
+                          if p:
+                            ` [${ p.uid }/${ p.gid }]: `
+                            p.cmdline
