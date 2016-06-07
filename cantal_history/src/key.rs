@@ -205,7 +205,10 @@ mod std_trait {
             try!(write!(f, "Key {{"));
             let num = try!(d.object()
                 .map_err(|_| Error));
-            for _ in 0..num {
+            for idx in 0..num {
+                if idx > 0 {
+                    try!(write!(f, ", "));
+                }
                 // TODO(tailhook) other types may work in future
                 try!(write!(f, "{}: ",
                     try!(d.text_borrow().map_err(|_| Error))));
