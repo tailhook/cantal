@@ -135,6 +135,20 @@ impl Value {
             &Float(ref b) => b.age(),
         }
     }
+    /// Returns same value as tip_value is value is newer than min_age
+    pub fn tip_or_none(&self, min_age: u64) -> Option<TipValue> {
+        use self::Value as S;
+        use values::Value as D;
+        match self {
+            &S::Counter(ref b) if b.age() >= min_age
+            => Some(D::Counter(b.tip())),
+            &S::Integer(ref b) if b.age() >= min_age
+            => Some(D::Integer(b.tip())),
+            &S::Float(ref b) if b.age() >= min_age
+            => Some(D::Float(b.tip())),
+            _ => None,
+        }
+    }
     pub fn tip_value(&self) -> TipValue {
         use self::Value as S;
         use values::Value as D;

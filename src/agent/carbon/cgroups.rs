@@ -79,6 +79,7 @@ pub fn scan(sender: &mut Sender, cfg: &Config, stats: &Stats)
         .skip_while(|&(_, &(x, d))| x-d as u64 > cut)
         .next().map(|(x, _)| x)
         .unwrap_or(backlog.timestamps.len() - 1);
+    let cut_age = backlog.age.saturating_sub(num as u64);
     let unixtime = timestamp / 1000;
     for (key, value) in backlog.values.iter() {
         key.get_with("cgroup", |cgroup| {
@@ -87,17 +88,20 @@ pub fn scan(sender: &mut Sender, cfg: &Config, stats: &Stats)
                     .or_insert_with(CGroup::new);
                 match metric {
                     "vsize" => {
-                        if let Integer(val) = value.tip_value() {
+                        if let Some(Integer(val)) = value.tip_or_none(cut_age)
+                        {
                             grp.vsize += val as u64;
                         }
                     }
                     "rss" => {
-                        if let Integer(val) = value.tip_value() {
+                        if let Some(Integer(val)) = value.tip_or_none(cut_age)
+                        {
                             grp.rss += val as u64;
                         }
                     }
                     "num_threads" => {
-                        if let Integer(val) = value.tip_value() {
+                        if let Some(Integer(val)) = value.tip_or_none(cut_age)
+                        {
                             grp.num_threads += val as u64;
                             grp.num_processes += 1;
                         }
