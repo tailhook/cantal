@@ -183,6 +183,9 @@ impl Context {
         for friend in friends.into_iter() {
             let sendto_addr = {
                 let id = friend.id;
+                if id == self.machine_id {
+                    continue;
+                }
                 let peer = stats.peers.entry(id.clone())
                     .or_insert_with(|| Peer::new(id.clone()));
                 peer.apply_addresses(
