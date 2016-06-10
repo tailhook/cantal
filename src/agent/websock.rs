@@ -287,8 +287,7 @@ pub fn beacon(deps: &Dependencies) -> Vec<u8> {
             (None, None)
         };
     probor::to_buf(&OutputMessage::Beacon(Beacon {
-        version: option_env!("CANTAL_VERSION")
-                .unwrap_or("0.1.dev").to_string(),
+        version: env!("CARGO_PKG_VERSION").to_string(),
         id: id,
         addresses: addresses,
         name: name,

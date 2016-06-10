@@ -80,8 +80,6 @@ commands:
       webpack: !Command
         container: js
         work-dir: web
-        environ:
-          CANTAL_VERSION: "0.1.live"
         run:
         - webpack-dev-server
         - --hot
