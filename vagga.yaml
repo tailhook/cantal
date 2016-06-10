@@ -9,11 +9,17 @@ commands:
       [ -d ../public/js ] || mkdir ../public/js
       exec webpack "$@"
 
+  make-bin: !Command
+    description: Build cantal binaries
+    container: trusty
+    run: [cargo, build, --release]
+
   make: !Command
     description: Build cantal binaries and javascript in ubuntu container
     container: trusty
-    prerequisites: [make-js]
-    run: [cargo, build, --release]
+    prerequisites: [make-bin, make-js]
+    run: |
+      cp ./target/release/cantal-agent .
 
   cargo: !Command
     description: Run arbitrary cargo command
@@ -54,22 +60,25 @@ commands:
         -C ./cantal_values/target/x86_64-unknown-linux-musl/release \
         cantal
 
-  run: &run !Command
-    description: Runs cantal (is not very useful run in container)
-    container: trusty
-    environ:
-      RUST_LOG: debug
-    run:
-    - ./cantal-agent
-    - --host=0.0.0.0
-    - --config-dir=/work/example-configs
+  run: !Command
+    prerequisites: [make]
+    <<: &run
+      description: Runs cantal (is not very useful run in container)
+      container: trusty
+      environ:
+        RUST_LOG: debug
+      run:
+      - ./cantal-agent
+      - --host=0.0.0.0
+      - --config-dir=/work/example-configs
 
   live: !Supervise
     description: Run cantal in container with live reload of frontend
+    prerequisites: [make]
     children: &live
-      cantal: *run
+      cantal: !Command { <<: *run }
       webpack: !Command
-        container: trusty
+        container: js
         work-dir: web
         environ:
           CANTAL_VERSION: "0.1.live"
@@ -81,6 +90,7 @@ commands:
 
   ten: !Supervise
     description: Runs ten cantals so you can test "remote" subsystem
+    prerequisites: [make]
     children:
       n0: !Command
         container: trusty
@@ -284,6 +294,7 @@ containers:
     - *pkgs
     - *rust
     - *bulk
+    - !Install [wget] # just for 'vagga ten'
     environ: *environ
 
   xenial:
