@@ -275,15 +275,14 @@ containers:
     setup:
     - !Ubuntu precise
     - &pkgs !Install [git, make, ca-certificates, gcc, libssl-dev, lsb-release]
-    - !Install [lsb-release]
     - &rust !TarInstall
       url: "http://static.rust-lang.org/dist/rust-1.9.0-x86_64-unknown-linux-gnu.tar.gz"
       script: "./install.sh --prefix=/usr \
                 --components=rustc,rust-std-x86_64-unknown-linux-gnu,cargo"
 
     - &bulk !Tar
-      url: "http://files.zerogw.com/bulk/bulk-0.4.1.tar.gz"
-      sha256: df4488ce6c6c856c35356b2d5bdf5774bb915420820eefdc09165e0bd34ec43e
+      url: "http://files.zerogw.com/bulk/bulk-0.4.3.tar.gz"
+      sha256: 5f90794738d4d672f53fb62fca32680118b354f9a224034d644f7047fe966027
       path: /
     environ: &environ
       HOME: /work/target
@@ -381,25 +380,6 @@ containers:
     - !Ubuntu xenial
     - !UbuntuUniverse
     - *pkgs
-    - !BuildDeps [build-essential, cmake, libc++-dev, curl, autoconf, automake, libtool]
-    # Build script derived from
-    # https://github.com/rust-lang/rust-buildbot/blob/master/slaves/linux/build-musl.sh
-    - !TarInstall
-      url: http://www.musl-libc.org/releases/musl-1.1.14.tar.gz
-      script: |
-        ./configure --prefix=/musl --disable-shared
-        make -j2
-        make install
-
-    - !Tar
-      url: http://llvm.org/releases/3.8.0/llvm-3.8.0.src.tar.xz
-      path: /tmp/llvm
-    - !TarInstall
-      url: http://llvm.org/releases/3.8.0/libunwind-3.8.0.src.tar.xz
-      script: |
-        cmake . -DLLVM_PATH=/tmp/llvm/llvm-3.8.0.src -DLIBUNWIND_ENABLE_SHARED=0
-        make -j2
-        cp lib/libunwind.a /musl/lib
     - *rust
     - !TarInstall
       url: "http://static.rust-lang.org/dist/rust-std-1.9.0-x86_64-unknown-linux-musl.tar.gz"
