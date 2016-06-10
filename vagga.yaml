@@ -281,8 +281,8 @@ containers:
                 --components=rustc,rust-std-x86_64-unknown-linux-gnu,cargo"
 
     - &bulk !Tar
-      url: "http://files.zerogw.com/bulk/bulk-0.4.3.tar.gz"
-      sha256: 5f90794738d4d672f53fb62fca32680118b354f9a224034d644f7047fe966027
+      url: "http://files.zerogw.com/bulk/bulk-0.4.4.tar.gz"
+      sha256: dd4e3fd37d0e26b774fa59b69e669f3a4a6a15812876601652c7d7002ae8e61a
       path: /
     environ: &environ
       HOME: /work/target
