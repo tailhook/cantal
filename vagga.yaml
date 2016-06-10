@@ -217,14 +217,15 @@ commands:
       rm -rf dist/pkg || true
       rm -rf target/release/cantal-agent || true
       version="$(git describe --dirty | cut -c2-)"
+      codename="$(lsb_release --codename --short)"
       bulk with-version $version make bin
       make install-agent DESTDIR=/work/dist/pkg
       bulk pack \
-        --package-version="${version}+$(lsb_release --codename --short)1.noinit" \
+        --package-version="${version}~${codename}1.noinit" \
         --config bulk.yaml --dir dist/pkg --dest-dir dist
       make install-upstart DESTDIR=/work/dist/pkg
       bulk pack \
-        --package-version="${version}+$(lsb_release --codename --short)1" \
+        --package-version="${version}~${codename}1" \
         --config bulk.yaml --dir dist/pkg --dest-dir dist
 
   _package-precise: !Command
@@ -238,14 +239,15 @@ commands:
       rm -rf dist/pkg || true
       rm -rf target/release/cantal-agent || true
       version="$(git describe --dirty | cut -c2-)"
+      codename="$(lsb_release --codename --short)"
       bulk with-version $version make bin
       make install-agent DESTDIR=/work/dist/pkg
       bulk pack \
-        --package-version="${version}+$(lsb_release --codename --short)1.noinit" \
+        --package-version="${version}~${codename}1.noinit" \
         --config bulk.yaml --dir dist/pkg --dest-dir dist
       make install-systemd DESTDIR=/work/dist/pkg
       bulk pack \
-        --package-version="${version}+$(lsb_release --codename --short)1" \
+        --package-version="${version}~${codename}1" \
         --config bulk.yaml --dir dist/pkg --dest-dir dist
 
   packages: !Command
