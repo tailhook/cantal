@@ -9,6 +9,17 @@ commands:
       [ -d ../public/js ] || mkdir ../public/js
       exec webpack "$@"
 
+  _make-js-for-package: !Command
+    description: Build javascripts for packaging
+    container: js
+    run: |
+      set -ex
+      [ -d public/js ] || mkdir public/js
+      version=$(git describe --dirty)
+      NODE_ENV=production \
+        bulk with-version "${version}" \
+          sh -c "cd web && webpack --optimize-minimize"
+
   make-bin: !Command
     description: Build cantal binaries
     container: trusty
@@ -196,7 +207,7 @@ commands:
 
   _package-cli: !Command
     container: rust-musl
-    prerequisites: [make-js]
+    prerequisites: [_make-js-for-package]
     run: |
       set -ex
       rm -rf dist/pkg || true
@@ -209,7 +220,7 @@ commands:
 
   _package-trusty: &package-upstart !Command
     container: trusty
-    prerequisites: [make-js]
+    prerequisites: [_make-js-for-package]
     run: |
       set -ex
       rm -rf dist/pkg || true
@@ -268,6 +279,11 @@ containers:
     - !NpmDependencies
       file: "web/package.json"
       optional: true
+    - !Install [git]
+    - &bulk !Tar
+      url: "http://files.zerogw.com/bulk/bulk-0.4.4.tar.gz"
+      sha256: dd4e3fd37d0e26b774fa59b69e669f3a4a6a15812876601652c7d7002ae8e61a
+      path: /
     environ:
       NODE_PATH: /usr/lib/node_modules
 
@@ -280,10 +296,7 @@ containers:
       script: "./install.sh --prefix=/usr \
                 --components=rustc,rust-std-x86_64-unknown-linux-gnu,cargo"
 
-    - &bulk !Tar
-      url: "http://files.zerogw.com/bulk/bulk-0.4.4.tar.gz"
-      sha256: dd4e3fd37d0e26b774fa59b69e669f3a4a6a15812876601652c7d7002ae8e61a
-      path: /
+    - *bulk
     environ: &environ
       HOME: /work/target
 
