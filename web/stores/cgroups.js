@@ -38,7 +38,7 @@ export function processes(state=null, action) {
         let map = new Map()
         for(let item of action.data.all) {
             item.cmdline = decode_cmdline(item.cmdline)
-            item.is_supervisor = detect_supervisor(item.cmdline)
+            item.is_supervisor = detect_supervisor(item)
             map.set(item.pid, item);
         }
         return map;
