@@ -184,6 +184,7 @@ impl Context {
             let sendto_addr = {
                 let id = friend.id;
                 if id == self.machine_id {
+                    debug!("Got myself in friend list");
                     continue;
                 }
                 let peer = stats.peers.entry(id.clone())
@@ -277,6 +278,10 @@ impl Context {
                         info!("Got packet from cluster {:?}", cluster);
                         return;
                     }
+                    if info.id == self.machine_id {
+                        debug!("Got packet from myself");
+                        return;
+                    }
                     let id = info.id.clone();
                     let peer = stats.peers.entry(id.clone())
                         .or_insert_with(|| Peer::new(id.clone()));
@@ -336,6 +341,10 @@ impl Context {
                 {
                     if Some(&cluster) != self.cluster_name.as_ref() {
                         info!("Got packet from cluster {:?}", cluster);
+                        return;
+                    }
+                    if info.id == self.machine_id {
+                        debug!("Got packet from myself");
                         return;
                     }
                     let id = info.id.clone();
