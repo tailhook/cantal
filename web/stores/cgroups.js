@@ -27,11 +27,18 @@ export function groups(state=null, action) {
     return state;
 }
 
+function detect_supervisor(item) {
+  // Usually supervisors are non-interesting, so we hide them by default
+  // Currently we only detect 'lithos_knot' as unuseful supervisor
+  return item.cmdline.indexOf('lithos_knot ') >= 0
+}
+
 export function processes(state=null, action) {
     if(action.type == DATA) {
         let map = new Map()
         for(let item of action.data.all) {
             item.cmdline = decode_cmdline(item.cmdline)
+            item.is_supervisor = detect_supervisor(item.cmdline)
             map.set(item.pid, item);
         }
         return map;

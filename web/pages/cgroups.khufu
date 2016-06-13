@@ -57,7 +57,7 @@ view main():
                 <div>
                   for proc of processes key proc.pid:
                     let p = @processes.get(proc.pid)
-                    if p or @show:
+                    if p and not p.is_supervisor or @show:
                       <div.process>
                         <code>
                           proc.pid
