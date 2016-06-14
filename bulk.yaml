@@ -21,111 +21,111 @@ repositories:
   suite: trusty
   component: cantal
   keep-releases: 1
-  match-version: ^\d+\.\d+\.\d+~trusty1$
+  match-version: ^\d+\.\d+\.\d+\+trusty1$
 
 - kind: debian
   suite: trusty
   component: cantal-stable
   keep-releases: 1000
-  match-version: ^\d+\.\d+\.\d+~trusty1$
+  match-version: ^\d+\.\d+\.\d+\+trusty1$
 
 - kind: debian
   suite: trusty
   component: cantal-testing
   keep-releases: 100
-  match-version: ~trusty1$
+  match-version: \+trusty1$
 
 - kind: debian
   suite: trusty
   component: cantal-noinit
   keep-releases: 1
-  match-version: ^\d+\.\d+\.\d+~trusty1.noinit$
+  match-version: ^\d+\.\d+\.\d+\+trusty1.noinit$
 
 - kind: debian
   suite: trusty
   component: cantal-noinit-stable
   keep-releases: 1000
-  match-version: ^\d+\.\d+\.\d+~trusty1.noinit$
+  match-version: ^\d+\.\d+\.\d+\+trusty1.noinit$
 
 - kind: debian
   suite: trusty
   component: cantal-noinit-testing
   keep-releases: 100
-  match-version: ~trusty1.noinit$
+  match-version: \+trusty1.noinit$
 
 # precise
 - kind: debian
   suite: precise
   component: cantal
   keep-releases: 1
-  match-version: ^\d+\.\d+\.\d+~precise1$
+  match-version: ^\d+\.\d+\.\d+\+precise1$
 
 - kind: debian
   suite: precise
   component: cantal-stable
   keep-releases: 1000
-  match-version: ^\d+\.\d+\.\d+~precise1$
+  match-version: ^\d+\.\d+\.\d+\+precise1$
 
 - kind: debian
   suite: precise
   component: cantal-testing
   keep-releases: 100
-  match-version: ~precise1$
+  match-version: \+precise1$
 
 - kind: debian
   suite: precise
   component: cantal-noinit
   keep-releases: 1
-  match-version: ^\d+\.\d+\.\d~precise1.noinit$
+  match-version: ^\d+\.\d+\.\d\+precise1.noinit$
 
 - kind: debian
   suite: precise
   component: cantal-noinit-stable
   keep-releases: 1000
-  match-version: ^\d+\.\d+\.\d~precise1.noinit$
+  match-version: ^\d+\.\d+\.\d\+precise1.noinit$
 
 - kind: debian
   suite: precise
   component: cantal-noinit-testing
   keep-releases: 100
-  match-version: ~precise1.noinit$
+  match-version: \+precise1.noinit$
 
 # xenial
 - kind: debian
   suite: xenial
   component: cantal
   keep-releases: 1
-  match-version: ^\d+\.\d+\.\d+~xenial1$
+  match-version: ^\d+\.\d+\.\d+\+xenial1$
 
 - kind: debian
   suite: xenial
   component: cantal-stable
   keep-releases: 1000
-  match-version: ^\d+\.\d+\.\d+~xenial1$
+  match-version: ^\d+\.\d+\.\d+\+xenial1$
 
 - kind: debian
   suite: xenial
   component: cantal-testing
   keep-releases: 100
-  match-version: ~xenial1$
+  match-version: \+xenial1$
 
 - kind: debian
   suite: xenial
   component: cantal-noinit
   keep-releases: 1
-  match-version: ^\d+\.\d+\.\d~xenial1.noinit$
+  match-version: ^\d+\.\d+\.\d\+xenial1.noinit$
 
 - kind: debian
   suite: xenial
   component: cantal-noinit-stable
   keep-releases: 1000
-  match-version: ^\d+\.\d+\.\d~xenial1.noinit$
+  match-version: ^\d+\.\d+\.\d\+xenial1.noinit$
 
 - kind: debian
   suite: xenial
   component: cantal-noinit-testing
   keep-releases: 100
-  match-version: ~xenial1.noinit$
+  match-version: \+xenial1.noinit$
 
 
 versions:
