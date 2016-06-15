@@ -176,7 +176,17 @@ pub fn reconnect_peer(tok: Token, ctx: &mut Context) {
     // Get ID then addr and avoid deadlock
     let id = {
         let mut peers = ctx.deps.lock::<Option<Peers>>();
-        let peer = peers.as_mut().unwrap().peers.get_mut(tok).unwrap();
+        let peer = if let Some(data) = peers.as_mut() {
+            if let Some(peer) = data.peers.get_mut(tok) {
+                peer
+            } else {
+                debug!("Bad token {:?}", tok);
+                return;
+            }
+        } else {
+            debug!("Spurious reconnect peer");
+            return;
+        };
         peer.last_attempt = Some((tm, "seeking primary addr"));
         peer.id.clone()
     };
@@ -257,7 +267,12 @@ pub fn reconnect_peer(tok: Token, ctx: &mut Context) {
 
 pub fn reset_peer(tok: Token, ctx: &mut Context) {
     let mut peers_opt = ctx.deps.lock::<Option<Peers>>();
-    let data = peers_opt.as_mut().unwrap();
+    let data = if let Some(data) = peers_opt.as_mut() {
+        data
+    } else {
+        debug!("Spurious reset peer");
+        return;
+    };
     if let Some(ref mut peer) = data.peers.get_mut(tok) {
         let wsock = replace(&mut peer.connection, None)
             .expect("No socket to reset");
@@ -282,8 +297,13 @@ pub fn reset_peer(tok: Token, ctx: &mut Context) {
 pub fn try_io(tok: Token, ev: EventSet, ctx: &mut Context) -> bool
 {
     let pref = ctx.deps.get::<Arc<Mutex<Option<Peers>>>>().unwrap().clone();
-    let mut opt_peers = pref.lock().unwrap();
-    let data = opt_peers.as_mut().unwrap();
+    let mut peers_opt = pref.lock().unwrap();
+    let data = if let Some(data) = peers_opt.as_mut() {
+        data
+    } else {
+        debug!("Spurious reset peer");
+        return false;
+    };
     if let Some(ref mut peer) = data.peers.get_mut(tok) {
         let to_close = {
             let ref mut wsock = peer.connection.as_mut()
@@ -381,22 +401,35 @@ pub fn try_io(tok: Token, ev: EventSet, ctx: &mut Context) -> bool
 pub fn garbage_collector(ctx: &mut Context) {
     debug!("Garbage collector");
     let mut peers_opt = ctx.deps.lock::<Option<Peers>>();
-    let peers = peers_opt.as_mut().unwrap();
+    {
+        let peers = if let Some(peers) = peers_opt.as_mut() {
+            peers
+        } else {
+            debug!("Spurious garbage collector");
+            return;
+        };
 
-    let cut_off = SteadyTime::now() - Duration::milliseconds(
-        SUBSCRIPTION_LIFETIME);
-    peers.subscriptions = replace(&mut peers.subscriptions, HashMap::new())
-        .into_iter()
-        .filter(|&(_, timestamp)| timestamp > cut_off)
-        .collect();
+        let cut_off = SteadyTime::now() - Duration::milliseconds(
+            SUBSCRIPTION_LIFETIME);
+        peers.subscriptions = replace(&mut peers.subscriptions, HashMap::new())
+            .into_iter()
+            .filter(|&(_, timestamp)| timestamp > cut_off)
+            .collect();
+        if peers.subscriptions.len() != 0 {
 
-    for peer in peers.peers.iter_mut() {
-        // TODO(tailhook) Is it ok to truncate by time? Do we want some
-        // stale data to be around on ocassion?
-        peer.history.truncate_by_time(
-            time_ms() - (DATA_POINTS as u64)*2000+2000);
+            for peer in peers.peers.iter_mut() {
+                // TODO(tailhook) Is it ok to truncate by time? Do we want some
+                // stale data to be around on ocassion?
+                peer.history.truncate_by_time(
+                    time_ms() - (DATA_POINTS as u64)*2000+2000);
+            }
+
+
+            peers.gc_timer = ctx.eloop.timeout_ms(RemoteCollectGarbage,
+                GARBAGE_COLLECTOR_INTERVAL).unwrap();
+            return;
+        }
     }
-
-    peers.gc_timer = ctx.eloop.timeout_ms(RemoteCollectGarbage,
-        GARBAGE_COLLECTOR_INTERVAL).unwrap();
+    // no subscriptions left
+    *peers_opt = None;
 }
