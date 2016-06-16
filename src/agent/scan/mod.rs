@@ -10,6 +10,7 @@ pub mod machine;
 pub mod processes;
 pub mod values;
 pub mod cgroups;
+pub mod connections;
 
 // TODO(tailhook) use some time/date crate
 

@@ -1,0 +1,25 @@
+import {refresher, json} from '../middleware/request'
+import {sockets} from '../stores/sockets'
+import {repr, pprint} from '../util/view'
+
+
+view main():
+  <div>
+    store @query = sockets | refresher | json('/all_sockets.json')
+    <div.title.error?(@query.error)>
+      <h1>
+        "All Sockets"
+      if @query.error:
+        <span.error>
+          @query.error
+      elif @query.latency:
+        <span.latency
+          title="Latency of getting statistics (the request roundtrip time)">
+          `${@query.latency} ms`
+    if @query.data == null:
+      "Loading..."
+    else:
+      <pre>
+        pprint(@query.data)
+
+

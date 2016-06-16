@@ -56,6 +56,13 @@ pub fn serve_processes(_req: &Request, context: &mut Context)
         }))
 }
 
+pub fn serve_sockets(_req: &Request, context: &mut Context)
+    -> Result<http::Response, Box<http::Error>>
+{
+    let stats: &Stats = &*context.deps.read();
+    Ok(http::Response::json(&stats.connections))
+}
+
 pub fn serve_metrics(_req: &Request, context: &mut Context)
     -> Result<http::Response, Box<http::Error>>
 {

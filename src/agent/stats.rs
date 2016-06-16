@@ -21,10 +21,10 @@ pub struct Stats {
     pub scan_duration: u32,
     pub boot_time: Option<u64>,
 
-    // TODO(tailhook) move to separate dependencies items
     pub storage: StorageStats,
     pub history: History,
     pub processes: Vec<scan::processes::MinimalProcess>,
+    pub connections: Option<scan::connections::Connections>,
 }
 
 impl Stats {
@@ -47,6 +47,7 @@ impl Stats {
             storage: Default::default(),
             history: History::new(),
             processes: Default::default(),
+            connections: Default::default(),
         };
     }
 }

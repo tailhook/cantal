@@ -201,6 +201,8 @@ fn resolve(req: &Request, context: &mut Context)
         => respond::serve_status(req, context),
         (&Get, &P(ref x)) if &x[..] == "/all_processes.json"
         => respond::serve_processes(req, context),
+        (&Get, &P(ref x)) if &x[..] == "/all_sockets.json"
+        => respond::serve_sockets(req, context),
         (&Get, &P(ref x)) if &x[..] == "/all_metrics.cbor"
         => respond::serve_metrics(req, context),
         (&Get, &P(ref x)) if &x[..] == "/all_peers.json"

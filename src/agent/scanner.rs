@@ -10,6 +10,7 @@ use super::stats::Stats;
 use super::scan::Tip;
 use super::scan::machine;
 use super::scan::processes;
+use super::scan::connections;
 use super::scan::values;
 use super::scan::time_ms;
 use super::scan::cgroups;
@@ -40,6 +41,7 @@ pub fn scan_loop(deps: Dependencies)
 
         let cgroups = cgroups::read();
         let processes = processes::read(&mut process_cache);
+        let connections = connections::read();
         processes::write_tip(&mut tip, &processes, &cgroups);
         values::read(&mut tip, &mut values_cache, &processes, &cgroups);
 
@@ -60,6 +62,7 @@ pub fn scan_loop(deps: Dependencies)
             stats.last_scan = start;
             stats.boot_time = boot_time.or(stats.boot_time);
             stats.processes = processes;
+            stats.connections = connections;
 
             if start - last_store > SNAPSHOT_INTERVAL {
                 last_store = start;

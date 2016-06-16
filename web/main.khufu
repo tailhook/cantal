@@ -17,6 +17,7 @@ import {main as process_metrics} from './pages/process_metrics.khufu'
 import {main as cgroups} from './pages/cgroups.khufu'
 import {main as metrics} from './pages/metrics.khufu'
 import {main as peers} from './pages/peers.khufu'
+import {main as tmp_sockets} from './pages/tmp_sockets.khufu'
 import {main as remote_list} from './pages/remote/list.khufu'
 import {main as remote_grid} from './pages/remote/grid.khufu'
 import {main as remote_containers} from './pages/remote/containers.khufu'
@@ -216,6 +217,8 @@ view main(version):
           metrics()
         elif @router.page == 'peers':
           peers()
+        elif @router.page == 'tmp-sockets':
+          tmp_sockets()
         else:
           @router.page
       else:
