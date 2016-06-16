@@ -281,8 +281,8 @@ containers:
       optional: true
     - !Install [git]
     - &bulk !Tar
-      url: "http://files.zerogw.com/bulk/bulk-0.4.5.tar.gz"
-      sha256: 8ee5a5f6386c1b408543a82bf22f184ddbc8add8e5eb6cb6b7e8492e5d4036e3
+      url: "http://files.zerogw.com/bulk/bulk-0.4.6.tar.gz"
+      sha256: 60f6075ab05f2c858fd6fa141f7be8d3f93b811e3929770768525db4fcabfea4
       path: /
     environ:
       NODE_PATH: /usr/lib/node_modules
