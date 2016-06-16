@@ -7,6 +7,7 @@ pub struct Config {
     pub port: u16,
     pub interval: u32,
     pub enable_cgroup_stats: bool,
+    pub enable_application_metrics: bool,
 }
 
 pub fn validator<'x>() -> Structure<'x> {
@@ -16,4 +17,5 @@ pub fn validator<'x>() -> Structure<'x> {
     .member("interval",
         Numeric::new().min(1).max(86400).default(10))
     .member("enable_cgroup_stats", Scalar::new().default(false))
+    .member("enable_application_metrics", Scalar::new().default(false))
 }

@@ -32,6 +32,7 @@ Cantal starting with v0.3.0, has a default configuration directory
    port: 2003
    interval: 10
    enable-cgroup-stats: true
+   enable-application-metrics: true
 
 All configurations which end with ``.carbon.yaml`` will be read. Multiple
 configurations may be used, each configuration is a separate connection with
@@ -56,6 +57,12 @@ interval
 
 enable-cgroup-stats
     (default ``false``) Send data about cgroups to carbon
+
+enable-application-metrics
+    (default ``false``) Send data with application metrics to carbon. The
+    application must have an **unique** ``CANTAL_APPNAME`` in environment to
+    have metrics delivered to carbon. Anyway ``CANTAL_APPNAME`` is ignored
+    if application is in cgroup.
 
 
 Metrics Layout
@@ -92,7 +99,18 @@ CGroup statistics (enabled with ``enable-cgroup-stats``):
 * ``cantal.<CLUSTER_NAME>.<HOSTNAME>.cgroups.<GROUP_NAME>.groups.<STATE_NAME>.<METRIC_NAME>``
   -- application-submitted metrics which have a ``group`` value
 
+Application metrics that are outside of cgroups have similar layout but do not
+have any system metrics yet (enabled with ``enable-application-metrics``):
+
+* ``cantal.<CLUSTER_NAME>.<HOSTNAME>.apps.<APPLICATION_NAME>.states.<STATE_NAME>.<METRIC_NAME>``
+  -- application-submitted metrics which have a ``state`` value
+* ``cantal.<CLUSTER_NAME>.<HOSTNAME>.apps.<APPLICATION_NAME>.groups.<STATE_NAME>.<METRIC_NAME>``
+  -- application-submitted metrics which have a ``group`` value
+
 ``CLUSTER_NAME`` is ``no-cluster`` if no ``--cluster-name=something`` is
 specified in the command-line.
+
+``APPLICATION_NAME`` is the value of ``CANTAL_APPNAME`` environment variable
+that exists alongside with the ``CANTAL_PATH``.
 
 

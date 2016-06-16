@@ -2,6 +2,8 @@ use std::rc::Rc;
 use std::io::{BufReader, BufRead};
 use std::fs::{File};
 use std::ffi::{OsStr, OsString};
+use std::str;
+use std::ascii::AsciiExt;
 use std::os::unix::prelude::OsStrExt;
 use std::path::{Path, PathBuf};
 use std::collections::{HashMap};
@@ -20,25 +22,53 @@ pub struct ReadCache {
     metadata: HashMap<PathBuf, Metadata>,
 }
 
-fn get_env_var(pid: u32) -> Option<PathBuf> {
-    File::open(&format!("/proc/{}/environ", pid))
-    .map(|f| BufReader::new(f))
-    .and_then(|mut f| {
-        loop {
-            let mut line = Vec::with_capacity(4096);
-            try!(f.read_until(0, &mut line));
-            if line.len() == 0 {
-                return Ok(None);
-            };
-            if line.starts_with(b"CANTAL_PATH=") {
-                return Ok(Some(PathBuf::from(<OsStr as OsStrExt>::from_bytes(
-                    &line["CANTAL_PATH=".len()..line.len()-1]))));
+fn get_env_vars(pid: u32) -> (Option<String>, Option<PathBuf>) {
+    let file = match File::open(&format!("/proc/{}/environ", pid)) {
+        Ok(file) => file,
+        Err(e) => {
+            debug!("Can't read environ file: {}", e);
+            return (None, None);
+        }
+    };
+    let mut buf = BufReader::new(file);
+    let mut name = None;
+    let mut path = None;
+    let mut line = Vec::with_capacity(4096);
+    loop {
+        line.clear();
+        match buf.read_until(0, &mut line) {
+            Ok(_) => {}
+            Err(e) => {
+                debug!("Can't read environ file: {}", e);
+                // Assuming file just vanished, i.e. process is dead, so
+                // it's useless to return partial data (i.e. name, path)
+                return (None, None);
             }
         }
-    })
-    .map_err(|e| debug!("Can't read environ file: {}", e))
-    .ok()
-    .and_then(|opt| opt)
+        if line.len() == 0 {
+            return (name, path);
+        };
+        if line.starts_with(b"CANTAL_PATH=") {
+            path = Some(PathBuf::from(<OsStr as OsStrExt>::from_bytes(
+                &line["CANTAL_PATH=".len()..line.len()-1])));
+            if name.is_some() {  // both are ready
+                return (name, path);
+            }
+        }
+        if line.starts_with(b"CANTAL_APPNAME=") {
+            let val = &line["CANTAL_APPNAME=".len()..line.len()-1];
+            if val.is_ascii() {
+                name = Some(str::from_utf8(val).unwrap().into());
+            } else {
+                warn!("Can't decode appname for {}: {:?}", pid, val);
+                continue;
+            };
+            if path.is_some() {  // both are ready
+                return (name, path);
+            }
+        }
+    }
+    return (name, path);
 }
 
 fn relative_from(path: &Path, prefix: &Path) -> PathBuf {
@@ -95,10 +125,17 @@ fn read_values(cache: &ReadCache, path: &PathBuf)
     return (None, None);
 }
 
-fn key(pid: &str, cgroup: Option<&str>, json: &Json) -> Result<Key, ()> {
+fn key(pid: &str, cgroup: Option<&str>, name_opt: &Option<String>, json: &Json)
+    -> Result<Key, ()>
+{
     if let Some(cgrp) = cgroup {
         Key::from_json(json, &[
             ("cgroup", cgrp),
+            ("pid", pid),
+            ])
+    } else if let Some(ref name) = *name_opt {
+        Key::from_json(json, &[
+            ("appname", name),
             ("pid", pid),
             ])
     } else {
@@ -112,7 +149,8 @@ pub fn read(tip: &mut Tip, cache: &mut ReadCache, processes: &[MinimalProcess],
     cgroups: &CGroups)
 {
     for prc in processes.iter() {
-        if let Some(path) = get_env_var(prc.pid) {
+        let (name_opt, path_opt) = get_env_vars(prc.pid);
+        if let Some(path) = path_opt {
             let pid = prc.pid.to_string();
             let cgroup = cgroups.get(&prc.pid).map(|x| &x[..]);
             // TODO(tailhook) check if not already visited
@@ -121,7 +159,7 @@ pub fn read(tip: &mut Tip, cache: &mut ReadCache, processes: &[MinimalProcess],
             let (data, new_meta) = read_values(cache, &realpath);
             if let Some(data) = data {
                 for (desc, value) in data.into_iter() {
-                    if let Ok(key) = key(&pid, cgroup, &desc.json) {
+                    if let Ok(key) = key(&pid, cgroup, &name_opt, &desc.json) {
                         tip.add(key, value);
                     }
                 }
