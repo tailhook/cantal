@@ -6,7 +6,7 @@ license = "MIT"
 readme = "README.rst"
 keywords = ["monitoring", "statistics"]
 homepage = "http://github.com/tailhook/cantal"
-version = "0.4.9"
+version = "0.4.10"
 authors = ["paul@colomiets.name"]
 
 [dependencies]
