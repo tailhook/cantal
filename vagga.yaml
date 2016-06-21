@@ -37,6 +37,11 @@ commands:
     container: trusty
     run: [cargo]
 
+  bulk: !Command
+    description: Run arbitrary bulk command
+    container: trusty
+    run: [bulk]
+
   cargo-outdated: !Command
     description: Check for outdated dependencies
     container: outdated
