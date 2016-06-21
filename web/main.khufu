@@ -18,6 +18,7 @@ import {main as cgroups} from './pages/cgroups.khufu'
 import {main as metrics} from './pages/metrics.khufu'
 import {main as peers} from './pages/peers.khufu'
 import {main as tmp_sockets} from './pages/tmp_sockets.khufu'
+import {main as users} from './pages/users.khufu'
 import {main as remote_list} from './pages/remote/list.khufu'
 import {main as remote_grid} from './pages/remote/grid.khufu'
 import {main as remote_containers} from './pages/remote/containers.khufu'
@@ -77,6 +78,10 @@ view _local_menu():
     <a.pure-menu-link href="/local/cgroups">
       link {click} go(event) -> @router
       "CGroups"
+  <li.pure-menu-item.pure-menu-active?(@router.page == 'users')>
+    <a.pure-menu-link href="/local/users">
+      link {click} go(event) -> @router
+      "Users"
   <li.pure-menu-item.pure-menu-active?(@router.page == 'process_metrics')>
     <a.pure-menu-link href="/local/process_metrics">
       link {click} go(event) -> @router
@@ -219,6 +224,8 @@ view main(version):
           peers()
         elif @router.page == 'tmp-sockets':
           tmp_sockets()
+        elif @router.page == 'users':
+          users()
         else:
           @router.page
       else:
