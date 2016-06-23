@@ -38,7 +38,7 @@ view show_group(uid, grp, sockets, show_processes):
     store @showsock = bool | disable()
     if total:
       <h3>
-        `Sockets [${ total.LISTEN }/${ total.ESTABLISHED }] `
+        `Sockets [${ total.LISTEN or 0 }/${ total.ESTABLISHED or 0 }] `
         <button.pure-button.small>
           link {click} toggle(@showsock) -> @showsock
           if @showsock:
@@ -57,6 +57,7 @@ view show_group(uid, grp, sockets, show_processes):
                 <tr>
                   <td> "Port"
                   <td> "Total"
+                  <td> "Listening"
                   <td> "Established"
                   <td> "TimeWait"
                   <td> "CloseWait"
@@ -66,7 +67,10 @@ view show_group(uid, grp, sockets, show_processes):
                     <td>
                       port
                     <td>
-                      sum_values(info.stats.by_state)
+                      (sum_values(info.stats.by_state)
+                       + info.listeners.length)
+                    <td>
+                       info.listeners.length
                     <td>
                       info.stats.by_state.ESTABLISHED or ''
                     <td>
