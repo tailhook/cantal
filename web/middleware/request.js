@@ -44,7 +44,6 @@ export var refresher = store => next => {
                 return;
             }
             try {
-                console.log("RESPONSE", req.response, response_type);
                 next({
                     type: DATA,
                     data: decoder(req.response),
