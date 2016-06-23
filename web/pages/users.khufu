@@ -12,7 +12,7 @@ style:
     margin-top: 4px
     margin-bottom: 24px
   .small
-    font-size: 70%
+    font-size: 12px
   h2.title
     padding-left: 16px
     border-bottom: solid #cbcbcb 1px
@@ -25,9 +25,17 @@ view main():
     store @sockets = stores.sockets | refresher | json('/all_sockets.json')
     store @processes = stores.processes | refresher
       | json('/all_processes.json')
+    store @showgroups = bool | disable()
     <div.title.error?(@sockets.error)>
       <h1>
-        "Projects by Uid"
+        "Projects by Uid "
+        <button.pure-button.small>
+          link {click} toggle(@showgroups) -> @showgroups
+          if @showgroups:
+            "hide"
+          else:
+            "show hidden"
+
       if @sockets.error:
         <span.error>
           @sockets.error
@@ -39,87 +47,93 @@ view main():
       "Loading..."
     else:
       for [uid, grp] of @processes.entries() key uid:
-        <h2.title>
-          uid
-        <div.group>
-          let uinfo = @sockets.data.by_user[uid]
-          let total = uinfo and uinfo.by_state
-          store @showpro = bool | disable()
-          store @showsock = bool | disable()
-          if total:
-            <h3>
-              `Sockets [${ total.LISTEN }/${ total.ESTABLISHED }] `
-              <button.pure-button.small>
-                link {click} toggle(@showsock) -> @showsock
+        if grp.kind == 'container' or grp.kind == 'unknown' or @showgroups:
+          <h2.title>
+            uid
+            if grp.container:
+              `: ${ grp.container }`
+            elif grp.commands:
+              if grp.commands.length < 5:
+                `: ${ grp.commands.join(', ') }`
+          <div.group>
+            let uinfo = @sockets.data.by_user[uid]
+            let total = uinfo and uinfo.by_state
+            store @showpro = bool | disable()
+            store @showsock = bool | disable()
+            if total:
+              <h3>
+                `Sockets [${ total.LISTEN }/${ total.ESTABLISHED }] `
+                <button.pure-button.small>
+                  link {click} toggle(@showsock) -> @showsock
+                  if @showsock:
+                    "hide"
+                  else:
+                    "show"
+              <div.subsection>
                 if @showsock:
+                  let passive = @sockets.data.passive[uid]
+                  let active = @sockets.data.active[uid]
+                  if passive:
+                    <h4>
+                      "Passive"
+                    <table.pure-table>
+                      <thead>
+                        <tr>
+                          <td> "Port"
+                          <td> "Total"
+                          <td> "Established"
+                          <td> "TimeWait"
+                          <td> "CloseWait"
+                      <tbody>
+                        for [port, info] of pairs(passive) key port:
+                          <tr>
+                            <td>
+                              port
+                            <td>
+                              sum_values(info.stats.by_state)
+                            <td>
+                              info.stats.by_state.ESTABLISHED or ''
+                            <td>
+                              info.stats.by_state.TIME_WAIT or ''
+                            <td>
+                              info.stats.by_state.CLOSE_WAIT or ''
+                  if active:
+                    <h4>
+                      "Active"
+                    <table.pure-table>
+                      <thead>
+                        <tr>
+                          <td> "Port"
+                          <td> "Total"
+                          <td> "Established"
+                          <td> "TimeWait"
+                          <td> "CloseWait"
+                      <tbody>
+                        for [port, info] of pairs(active) key port:
+                          <tr>
+                            <td>
+                              port
+                            <td>
+                              sum_values(info.stats.by_state)
+                            <td>
+                              info.stats.by_state.ESTABLISHED or ''
+                            <td>
+                              info.stats.by_state.TIME_WAIT or ''
+                            <td>
+                              info.stats.by_state.CLOSE_WAIT or ''
+            <h3>
+              `Processes [${ grp.processes.length }] `
+              <button.pure-button.small>
+                link {click} toggle(@showpro) -> @showpro
+                if @showpro:
                   "hide"
                 else:
                   "show"
             <div.subsection>
-              if @showsock:
-                let passive = @sockets.data.passive[uid]
-                let active = @sockets.data.active[uid]
-                if passive:
-                  <h4>
-                    "Passive"
-                  <table.pure-table>
-                    <thead>
-                      <tr>
-                        <td> "Port"
-                        <td> "Total"
-                        <td> "Established"
-                        <td> "TimeWait"
-                        <td> "CloseWait"
-                    <tbody>
-                      for [port, info] of pairs(passive) key port:
-                        <tr>
-                          <td>
-                            port
-                          <td>
-                            sum_values(info.stats.by_state)
-                          <td>
-                            info.stats.by_state.ESTABLISHED or ''
-                          <td>
-                            info.stats.by_state.TIME_WAIT or ''
-                          <td>
-                            info.stats.by_state.CLOSE_WAIT or ''
-                if active:
-                  <h4>
-                    "Active"
-                  <table.pure-table>
-                    <thead>
-                      <tr>
-                        <td> "Port"
-                        <td> "Total"
-                        <td> "Established"
-                        <td> "TimeWait"
-                        <td> "CloseWait"
-                    <tbody>
-                      for [port, info] of pairs(active) key port:
-                        <tr>
-                          <td>
-                            port
-                          <td>
-                            sum_values(info.stats.by_state)
-                          <td>
-                            info.stats.by_state.ESTABLISHED or ''
-                          <td>
-                            info.stats.by_state.TIME_WAIT or ''
-                          <td>
-                            info.stats.by_state.CLOSE_WAIT or ''
-          <h3>
-            `Processes [${ grp.processes.length }] `
-            <button.pure-button.small>
-              link {click} toggle(@showpro) -> @showpro
               if @showpro:
-                "hide"
-              else:
-                "show"
-          <div.subsection>
-            if @showpro:
-              <ul>
-                for item of grp.processes key item.pid:
-                  if item.cmdline and not item.is_supervisor:
-                    <li>
-                      <code>
-                        item.cmdline
+                <ul>
+                  for item of grp.processes key item.pid:
+                    if item.cmdline and not item.is_supervisor:
+                      <li>
+                        <code>
+                          item.cmdline

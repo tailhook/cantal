@@ -27,7 +27,37 @@ export function processes(state=null, action) {
         let keys = Object.keys(map);
         keys.sort((a, b) => (a - b));
         for(var k of keys) {
-            res.set(parseInt(k), map[k])
+            let group = map[k]
+            let kind = 'unknown'
+            if(k == '0') {
+                kind = 'root'
+            } else {
+                let names = {}
+                for(var p of group.processes) {
+                    if(p.cmdline.match(/^\-\w+sh\b/)) {
+                        kind = 'interactive'
+                        break
+                    } else if(p.cmdline.match(/^\S*?lithos_knot\b/)) {
+                        kind = 'container'
+                        let m = p.cmdline.match(/--name\s+([^\/ ]+)/)
+                        group.container = m[1];
+                        break
+                    } else {
+                        let command = p.cmdline
+                            .match(/^[^: ]*?([^\/: ]+)(?:[\s:]|$)/)
+                        if(command && command[1]) {
+                            names[command[1]] = 1;
+                        }
+                    }
+                }
+                if(kind == 'unknown') {
+                    let lst = Object.keys(names)
+                    lst.sort()
+                    group.commands = lst
+                }
+            }
+            group.kind = kind
+            res.set(parseInt(k), group)
         }
         return res;
     }
