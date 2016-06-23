@@ -12,8 +12,25 @@ export function bool(state=undefined, action) {
     }
 }
 
+export function value(state=undefined, action) {
+    switch(action.type) {
+        case 'init':
+            if(state === undefined) {
+                return action.value;
+            } else {
+                return state;
+            }
+        case 'put': return action.value;
+        default: return state;
+    }
+}
+
 export function init(val) {
     return { type: 'init', value: val }
+}
+
+export function put(val) {
+    return { type: 'put', value: val }
 }
 
 export function enable() {

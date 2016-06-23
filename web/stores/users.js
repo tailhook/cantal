@@ -67,9 +67,20 @@ export function processes(state=null, action) {
 export function sockets(state={}, action) {
     switch(action.type) {
         case DATA:
+            let ports = []
+            for(let uid in action.data.passive) {
+                let usersocks = action.data.passive[uid]
+                for(let port in usersocks) {
+                    ports.push([port, parseInt(uid)])
+                }
+            }
+            ports.sort(function(a, b) { a[0] - b[0] })
             state = {
                 latency: action.latency,
-                data: action.data,
+                ports: ports,
+                by_user: action.data.by_user,
+                active: action.data.active,
+                passive: action.data.passive,
             }
             break;
         case ERROR:

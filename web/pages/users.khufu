@@ -2,7 +2,7 @@ import {refresher, json} from '../middleware/request'
 import {sockets} from '../stores/sockets'
 import {repr, pprint, sum_values} from '../util/view'
 import * as stores from '../stores/users.js'
-import {bool, enable, disable, toggle} from '../stores/simple.js'
+import {bool, disable, toggle, value, init, put} from '../stores/simple.js'
 import {pairs} from '../util/iter'
 
 
@@ -13,6 +13,7 @@ style:
     margin-bottom: 24px
   .small
     font-size: 12px
+    margin-left: 8px
   h2.title
     padding-left: 16px
     border-bottom: solid #cbcbcb 1px
@@ -20,21 +21,169 @@ style:
     margin-left: 32px
 
 
+view show_group(uid, grp, sockets, show_processes):
+  <h2.title>
+    uid
+    if grp.container:
+      `: ${ grp.container }`
+    elif grp.commands:
+      if grp.commands.length < 5:
+        `: ${ grp.commands.join(', ') }`
+    else:
+      ` (${ grp.kind })`
+  <div.group>
+    let uinfo = sockets.by_user[uid]
+    let total = uinfo and uinfo.by_state
+    store @showpro = bool | init(show_processes)
+    store @showsock = bool | disable()
+    if total:
+      <h3>
+        `Sockets [${ total.LISTEN }/${ total.ESTABLISHED }] `
+        <button.pure-button.small>
+          link {click} toggle(@showsock) -> @showsock
+          if @showsock:
+            "hide"
+          else:
+            "show"
+      <div.subsection>
+        if @showsock:
+          let passive = sockets.passive[uid]
+          let active = sockets.active[uid]
+          if passive:
+            <h4>
+              "Passive"
+            <table.pure-table>
+              <thead>
+                <tr>
+                  <td> "Port"
+                  <td> "Total"
+                  <td> "Established"
+                  <td> "TimeWait"
+                  <td> "CloseWait"
+              <tbody>
+                for [port, info] of pairs(passive) key port:
+                  <tr>
+                    <td>
+                      port
+                    <td>
+                      sum_values(info.stats.by_state)
+                    <td>
+                      info.stats.by_state.ESTABLISHED or ''
+                    <td>
+                      info.stats.by_state.TIME_WAIT or ''
+                    <td>
+                      info.stats.by_state.CLOSE_WAIT or ''
+          if active:
+            <h4>
+              "Active"
+            <table.pure-table>
+              <thead>
+                <tr>
+                  <td> "Port"
+                  <td> "Total"
+                  <td> "Established"
+                  <td> "TimeWait"
+                  <td> "CloseWait"
+              <tbody>
+                for [port, info] of pairs(active) key port:
+                  <tr>
+                    <td>
+                      port
+                    <td>
+                      sum_values(info.stats.by_state)
+                    <td>
+                      info.stats.by_state.ESTABLISHED or ''
+                    <td>
+                      info.stats.by_state.TIME_WAIT or ''
+                    <td>
+                      info.stats.by_state.CLOSE_WAIT or ''
+    <h3>
+      `Processes [${ grp.processes.length }] `
+      <button.pure-button.small>
+        link {click} toggle(@showpro) -> @showpro
+        if @showpro:
+          "hide"
+        else:
+          "show"
+    <div.subsection>
+      if @showpro:
+        <ul>
+          for item of grp.processes key item.pid:
+            if item.cmdline and not item.is_supervisor:
+              <li>
+                <code>
+                  item.cmdline
+
+
+view groups(processes, sockets, showhidden):
+  <div>
+    for [uid, grp] of processes.entries() key uid:
+      if grp.kind == 'container' or grp.kind == 'unknown' or showhidden:
+        show_group(uid, grp, sockets)
+
+
+view passive(sockets, processes):
+  <div>
+    store @current_uid = value
+    <table.pure-table>
+      <thead>
+        <tr>
+          <td> "Port"
+          <td> "Groups"
+      <tbody>
+        for [port, uid] of sockets.ports key port + ':' + uid:
+          <tr>
+            <td>
+              port
+            <td>
+              uid
+              let grp = processes.get(uid)
+              if grp:
+                if grp.container:
+                  ` (${ grp.container })`
+                elif grp.commands:
+                  if grp.commands.length < 5:
+                    ` (${ grp.commands.join(', ') })`
+                else:
+                  ` (${ grp.kind })`
+                <button.pure-button.small>
+                  link {click} put(uid) -> @current_uid
+                  "▼"
+    if @current_uid != null:
+      let grp = processes.get(@current_uid)
+      if grp:
+        show_group(@current_uid, grp, sockets, true)
+
+
 view main():
   <div>
     store @sockets = stores.sockets | refresher | json('/all_sockets.json')
     store @processes = stores.processes | refresher
       | json('/all_processes.json')
-    store @showgroups = bool | disable()
+    store @mode = value | init('groups')
     <div.title.error?(@sockets.error)>
       <h1>
-        "Projects by Uid "
-        <button.pure-button.small>
-          link {click} toggle(@showgroups) -> @showgroups
-          if @showgroups:
-            "hide"
-          else:
+        if @mode == 'groups':
+          "Apps and Sockets By User"
+          <button.pure-button.small>
+            link {click} put('all_groups') -> @mode
             "show hidden"
+          <button.pure-button.small>
+            link {click} put('ports') -> @mode
+            "by port"
+        elif @mode == 'all_groups':
+          "Apps and Sockets By User"
+          <button.pure-button.small>
+            link {click} put('groups') -> @mode
+            "hide"
+          <button.pure-button.small>
+            link {click} put('ports') -> @mode
+            "by port"
+        elif @mode == 'ports':
+          "Users by Listening Port"
+          <button.pure-button.small>
+            link {click} put('groups') -> @mode
+            "show groups"
 
       if @sockets.error:
         <span.error>
@@ -43,97 +192,12 @@ view main():
         <span.latency
           title="Latency of getting statistics (the request roundtrip time)">
           `${@sockets.latency} ms`
-    if @processes == null or @sockets.data == null:
+    if @processes == null or @sockets.by_user == null:
       "Loading..."
     else:
-      for [uid, grp] of @processes.entries() key uid:
-        if grp.kind == 'container' or grp.kind == 'unknown' or @showgroups:
-          <h2.title>
-            uid
-            if grp.container:
-              `: ${ grp.container }`
-            elif grp.commands:
-              if grp.commands.length < 5:
-                `: ${ grp.commands.join(', ') }`
-          <div.group>
-            let uinfo = @sockets.data.by_user[uid]
-            let total = uinfo and uinfo.by_state
-            store @showpro = bool | disable()
-            store @showsock = bool | disable()
-            if total:
-              <h3>
-                `Sockets [${ total.LISTEN }/${ total.ESTABLISHED }] `
-                <button.pure-button.small>
-                  link {click} toggle(@showsock) -> @showsock
-                  if @showsock:
-                    "hide"
-                  else:
-                    "show"
-              <div.subsection>
-                if @showsock:
-                  let passive = @sockets.data.passive[uid]
-                  let active = @sockets.data.active[uid]
-                  if passive:
-                    <h4>
-                      "Passive"
-                    <table.pure-table>
-                      <thead>
-                        <tr>
-                          <td> "Port"
-                          <td> "Total"
-                          <td> "Established"
-                          <td> "TimeWait"
-                          <td> "CloseWait"
-                      <tbody>
-                        for [port, info] of pairs(passive) key port:
-                          <tr>
-                            <td>
-                              port
-                            <td>
-                              sum_values(info.stats.by_state)
-                            <td>
-                              info.stats.by_state.ESTABLISHED or ''
-                            <td>
-                              info.stats.by_state.TIME_WAIT or ''
-                            <td>
-                              info.stats.by_state.CLOSE_WAIT or ''
-                  if active:
-                    <h4>
-                      "Active"
-                    <table.pure-table>
-                      <thead>
-                        <tr>
-                          <td> "Port"
-                          <td> "Total"
-                          <td> "Established"
-                          <td> "TimeWait"
-                          <td> "CloseWait"
-                      <tbody>
-                        for [port, info] of pairs(active) key port:
-                          <tr>
-                            <td>
-                              port
-                            <td>
-                              sum_values(info.stats.by_state)
-                            <td>
-                              info.stats.by_state.ESTABLISHED or ''
-                            <td>
-                              info.stats.by_state.TIME_WAIT or ''
-                            <td>
-                              info.stats.by_state.CLOSE_WAIT or ''
-            <h3>
-              `Processes [${ grp.processes.length }] `
-              <button.pure-button.small>
-                link {click} toggle(@showpro) -> @showpro
-                if @showpro:
-                  "hide"
-                else:
-                  "show"
-            <div.subsection>
-              if @showpro:
-                <ul>
-                  for item of grp.processes key item.pid:
-                    if item.cmdline and not item.is_supervisor:
-                      <li>
-                        <code>
-                          item.cmdline
+      if @mode == 'groups':
+        groups(@processes, @sockets, false)
+      elif @mode == 'all_groups':
+        groups(@processes, @sockets, true)
+      elif @mode == 'ports':
+        passive(@sockets, @processes)
