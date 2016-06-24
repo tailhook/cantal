@@ -36,7 +36,7 @@ view show_group(uid, grp, sockets, show_processes):
     let uinfo = sockets.by_user[uid]
     let total = uinfo and uinfo.by_state
     store @showpro = bool | init(show_processes)
-    store @showsock = bool | disable()
+    store @showsock = bool | init(false)
     if total:
       <h3>
         `Sockets [${ total.LISTEN or 0 }/${ total.ESTABLISHED or 0 }] `
@@ -47,6 +47,7 @@ view show_group(uid, grp, sockets, show_processes):
           else:
             "show"
       <div.subsection>
+        store @details = value
         if @showsock:
           let passive = sockets.passive[uid]
           let active = sockets.active[uid]
@@ -62,6 +63,7 @@ view show_group(uid, grp, sockets, show_processes):
                   <td> "Established"
                   <td> "TimeWait"
                   <td> "CloseWait"
+                  <td>
               <tbody>
                 for [port, info] of pairs(passive) key port:
                   <tr>
@@ -78,6 +80,10 @@ view show_group(uid, grp, sockets, show_processes):
                       info.stats.by_state.TIME_WAIT or ''
                     <td>
                       info.stats.by_state.CLOSE_WAIT or ''
+                    <td>
+                      <button.pure-button.small>
+                        link {click} put(['passive', port]) -> @details
+                        "▼"
           if active:
             <h4>
               "Active"
@@ -89,6 +95,7 @@ view show_group(uid, grp, sockets, show_processes):
                   <td> "Established"
                   <td> "TimeWait"
                   <td> "CloseWait"
+                  <td>
               <tbody>
                 for [port, info] of pairs(active) key port:
                   <tr>
@@ -102,6 +109,81 @@ view show_group(uid, grp, sockets, show_processes):
                       info.stats.by_state.TIME_WAIT or ''
                     <td>
                       info.stats.by_state.CLOSE_WAIT or ''
+                    <td>
+                      <button.pure-button.small>
+                        link {click} put(['active', port]) -> @details
+                        "▼"
+          if @details:
+            let [kind, port] = @details
+            let portinfo = sockets[kind][uid][port]
+            <h4> `Details of ${ kind } ${ port }`
+            if kind == 'active':
+              <table.pure-table>
+                <thead>
+                  <tr>
+                    <td> "Local"
+                    <td> "Remote"
+                    <td> "State"
+                    <td> "Tx Q"
+                    <td> "Rx Q"
+                <tbody>
+                  for item of portinfo.connections key repr(item):
+                    <tr>
+                      <td>
+                        item.local_address
+                      <td>
+                        item.remote_address
+                      <td>
+                        item.state
+                      <td>
+                        item.tx_queue
+                      <td>
+                        item.rx_queue
+            elif kind == 'passive':
+              <h5> "Listening"
+              <table.pure-table>
+                <thead>
+                  <tr>
+                    <td> "Local"
+                    <td> "Remote"
+                    <td> "State"
+                    <td> "Tx Q"
+                    <td> "Rx Q"
+                <tbody>
+                  for item of portinfo.listeners key repr(item):
+                    <tr>
+                      <td>
+                        item.local_address
+                      <td>
+                        item.remote_address
+                      <td>
+                        item.state
+                      <td>
+                        item.tx_queue
+                      <td>
+                        item.rx_queue
+              <h5> "Clients"
+              <table.pure-table>
+                <thead>
+                  <tr>
+                    <td> "Local"
+                    <td> "Remote"
+                    <td> "State"
+                    <td> "Tx Q"
+                    <td> "Rx Q"
+                <tbody>
+                  for item of portinfo.clients key repr(item):
+                    <tr>
+                      <td>
+                        item.local_address
+                      <td>
+                        item.remote_address
+                      <td>
+                        item.state
+                      <td>
+                        item.tx_queue
+                      <td>
+                        item.rx_queue
     <h3>
       `Processes [${ grp.processes.length }] `
       <button.pure-button.small>
