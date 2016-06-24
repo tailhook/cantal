@@ -1,7 +1,10 @@
 use std::str::FromStr;
+use std::sync::Arc;
 use std::io::{Read, BufReader, BufRead};
 use std::str::from_utf8;
 use std::fs::{File, read_dir};
+use std::collections::HashMap;
+
 use libc;
 
 use cantal::itertools::{NextValue, NextStr};
@@ -34,6 +37,7 @@ pub struct MinimalProcess {
     pub cmdline: String,
     pub read_bytes: u64,
     pub write_bytes: u64,
+    pub cgroup: Option<Arc<String>>,
 }
 
 fn page_size() -> usize {
@@ -99,7 +103,7 @@ fn parse_status(pid: Pid) -> Result<(u32, u32), ()> {
     Ok((uid, gid))
 }
 
-fn read_process(cache: &mut ReadCache, pid: Pid)
+fn read_process(cache: &mut ReadCache, cgroup: Option<&Arc<String>>, pid: Pid)
     -> Result<MinimalProcess, ()>
 {
     let cmdline = {
@@ -158,10 +162,13 @@ fn read_process(cache: &mut ReadCache, pid: Pid)
         cmdline: cmdline,
         read_bytes: read_bytes,
         write_bytes: write_bytes,
+        cgroup: cgroup.map(|x| x.clone()),
     });
 }
 
-pub fn read(cache: &mut ReadCache) -> Vec<MinimalProcess> {
+pub fn read(cache: &mut ReadCache, cgroups: &HashMap<Pid, Arc<String>>)
+    -> Vec<MinimalProcess>
+{
     read_dir("/proc")
     .map_err(|e| error!("Error listing /proc: {}", e))
     .map(|lst| lst
@@ -169,7 +176,7 @@ pub fn read(cache: &mut ReadCache) -> Vec<MinimalProcess> {
         .filter_map(|x| x.path().file_name()
                          .and_then(|x| x.to_str())
                          .and_then(|x| FromStr::from_str(x).ok()))
-        .filter_map(|x| read_process(cache, x).ok())
+        .filter_map(|x| read_process(cache, cgroups.get(&x), x).ok())
         .collect())
     .unwrap_or(Vec::new())
 }

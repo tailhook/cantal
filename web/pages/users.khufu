@@ -24,8 +24,9 @@ style:
 view show_group(uid, grp, sockets, show_processes):
   <h2.title>
     uid
-    if grp.container:
-      `: ${ grp.container }`
+    if grp.cgroups:
+      if grp.cgroups.length < 5:
+        `: ${ grp.cgroups.join(', ') }`
     elif grp.commands:
       if grp.commands.length < 5:
         `: ${ grp.commands.join(', ') }`
@@ -143,8 +144,8 @@ view passive(sockets, processes):
               uid
               let grp = processes.get(uid)
               if grp:
-                if grp.container:
-                  ` (${ grp.container })`
+                if grp.cgroups:
+                  ` (${ grp.cgroups.join(', ') })`
                 elif grp.commands:
                   if grp.commands.length < 5:
                     ` (${ grp.commands.join(', ') })`

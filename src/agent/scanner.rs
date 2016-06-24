@@ -40,7 +40,7 @@ pub fn scan_loop(deps: Dependencies)
         let boot_time = machine::read(&mut tip);
 
         let cgroups = cgroups::read();
-        let processes = processes::read(&mut process_cache);
+        let processes = processes::read(&mut process_cache, &cgroups);
         let connections = connections::read();
         processes::write_tip(&mut tip, &processes, &cgroups);
         values::read(&mut tip, &mut values_cache, &processes, &cgroups);
