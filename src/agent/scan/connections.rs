@@ -158,7 +158,7 @@ fn parse_addr(val: &str) -> Option<SocketAddrV4> {
         Err(..) => return None,
     };
     let ip = match u32::from_str_radix(&val[..8], 16) {
-        Ok(x) => x,
+        Ok(x) => u32::from_be(x),
         Err(..) => return None,
     };
     Some(SocketAddrV4::new(Ipv4Addr::from(ip), port))
