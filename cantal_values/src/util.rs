@@ -38,7 +38,7 @@ pub fn path_stat(path: &Path) -> Result<Stat, IoError> {
     unsafe {
         stat = zeroed();
         if stat_path(CString::new(path.to_str().unwrap())
-                     .unwrap().as_bytes().as_ptr() as *const i8,
+                     .unwrap().as_bytes().as_ptr() as *const _,
                      &mut stat) != 0 {
             return Err(IoError::last_os_error());
         }
