@@ -22,8 +22,7 @@ use storage::{Storage, MetricBuffer};
 
 const SNAPSHOT_INTERVAL: u64 = 60000;
 
-
-pub fn scan_loop(deps: Dependencies)
+pub fn scan_loop(deps: Dependencies, interval: u32)
 {
     let stats: &RwLock<Stats> = &*deps.copy();
     let storage = deps.get::<Arc<Storage>>().map(|x| &*x);
@@ -99,6 +98,6 @@ pub fn scan_loop(deps: Dependencies)
             .map_err(|_| error!("Error sending ScanComplete msg"))
             .ok();
 
-        unsafe { usleep(((2000 - time_ms() as i64 % 2000)*1000) as u32) };
+        unsafe { usleep(((interval as i64 - time_ms() as i64 % interval as i64)*1000) as u32) };
     }
 }
