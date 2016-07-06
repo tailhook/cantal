@@ -15,7 +15,7 @@ export function peer_list(state={}, action) {
         case DATA:
             let list = [{
                 ... last_beacon,
-                id: 'myself',
+                id: last_beacon.id,
                 sortname: sortname(last_beacon),
             }]
             for(let peer of action.data.peers) {

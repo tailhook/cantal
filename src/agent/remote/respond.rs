@@ -83,8 +83,7 @@ pub fn serve_query_by_host(req: &Request, context: &mut Context)
             for (name, ref rule) in query.rules.iter() {
                 dict.insert(name.clone(), query_history(rule, &stats.history));
             }
-            // TODO(tailhook) find myself ip addr
-            resp.insert("myself".to_string(), dict);
+            resp.insert(stats.id_hex.to_string(), dict);
         }
 
         Ok(http::Response::probor(&resp))
