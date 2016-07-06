@@ -66,8 +66,21 @@ export function processes(state=null, action) {
                 } else if(kind == 'container') {
                     let lst = Object.keys(cgroups)
                     lst.sort()
+                    if(lst.length > 2) {
+                        let shortnames = {}
+                        for(let name of lst) {
+                            // Only pick up a major lithos group name,
+                            // if possible
+                            let idx = name.indexOf(':')
+                            if(idx >= 0) {
+                                shortnames[name.substr(0, idx)] = true
+                            } else {
+                                shortnames[name] = true
+                            }
+                        }
+                        lst = Object.keys(shortnames)
+                    }
                     group.cgroups = lst
-                    console.log("CGROUP", group.cgroups, k)
                 }
             }
             group.kind = kind
