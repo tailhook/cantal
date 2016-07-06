@@ -19,6 +19,12 @@ style:
     border-bottom: solid #cbcbcb 1px
   .subsection
     margin-left: 32px
+  .cmdline
+    margin: 2px
+  .process-info
+    font-size: x-small
+    color: gray
+    padding-left: 8px
 
 
 view show_group(uid, grp, sockets, show_processes):
@@ -198,8 +204,11 @@ view show_group(uid, grp, sockets, show_processes):
           for item of grp.processes key item.pid:
             if item.cmdline and not item.is_supervisor:
               <li>
-                <code>
+                <pre.cmdline>
                   item.cmdline
+                <div.process-info>
+                  `pid: ${ item.pid },
+                   mem: ${(item.rss / 1048576).toFixed(1)} MiB`
 
 
 view groups(processes, sockets, showhidden):
