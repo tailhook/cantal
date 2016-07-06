@@ -81,7 +81,7 @@ view _local_menu():
   <li.pure-menu-item.pure-menu-active?(@router.page == 'users')>
     <a.pure-menu-link href="/local/users">
       link {click} go(event) -> @router
-      "Users"
+      "Users / Network"
   <li.pure-menu-item.pure-menu-active?(@router.page == 'process_metrics')>
     <a.pure-menu-link href="/local/process_metrics">
       link {click} go(event) -> @router
