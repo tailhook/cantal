@@ -48,12 +48,6 @@ install-agent:
 	ln -sfn ../lib/cantal/cantal-agent $(DESTDIR)$(PREFIX)/bin/cantal-agent
 	cp -r public $(DESTDIR)$(PREFIX)/lib/cantal/
 
-install-systemd:
-	install -D ./systemd.service $(DESTDIR)$(PREFIX)/lib/systemd/system/cantal.service
 
-install-upstart:
-	install -D ./upstart.conf $(DESTDIR)/etc/init/cantal.conf
-
-
-.PHONY: all install test bin js js-release cli cli-release install-agent install-cli install-systemd install-upstart
+.PHONY: all install test bin js js-release cli cli-release install-agent install-cli
 .DELETE_ON_ERROR:

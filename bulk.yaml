@@ -35,24 +35,6 @@ repositories:
   keep-releases: 100
   match-version: \+trusty1$
 
-- kind: debian
-  suite: trusty
-  component: cantal-noinit
-  keep-releases: 1
-  match-version: ^\d+\.\d+\.\d+\+trusty1.noinit$
-
-- kind: debian
-  suite: trusty
-  component: cantal-noinit-stable
-  keep-releases: 1000
-  match-version: ^\d+\.\d+\.\d+\+trusty1.noinit$
-
-- kind: debian
-  suite: trusty
-  component: cantal-noinit-testing
-  keep-releases: 100
-  match-version: \+trusty1.noinit$
-
 # precise
 - kind: debian
   suite: precise
@@ -72,24 +54,6 @@ repositories:
   keep-releases: 100
   match-version: \+precise1$
 
-- kind: debian
-  suite: precise
-  component: cantal-noinit
-  keep-releases: 1
-  match-version: ^\d+\.\d+\.\d\+precise1.noinit$
-
-- kind: debian
-  suite: precise
-  component: cantal-noinit-stable
-  keep-releases: 1000
-  match-version: ^\d+\.\d+\.\d\+precise1.noinit$
-
-- kind: debian
-  suite: precise
-  component: cantal-noinit-testing
-  keep-releases: 100
-  match-version: \+precise1.noinit$
-
 # xenial
 - kind: debian
   suite: xenial
@@ -108,24 +72,6 @@ repositories:
   component: cantal-testing
   keep-releases: 100
   match-version: \+xenial1$
-
-- kind: debian
-  suite: xenial
-  component: cantal-noinit
-  keep-releases: 1
-  match-version: ^\d+\.\d+\.\d\+xenial1.noinit$
-
-- kind: debian
-  suite: xenial
-  component: cantal-noinit-stable
-  keep-releases: 1000
-  match-version: ^\d+\.\d+\.\d\+xenial1.noinit$
-
-- kind: debian
-  suite: xenial
-  component: cantal-noinit-testing
-  keep-releases: 100
-  match-version: \+xenial1.noinit$
 
 
 versions:
