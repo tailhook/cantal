@@ -7,6 +7,9 @@ use rustc_serialize::{Encoder, Encodable};
 
 const MAX_CONNECTION_DETAILS: usize = 1000;
 
+#[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]
+pub struct Addr(pub SocketAddrV4);
+
 
 #[derive(RustcEncodable, Debug)]
 pub struct Stats {
@@ -28,20 +31,23 @@ pub struct Active {
     pub connections: Option<Vec<Socket>>,
 }
 
-pub trait MyEncodable {
-    fn encode<S: Encoder>(&self, s: &mut S) -> Result<(), S::Error>;
+impl ::std::ops::Deref for Addr {
+    type Target = SocketAddrV4;
+    fn deref(&self) -> &SocketAddrV4 {
+        &self.0
+    }
 }
 
-impl MyEncodable for SocketAddrV4 {
+impl Encodable for Addr {
     fn encode<S: Encoder>(&self, s: &mut S) -> Result<(), S::Error> {
-        s.emit_str(&format!("{}", self))
+        s.emit_str(&format!("{}", self.0))
     }
 }
 
 #[derive(RustcEncodable, Debug, Clone)]
 pub struct Socket {
-    pub local_address: SocketAddrV4,
-    pub remote_address: SocketAddrV4,
+    pub local_address: Addr,
+    pub remote_address: Addr,
     pub state: State,
     pub tx_queue: usize,
     pub rx_queue: usize,
@@ -185,8 +191,8 @@ fn parse_line(line: &str) -> Socket {
         .and_then(|x| x.parse::<u32>().ok())
         .unwrap_or(0);
     return Socket {
-        local_address: local,
-        remote_address: remote,
+        local_address: Addr(local),
+        remote_address: Addr(remote),
         state: status.into(),
         tx_queue: tx,
         rx_queue: rx,
@@ -215,8 +221,8 @@ fn _read() -> io::Result<Connections> {
     // Sockets that are unknown to be active or passive
     // If we see a duplicate address at either side we know that the
     // addresss is use for active or passive socket for sure.
-    let mut local_unknown = HashMap::<SocketAddrV4, Socket>::new();
-    let mut remote_unknown = HashMap::<SocketAddrV4, Socket>::new();
+    let mut local_unknown = HashMap::<Addr, Socket>::new();
+    let mut remote_unknown = HashMap::<Addr, Socket>::new();
     loop {
         line.clear();
         try!(file.read_line(&mut line));

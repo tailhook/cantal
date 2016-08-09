@@ -44,6 +44,7 @@ use std::error::Error;
 use mio::Sender;
 use nix::unistd::getpid;
 use argparse::{ArgumentParser, Store, ParseOption, StoreOption, Parse, Print};
+use argparse::{StoreTrue};
 use rustc_serialize::hex::{ToHex, FromHex};
 use rustc_serialize::json::Json;
 
@@ -92,6 +93,7 @@ fn run() -> Result<(), Box<Error>> {
     let mut machine_id = None::<String>;
     let mut cluster_name = None::<String>;
     let mut scan_interval = None::<u32>;
+    let mut bind_localhost = false;
     let mut log_level = env::var("RUST_LOG").ok()
         .and_then(|x| FromStr::from_str(&x).ok());
     {
@@ -104,7 +106,15 @@ fn run() -> Result<(), Box<Error>> {
                 "Port for http interface");
         ap.refer(&mut host)
             .add_option(&["-h", "--host"], Store,
-                "Host for http interface (default 127.0.0.1)");
+                "Host for http interface (default 127.0.0.1).
+                 If you change this, it's also a good idea to add
+                 --bind-localhost");
+        ap.refer(&mut bind_localhost)
+            .add_option(&["--bind-localhost"], StoreTrue,
+                "Bind localhost together with specified host.
+                 This is useful if you want bind cantal to be directly
+                 accessible under intranet IP and also on localhost for local
+                 tools.");
         ap.refer(&mut name)
             .add_option(&["-n", "--node-name"], StoreOption, "
                 Node name to announce. It's used for descriptions and URLs all
@@ -174,7 +184,8 @@ fn run() -> Result<(), Box<Error>> {
 
     let p2p_init = try!(p2p::p2p_init(&mut deps, &host, port,
         machine_id, addresses, hostname, name, cluster_name.clone()));
-    let server_init = try!(server::server_init(&mut deps, &host, port));
+    let server_init = try!(
+        server::server_init(&mut deps, &host, port, bind_localhost));
 
     deps.insert(Arc::new(storage::Storage::new()));
 

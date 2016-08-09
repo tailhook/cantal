@@ -169,7 +169,7 @@ impl Client {
 }
 
 pub struct Handler {
-    input: mio::tcp::TcpListener,
+    input: Vec<mio::tcp::TcpListener>,
     clients: Slab<(mio::tcp::TcpStream, Option<Client>)>,
     websockets: Slab<WebSocket>,
     deps: Dependencies,
@@ -278,6 +278,17 @@ pub enum Message {
 }
 
 impl Handler {
+    fn input_accept(&mut self) -> io::Result<Option<(TcpStream, SocketAddr)>>
+    {
+        for sock in &self.input {
+            match sock.accept() {
+                Ok(None) => continue,
+                Ok(x) => return Ok(x),
+                Err(e) => return Err(e),
+            }
+        }
+        Ok(None)
+    }
     fn try_http(&mut self, tok: Token, ev: EventSet,
         eloop: &mut EventLoop<Handler>)
         -> bool
@@ -496,7 +507,7 @@ impl mio::Handler for Handler {
     {
         match tok {
             INPUT => {
-                let (sock, addr) = match self.input.accept() {
+                let (sock, addr) = match self.input_accept() {
                     Ok(Some(sock)) => sock,
                     Ok(None) => return,
                     Err(e) => {
@@ -607,22 +618,30 @@ impl mio::Handler for Handler {
 }
 
 pub struct Init {
-    input: mio::tcp::TcpListener,
+    input: Vec<mio::tcp::TcpListener>,
     eloop: EventLoop<Handler>,
 }
 
-pub fn server_init(deps: &mut Dependencies, host: &str, port: u16)
+pub fn server_init(deps: &mut Dependencies,
+    host: &str, port: u16, bind_localhost: bool)
     -> Result<Init, Error>
 {
-    let server = try!(mio::tcp::TcpListener::bind(&SocketAddr::V4(
-        SocketAddrV4::new(try!(host.parse()), port))));
+    let mut servers = vec![];
+    servers.push(try!(mio::tcp::TcpListener::bind(&SocketAddr::V4(
+        SocketAddrV4::new(try!(host.parse()), port)))));
+    if bind_localhost {
+        servers.push(try!(mio::tcp::TcpListener::bind(&SocketAddr::V4(
+            SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), port)))));
+    }
     let mut eloop = try!(EventLoop::new());
-    try!(eloop.register(&server, INPUT,
-        EventSet::readable(), PollOpt::level()));
+    for serv in &servers {
+        try!(eloop.register(serv, INPUT,
+            EventSet::readable(), PollOpt::level()));
+    }
     deps.insert(eloop.channel());
     deps.insert(Arc::new(Mutex::new(None::<remote::Peers>)));
     Ok(Init {
-        input: server,
+        input: servers,
         eloop: eloop,
     })
 }
