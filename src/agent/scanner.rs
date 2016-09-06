@@ -1,5 +1,6 @@
 use std::sync::{Arc, RwLock};
 use std::io::Write;
+use std::time::Duration;
 
 use mio;
 use libc::usleep;
@@ -22,7 +23,11 @@ use storage::{Storage, MetricBuffer};
 
 const SNAPSHOT_INTERVAL: u64 = 60000;
 
-pub fn scan_loop(deps: Dependencies, interval: u32)
+fn to_ms(dur: Duration) -> u64 {
+    return dur.as_secs() * 1000 + dur.subsec_nanos() as u64 / 1000_000;
+}
+
+pub fn scan_loop(deps: Dependencies, interval: u32, backlog_time: Duration)
 {
     let stats: &RwLock<Stats> = &*deps.copy();
     let storage = deps.get::<Arc<Storage>>().map(|x| &*x);
@@ -65,12 +70,20 @@ pub fn scan_loop(deps: Dependencies, interval: u32)
 
             if start - last_store > SNAPSHOT_INTERVAL {
                 last_store = start;
-                let hourly = start / 3_600_000;
                 let mut snapshot = None;
-                if hourly > last_hourly {
-                    stats.history.truncate_by_time(last_hourly*3_600_000);
-                    snapshot = Some(format!("hourly-{}", hourly));
-                    last_hourly = hourly;
+                if backlog_time > Duration::new(3600, 0) {
+                    let hourly = start / 3_600_000;
+                    if hourly > last_hourly {
+                        stats.history.truncate_by_time(
+                            start - to_ms(backlog_time));
+                        snapshot = Some(format!("hourly-{}", hourly));
+                        last_hourly = hourly;
+                    }
+                } else {
+                    // Never store hourly snapshot if backlog time less than
+                    // an hour
+                    stats.history.truncate_by_time(
+                        start - to_ms(backlog_time));
                 }
 
                 // Preallocate a buffer of same size as previous one, since

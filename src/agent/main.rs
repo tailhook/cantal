@@ -24,6 +24,7 @@ extern crate scan_dir;
 #[macro_use] extern crate rotor;
 extern crate rotor_carbon;
 extern crate rotor_tools;
+extern crate humantime;
 
 extern crate cantal_values as cantal;
 extern crate cantal_history as history;
@@ -92,8 +93,9 @@ fn run() -> Result<(), Box<Error>> {
     let mut config_dir = PathBuf::from("/etc/cantal");
     let mut machine_id = None::<String>;
     let mut cluster_name = None::<String>;
-    let mut scan_interval = None::<u32>;
+    let mut scan_interval = 2000;
     let mut bind_localhost = false;
+    let mut backlog_time = humantime::Duration::from_str("1 hour").unwrap();
     let mut log_level = env::var("RUST_LOG").ok()
         .and_then(|x| FromStr::from_str(&x).ok());
     {
@@ -123,8 +125,14 @@ fn run() -> Result<(), Box<Error>> {
                 domain name or some name that is visible behind proxy.
             ");
         ap.refer(&mut scan_interval)
-            .add_option(&["-i", "--interval"], StoreOption,
-            "Scan interval in milliseconds (default 2000 ms)");
+            .add_option(&["-i", "--interval"], Store,
+            "Scan interval in milliseconds (default 2000 ms).
+             Note this is only partially implemented.");
+        ap.refer(&mut backlog_time)
+            .add_option(&["--keep-history"], Store,
+            "Sets amount of history that is stored by cantal in-memory.
+             If this value is set to less that 1 hour we also disable hourly
+             snapshots (because it makes them useless)");
         ap.refer(&mut cluster_name)
             .add_option(&["-n", "--cluster-name"], StoreOption, "
                 A name of the cluster. If cantal receives ping packet with
@@ -246,7 +254,7 @@ fn run() -> Result<(), Box<Error>> {
 
     let mydeps = deps.clone();
     let _scan = thread::spawn(move || {
-        scanner::scan_loop(mydeps, scan_interval.unwrap_or(2000));
+        scanner::scan_loop(mydeps, scan_interval, *backlog_time);
     });
 
     let mydeps = deps.clone();
