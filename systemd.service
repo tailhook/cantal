@@ -5,6 +5,7 @@ Description=Cantal Monitoring Service
 Type=simple
 Environment="RUST_LOG=warn"
 ExecStart=/usr/bin/cantal-agent --host 127.0.0.1 --port 22682
+Restart=always
 
 [Install]
 WantedBy=multi-user.target
