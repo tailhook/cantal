@@ -33,7 +33,6 @@ extern crate cantal_query as query;
 use std::env;
 use std::thread;
 use std::io::BufReader;
-use std::io::Read;
 use std::fs::File;
 use std::net::SocketAddr;
 use std::str::FromStr;

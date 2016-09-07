@@ -1,7 +1,7 @@
 use std::mem::replace;
 use std::net::{SocketAddr, SocketAddrV4, Ipv4Addr};
 use std::ops::DerefMut;
-use std::sync::{Arc, RwLock, Mutex};
+use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
 
 use mio::{Token, Timeout, EventSet, Sender};

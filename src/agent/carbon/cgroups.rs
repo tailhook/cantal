@@ -1,9 +1,6 @@
 use std::collections::HashMap;
 
 use cantal::Value::{Integer};
-use history::Value;
-use history::Backlog;
-use history::CounterHistory;
 
 use stats::Stats;
 

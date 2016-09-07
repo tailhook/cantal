@@ -2,8 +2,6 @@ use std::str::FromStr;
 use std::fs::File;
 use std::path::Path;
 use std::io::{BufReader, Read, BufRead};
-use std::collections::HashMap;
-use std::collections::hash_map::Entry::{Vacant,Occupied};
 
 use cantal::itertools::{NextValue};
 use cantal::Value::{Counter, Integer};

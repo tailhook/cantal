@@ -3,7 +3,6 @@ use std::ptr::copy;
 use std::io::{Read, Write};
 use std::io::ErrorKind::{Interrupted, WouldBlock};
 use std::cmp::min;
-use std::sync::{Mutex, Condvar};
 use std::hash::{Hash};
 use std::collections::HashMap;
 

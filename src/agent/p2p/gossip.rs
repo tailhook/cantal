@@ -3,7 +3,6 @@ use std::net::{SocketAddr, SocketAddrV4};
 use std::mem::replace;
 use std::sync::Arc;
 use std::collections::HashMap;
-use std::os::unix::io::AsRawFd;
 
 use mio::Sender;
 use rand::{thread_rng, Rng, sample};

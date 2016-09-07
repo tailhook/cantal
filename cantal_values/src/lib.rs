@@ -15,7 +15,6 @@ use std::io::Error as IoError;
 use std::fs::File;
 use std::rc::Rc;
 use std::path::Path;
-use std::error::Error;
 use std::convert::From;
 use rustc_serialize::json;
 use rustc_serialize::json::{Json};

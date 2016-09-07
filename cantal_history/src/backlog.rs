@@ -379,7 +379,7 @@ mod serde {
     use std::collections::VecDeque;
     use probor::{Decodable, Decoder, DecodeError, Input};
     use probor::{Encodable, Encoder, EncodeError, Output};
-    use byteorder::{WriteBytesExt, BigEndian, ReadBytesExt};
+    use byteorder::{BigEndian, ReadBytesExt};
     use cbor::types::Type;
     use super::Inner;
     use super::super::deltabuf::{DeltaBuf, Int};

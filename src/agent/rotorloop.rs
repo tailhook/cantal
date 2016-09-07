@@ -2,11 +2,11 @@ use std::thread;
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
 
-use rotor::{Loop, Config, Machine};
+use rotor::{Loop, Config};
 use rotor::mio::tcp::TcpStream;
 use rotor_carbon::{Fsm as Carbon, connect_ip};
 use rotor_tools::timer::{IntervalFunc, interval_func};
-use rotor_tools::loop_ext::{LoopExt, LoopInstanceExt};
+use rotor_tools::loop_ext::{LoopInstanceExt};
 
 use configs::Configs;
 use stats::Stats;

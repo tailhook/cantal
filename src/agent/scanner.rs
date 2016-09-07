@@ -1,5 +1,4 @@
 use std::sync::{Arc, RwLock};
-use std::io::Write;
 use std::time::Duration;
 
 use mio;

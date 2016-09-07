@@ -2,7 +2,6 @@ use std::io;
 use std::sync::{Arc, Mutex};
 use std::mem::replace;
 use std::str::from_utf8;
-use std::io::{Read, Write};
 use std::net::{SocketAddr,Ipv4Addr, SocketAddrV4};
 use std::collections::{HashMap, HashSet};
 
@@ -26,7 +25,7 @@ use super::websock;
 use super::ioutil::Poll;
 use super::stats::Stats;
 use super::error::Error;
-use super::http::{NotFound, BadRequest, ServerError, MethodNotAllowed};
+use super::http::{BadRequest, ServerError, MethodNotAllowed};
 use super::http::Request;
 use super::util::WriteVec as W;
 use super::util::ReadVec as R;
@@ -367,7 +366,6 @@ impl Handler {
         eloop: &mut EventLoop<Handler>)
         -> bool
     {
-        use self::Interest::*;
         let mut context = Context {
             deps: &mut self.deps,
             eloop: eloop,

@@ -6,9 +6,8 @@ use std::io::Read;
 use std::env::current_exe;
 
 use hyper::status::StatusCode;
-use hyper::uri::RequestUri::{AbsolutePath};
 use super::http::{Error, BadRequest, NotFound, ServerError};
-use super::http::{Request, Response};
+use super::http::{Response};
 
 
 pub fn serve(uri: &str) -> Result<Response, Box<Error>>

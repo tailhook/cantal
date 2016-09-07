@@ -12,9 +12,8 @@ use cantal::{Metadata, Value, Descriptor};
 use rustc_serialize::json::Json;
 
 use super::Tip;
-use super::super::util::tree_collect;
 use history::Key;
-use super::processes::{Pid, MinimalProcess};
+use super::processes::{MinimalProcess};
 use scan::cgroups::CGroups;
 
 
@@ -68,7 +67,6 @@ fn get_env_vars(pid: u32) -> (Option<String>, Option<PathBuf>) {
             }
         }
     }
-    return (name, path);
 }
 
 fn relative_from(path: &Path, prefix: &Path) -> PathBuf {

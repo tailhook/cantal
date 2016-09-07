@@ -1,5 +1,4 @@
 use std::io;
-use std::io::{Write, Cursor};
 use std::net::{SocketAddr, SocketAddrV4};
 use std::sync::{Arc, RwLock};
 use std::default::Default;
@@ -8,7 +7,6 @@ use std::collections::{HashMap};
 use mio::{EventLoop, Token, Handler, EventSet, PollOpt};
 use mio::{udp};
 use cbor::{Decoder};
-use rustc_serialize::Decodable;
 use rand::{thread_rng};
 use rand::distributions::{IndependentSample, Range};
 
