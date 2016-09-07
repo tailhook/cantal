@@ -368,9 +368,9 @@ impl Backlog {
                     return None;
                 }
             }).collect();
-       while self.timestamps.len() > idx+1 {
-           self.timestamps.pop_back();
-       }
+        while self.timestamps.len() > idx+1 {
+            self.timestamps.pop_back();
+        }
     }
 }
 
