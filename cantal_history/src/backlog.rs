@@ -291,17 +291,17 @@ impl<T: Float> Inner<T, VecDeque<T>> {
 }
 
 impl<T:Float+Sized> ValueBuf<T> for VecDeque<T> {
-    fn push(&mut self, _old: T, new: T, age_diff: u64) {
+    fn push(&mut self, old: T, _new: T, age_diff: u64) {
+        self.push_front(old);
         if age_diff > 1 {
             for _ in 1..age_diff {
                 self.push_front(T::nan());
             }
         }
-        self.push_front(new);
     }
     fn truncate(&mut self, limit: usize) {
         // TODO(tailhook) use truncate
-        while self.len() > limit {
+        while self.len() > limit-1 {  // account self.tip as a value too
             self.pop_back();
         }
     }
@@ -368,7 +368,7 @@ impl Backlog {
                     return None;
                 }
             }).collect();
-        while self.timestamps.len() > idx+1 {
+        while self.timestamps.len() > idx {
             self.timestamps.pop_back();
         }
     }
@@ -518,6 +518,95 @@ mod test {
         ].into_iter());
         assert_eq!(backlog.age, 2);
         assert_eq!(backlog.values.len(), 3);
+    }
+
+    #[test]
+    fn test_truncate() {
+        use Value::Counter as Cnt;
+        let mut backlog = Backlog::new();
+        backlog.push((1000, 10), vec![
+            (&Key::metric("test1"), &Counter(10)),
+            (&Key::metric("test2"), &Counter(20)),
+        ].into_iter());
+        backlog.push((2000, 10), vec![
+            (&Key::metric("test2"), &Counter(20)),
+            (&Key::metric("test3"), &Counter(30)),
+        ].into_iter());
+        backlog.push((3000, 10), vec![
+            (&Key::metric("test2"), &Counter(40)),
+            (&Key::metric("test3"), &Counter(50)),
+        ].into_iter());
+        backlog.truncate_by_num(2);
+        assert_eq!(backlog.age, 3);
+        assert_eq!(backlog.values.len(), 2);
+        assert_eq!(backlog.timestamps.len(), 2);
+        for (key, val) in backlog.values {
+            if let Cnt(log) = val {
+                if key.get_with("metric", |val| val == "test2")
+                    .unwrap_or(false)
+                {
+                    assert_eq!(log.history(backlog.age).collect::<Vec<_>>(),
+                        vec![Some(40), Some(20)]);
+                } else {
+                    assert_eq!(log.history(backlog.age).collect::<Vec<_>>(),
+                        vec![Some(50), Some(30)]);
+                }
+            } else {
+                panic!("not a counter")
+            };
+        }
+    }
+
+    #[test]
+    fn test_truncate_counter() {
+        use Value as V;
+        use values::Value as T;
+        let mut val = V::new(&T::Counter(10), 1);
+        val.push(&T::Counter(20), 2);
+        val.push(&T::Counter(30), 3);
+        val.truncate(1);
+        if let V::Counter(log) = val {
+            assert_eq!(log.history(3).collect::<Vec<_>>(),
+                vec![Some(30), Some(20)]);
+        } else {
+            panic!("not a counter")
+        };
+    }
+
+    #[test]
+    fn test_truncate_integer() {
+        use Value as V;
+        use values::Value as T;
+        let mut val = V::new(&T::Integer(10), 1);
+        val.push(&T::Integer(20), 2);
+        val.push(&T::Integer(30), 3);
+        val.truncate(1);
+        if let V::Integer(log) = val {
+            assert_eq!(log.history(3).collect::<Vec<_>>(),
+                vec![Some(30), Some(20)]);
+        } else {
+            panic!("not an integer")
+        };
+    }
+
+    #[test]
+    fn test_truncate_float() {
+        use Value as V;
+        use values::Value as T;
+        let mut val = V::new(&T::Float(10.0), 1);
+        val.push(&T::Float(20.0), 2);
+        val.push(&T::Float(30.0), 3);
+        if let V::Float(ref log) = val {
+            assert_eq!(log.history(3).collect::<Vec<_>>(),
+                vec![Some(30.0), Some(20.0), Some(10.0)]);
+        }
+        val.truncate(1);
+        if let V::Float(log) = val {
+            assert_eq!(log.history(3).collect::<Vec<_>>(),
+                vec![Some(30.0), Some(20.0)]);
+        } else {
+            panic!("not an integer")
+        };
     }
 
     fn roundtrip<T:Encodable+Decodable>(v: &T) -> T {
