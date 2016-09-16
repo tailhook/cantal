@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use regex::Regex;
 use cantal::Value::{Integer};
 
 use stats::Stats;
@@ -7,6 +8,21 @@ use stats::Stats;
 use super::config::Config;
 use super::Sender;
 use super::util::{graphite_data, get_counter_diff};
+
+
+lazy_static! {
+    /// A cgroup name created by lithos_cmd looks like:
+    ///
+    ///  lithos.role-name:cmd.task-name.31012
+    ///
+    /// Since carbon doesn't like too many metrics we need to cut the last
+    /// part of the group name, which is a process pid (i.e. basically a
+    /// new value each time)
+    static ref LITHOS_CMD: Regex = Regex::new(
+        r#"^(lithos\.[^:]+:cmd\.[^\.]+)\.\d+$"#)
+        .expect("LITHOST_CMD regex compiles");
+}
+
 
 #[derive(Debug)]
 struct CGroup {
@@ -38,6 +54,12 @@ pub fn scan(sender: &mut Sender, cfg: &Config, stats: &Stats)
     let unixtime = timestamp / 1000;
     for (key, value) in backlog.values.iter() {
         key.get_with("cgroup", |cgroup| {
+            // simplify lithos_cmd's groups (see description of LITHOS_CMD)
+            let captures = LITHOS_CMD.captures(cgroup);
+            let cgroup = match captures {
+                Some(ref capt) => capt.at(1).unwrap(),
+                None => cgroup,
+            };
             key.get_with("metric", |metric| {
                 let grp = cgroups.entry(cgroup.to_owned())
                     .or_insert_with(CGroup::new);

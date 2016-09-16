@@ -12,6 +12,7 @@ extern crate num;
 #[macro_use] extern crate mime;
 #[macro_use] extern crate matches;
 #[macro_use] extern crate probor;
+#[macro_use] extern crate lazy_static;
 extern crate httparse;
 extern crate unicase;
 extern crate hyper;
