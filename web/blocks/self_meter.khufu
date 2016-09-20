@@ -6,9 +6,9 @@ import {entries} from '../util/object'
 style:
   .row
     display: flex
-    min-width: 160px
+    min-width: 36ex
   .key
-    min-width: 90px
+    min-width: 20ex
   .value
     align-self: flex-end
 
