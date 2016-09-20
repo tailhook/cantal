@@ -26,6 +26,7 @@ extern crate scan_dir;
 extern crate rotor_carbon;
 extern crate rotor_tools;
 extern crate humantime;
+extern crate self_meter;
 
 extern crate cantal_values as cantal;
 extern crate cantal_history as history;
@@ -38,7 +39,8 @@ use std::fs::File;
 use std::net::SocketAddr;
 use std::str::FromStr;
 use std::path::PathBuf;
-use std::sync::{RwLock,Arc};
+use std::time::Duration;
+use std::sync::{RwLock, Arc, Mutex};
 use std::process::exit;
 use std::error::Error;
 
@@ -174,6 +176,11 @@ fn run() -> Result<(), Box<Error>> {
         panic!("Failed to initialize global logger: {}", e);
     }
 
+    let meter = Arc::new(Mutex::new(
+        self_meter::Meter::new(Duration::new(1, 0))
+        .expect("meter created")));
+    meter.lock().unwrap().track_current_thread("main");
+
     let configs = configs::read(&config_dir);
 
     let hostname = info::hostname().unwrap();
@@ -189,6 +196,7 @@ fn run() -> Result<(), Box<Error>> {
         addresses.iter().map(|x| x.to_string()).collect())));
     let mut deps = Dependencies::new();
     deps.insert(stats.clone());
+    deps.insert(meter.clone());
 
     let p2p_init = try!(p2p::p2p_init(&mut deps, &host, port,
         machine_id, addresses, hostname, name, cluster_name.clone()));
@@ -227,7 +235,9 @@ fn run() -> Result<(), Box<Error>> {
             mydeps.write::<stats::Stats>().history = history;
         }
         let path = path.clone();
+        let mymeter = meter.clone();
         thread::spawn(move || {
+            mymeter.lock().unwrap().track_current_thread("storage");
             storage::storage_loop(mydeps, &path);
         })
 
@@ -253,18 +263,22 @@ fn run() -> Result<(), Box<Error>> {
     }
 
     let mydeps = deps.clone();
+    let mymeter = meter.clone();
     let _scan = thread::spawn(move || {
+        mymeter.lock().unwrap().track_current_thread("scan");
         scanner::scan_loop(mydeps, scan_interval, *backlog_time);
     });
 
     let mydeps = deps.clone();
+    let mymeter = meter.clone();
     let _p2p = thread::spawn(move || {
+        mymeter.lock().unwrap().track_current_thread("gossip");
         p2p::p2p_loop(p2p_init, mydeps)
             .map_err(|e| error!("Error in p2p loop: {}", e))
             .ok();
     });
 
-    rotorloop::start(&configs, stats);
+    rotorloop::start(&configs, stats, meter);
 
     try!(server::server_loop(server_init, deps));
 

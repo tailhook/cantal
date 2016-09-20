@@ -14,7 +14,7 @@ rustc-serialize = "0.3"
 log = "0.3"
 libc = "0.2"
 probor = "0.2.0"
-quick-error = "1.0.0"
+quick-error = "1.1.0"
 argparse = "0.2.1"
 
 [[bin]]

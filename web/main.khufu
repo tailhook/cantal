@@ -2,12 +2,15 @@ import {last_beacon as beacon, remote_enabled} from './websock'
 import {@router, toggle_remote, go} from './util/routing'
 import {format_uptime, format_diff, till_now_ms, from_ms} from './util/time'
 import {memory, cpu, self_cpu, self_mem} from './stores/status'
+import {value, bool, toggle, init} from './stores/simple'
+import {refresher, json} from './middleware/request'
 import {query} from './middleware/local-query.js'
 import {fine_grained} from './query/lang.js'
 import {donut} from './charts/donut.khufu'
 import {sparkline} from './charts/sparkline.khufu'
 import {already_percent_formatter, bytes_formatter} from './util/format'
 import {CPU_YAXIS} from './settings/cpugraph'
+import * as self_meter from './blocks/self_meter.khufu'
 
 import {main as enable_remote} from './pages/enable_remote.khufu'
 import {main as status} from './pages/status.khufu'
@@ -57,6 +60,10 @@ style:
     -webkit-border-radius: 3px
     -moz-border-radius: 3px
     border-radius: 3px
+
+  .meter-btn
+    font-size: xx-small
+    margin-left: 8px
 
 
 view _local_menu():
@@ -153,25 +160,18 @@ view self_status(beacon):
         title="Time it takes for cantal to read all stats once">
       `${beacon.scan_duration}ms`
     " "
-    if beacon:
-      <span>
-        store @self_mem = self_mem
-          | query(fine_grained()
-            .matching('pid', '^' + beacon.pid + '$')
-            .matching('metric', '^rss$')
-            .tip())
-        if @self_mem:
-          <span.pointer title="Memory used by cantal itself">
-            bytes_formatter()(@self_mem)
-          "/"
-        store @self_cpu = self_cpu
-          | query(fine_grained()
-            .matching('pid', '^' + beacon.pid + '$')
-            .matching('metric', '_time$')
-            .diff(1).sum())
-        if @self_cpu != null:
-          <span.pointer title="CPU usage of cantal itself">
-            already_percent_formatter()(@self_cpu)
+    store @status = value | refresher | json('/status.json')
+    store @expand = bool | init(false)
+    if @status:
+      self_meter.small(@status.self_report, @status.threads_report)
+      <button.pure-button.meter-btn>
+        link {click} toggle(@expand) -> @expand
+        if @expand:
+          "▲"
+        else:
+          "▼"
+    if @expand and @status:
+      self_meter.big(@status.self_report, @status.threads_report)
 
 
 view main(version):

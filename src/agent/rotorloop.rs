@@ -1,8 +1,9 @@
 use std::thread;
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 use std::time::Duration;
 
 use rotor::{Loop, Config};
+use self_meter::Meter;
 use rotor::mio::tcp::TcpStream;
 use rotor_carbon::{Fsm as Carbon, connect_ip};
 use rotor_tools::timer::{IntervalFunc, interval_func};
@@ -19,15 +20,26 @@ pub struct Context {
 rotor_compose!(enum Fsm/Seed<Context> {
     Carbon(Carbon<Context, TcpStream>),
     CarbonTimer(IntervalFunc<Context>),
+    SelfScanTimer(IntervalFunc<Context>),
 });
 
 
 // All new async things should be in rotor main loop
-pub fn start(configs: &Configs, stats: Arc<RwLock<Stats>>) {
+pub fn start(configs: &Configs, stats: Arc<RwLock<Stats>>,
+    meter: Arc<Mutex<Meter>>)
+{
     let loop_creator = Loop::new(&Config::new()).unwrap();
+    let meter2 = meter.clone();
     let mut loop_inst = loop_creator.instantiate(Context {
         stats: stats,
     });
+    loop_inst.add_machine_with(|scope| {
+        interval_func(scope,
+            Duration::new(1, 0), move |_| {
+                meter2.lock().unwrap()
+                .scan().map_err(|e| error!("Self-scan error: {}", e)).ok();
+            }).wrap(Fsm::SelfScanTimer)
+    }).unwrap();
 
     for cfg in &configs.carbon {
         let sink = loop_inst.add_and_fetch(Fsm::Carbon, |scope| {
@@ -50,6 +62,7 @@ pub fn start(configs: &Configs, stats: Arc<RwLock<Stats>>) {
         }).unwrap();
     }
     thread::spawn(move || {
+        meter.lock().unwrap().track_current_thread("rotor");
         loop_inst.run().unwrap();
     });
 }

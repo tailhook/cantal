@@ -4,9 +4,10 @@ use std::collections::HashMap;
 use rustc_serialize::json;
 use rustc_serialize::json::ToJson;
 use rustc_serialize::hex::ToHex;
+use self_meter;
+use probor;
 
 use query::{Rule, query_history, Dataset};
-use probor;
 use history::TimeStamp;
 use super::http;
 use super::scan;
@@ -19,15 +20,6 @@ use super::remote::{Peers};
 use super::deps::LockedDeps;
 use super::websock::Beacon;
 
-
-#[derive(RustcEncodable)]
-struct StatusData {
-    pub startup_time: u64,
-    pub scan_duration: u32,
-    pub storage: StorageStats,
-    pub boot_time: Option<u64>,
-}
-
 #[derive(RustcEncodable)]
 struct ProcessesData<'a> {
     boot_time: Option<u64>,
@@ -37,12 +29,30 @@ struct ProcessesData<'a> {
 pub fn serve_status(_req: &Request, context: &mut Context)
     -> Result<http::Response, Box<http::Error>>
 {
+    #[derive(RustcEncodable)]
+    struct StatusData {
+        startup_time: u64,
+        scan_duration: u32,
+        storage: StorageStats,
+        boot_time: Option<u64>,
+        self_report: Option<self_meter::Report>,
+        threads_report: HashMap<String, self_meter::ThreadReport>,
+    }
+    let (me, thr) = {
+        let meter = context.deps.lock::<self_meter::Meter>();
+        (meter.report(),
+         meter.thread_report()
+            .map(|x| x.map(|(k, v)| (k.to_string(), v)).collect())
+            .unwrap_or(HashMap::new()))
+    };
     let stats: &Stats = &*context.deps.read();
     Ok(http::Response::json(&StatusData {
             startup_time: stats.startup_time,
             scan_duration: stats.scan_duration,
             storage: stats.storage,
             boot_time: stats.boot_time,
+            self_report: me,
+            threads_report: thr,
         }))
 }
 

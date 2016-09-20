@@ -1,3 +1,6 @@
+import { DATA } from '../middleware/request'
+
+
 export function bool(state=undefined, action) {
     switch(action.type) {
         case 'init':
@@ -21,6 +24,7 @@ export function value(state=undefined, action) {
                 return state;
             }
         case 'put': return action.value;
+        case DATA: return action.data;
         default: return state;
     }
 }
