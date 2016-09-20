@@ -102,9 +102,10 @@ export var refresher = store => next => {
     }
 }
 
-export var json = url => ({
+export var json = (url, interval=5000) => ({
     type: UPDATE_REQUEST,
     url: url,
+    delay: interval,
     response_type: 'json',
     decoder: x => x,
 })

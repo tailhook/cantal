@@ -160,7 +160,7 @@ view self_status(beacon):
         title="Time it takes for cantal to read all stats once">
       `${beacon.scan_duration}ms`
     " "
-    store @status = value | refresher | json('/status.json')
+    store @status = value | refresher | json('/status.json', 1000)
     store @expand = bool | init(false)
     if @status:
       self_meter.small(@status.self_report, @status.threads_report)
