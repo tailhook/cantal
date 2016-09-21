@@ -95,6 +95,9 @@ pub fn serve_mem_info(_req: &Request, context: &mut Context)
 {
     let mut info: BTreeMap<_, _> = {
         let peerguard = context.deps.lock::<Option<Peers>>();
+        if peerguard.is_none() {
+            return Ok(http::Response::json(&Json::Null))
+        }
         let peers = peerguard.as_ref().unwrap();
         let mut peer_info = BTreeMap::new();
         for i in SLAB_START..SLAB_START+MAX_OUTPUT_CONNECTIONS {
