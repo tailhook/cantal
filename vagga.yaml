@@ -88,6 +88,22 @@ commands:
       - --host=0.0.0.0
       - --config-dir=/work/example-configs
 
+  run-with-process-flood: !Command
+    prerequisites: [make]
+    description: Runs cantal and lots of processes
+    container: trusty
+    environ:
+      RUST_LOG: debug
+    run: |
+      ./cantal-agent --host=0.0.0.0 --config-dir=/work/example-configs &
+      while true; do
+        for i in $(seq 0 500); do
+          sleep 4 &
+        done
+        sleep 2
+      done
+
+
   live: !Supervise
     description: Run cantal in container with live reload of frontend
     prerequisites: [make]
