@@ -30,7 +30,7 @@ dependencies = [
  "rotor-tools 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "rustc-serialize 0.3.19 (registry+https://github.com/rust-lang/crates.io-index)",
  "scan_dir 0.3.3 (registry+https://github.com/rust-lang/crates.io-index)",
- "self-meter 0.1.0 (git+http://github.com/tailhook/self-meter?rev=f06ce97)",
+ "self-meter 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "time 0.1.35 (registry+https://github.com/rust-lang/crates.io-index)",
  "unicase 1.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "websocket 0.14.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -596,7 +596,7 @@ dependencies = [
 [[package]]
 name = "self-meter"
 version = "0.1.0"
-source = "git+http://github.com/tailhook/self-meter?rev=f06ce97#f06ce978ba002e03228a5e48e6a1b9df1ba62527"
+source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "libc 0.2.16 (registry+https://github.com/rust-lang/crates.io-index)",
  "quick-error 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
