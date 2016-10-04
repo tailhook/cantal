@@ -41,7 +41,8 @@ pub struct Beacon {
     pub scan_time: u64 => (),
     pub scan_duration: u32 => (),
     pub processes: usize => (),
-    pub values: usize => (),
+    pub tip_values: usize => (),
+    pub fine_values: usize => (),
     pub peers: usize => (),
     pub fine_history_length: usize => (),
     pub history_age: u64 => (),
@@ -257,7 +258,8 @@ pub fn beacon(deps: &Dependencies) -> Vec<u8> {
          scan_time,
          scan_duration,
          processes,
-         values,
+         tip_values,
+         fine_values,
          fine_history_length,
          history_age) = {
             let st = deps.read::<Stats>();
@@ -272,7 +274,8 @@ pub fn beacon(deps: &Dependencies) -> Vec<u8> {
                 st.last_scan,
                 st.scan_duration,
                 st.processes.len(),
-                st.history.tip.values.len() + st.history.fine.values.len(),
+                st.history.tip.values.len(),
+                st.history.fine.values.len(),
                 st.history.fine.timestamps.len(),
                 st.history.fine.age)
     };
@@ -300,7 +303,8 @@ pub fn beacon(deps: &Dependencies) -> Vec<u8> {
         scan_time: scan_time,
         scan_duration: scan_duration,
         processes: processes,
-        values: values,
+        tip_values: tip_values,
+        fine_values: fine_values,
         fine_history_length: fine_history_length,
         history_age: history_age,
         peers: gossip_peers,

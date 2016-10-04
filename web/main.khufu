@@ -98,7 +98,7 @@ view _local_menu():
       link {click} go(event) -> @router
       "Metrics"
       if beacon:
-        ` [${ beacon.values }]`
+        ` [${ beacon.tip_values } + ${ beacon.fine_values }]`
   <li.pure-menu-item.pure-menu-active?(@router.page == 'peers')>
     <a.pure-menu-link href="/local/peers">
       link {click} go(event) -> @router
