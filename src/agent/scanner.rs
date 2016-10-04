@@ -1,3 +1,4 @@
+use std::cmp::min;
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
 
@@ -69,11 +70,16 @@ pub fn scan_loop(deps: Dependencies, interval: u32, backlog_time: Duration)
 
             if start - last_store > SNAPSHOT_INTERVAL {
                 last_store = start;
+
+                // Don't store tip values older than a minute
+                stats.history.tip.truncate_by_time(
+                    start - min(to_ms(backlog_time), 60000));
+
                 let mut snapshot = None;
                 if backlog_time > Duration::new(3600, 0) {
                     let hourly = start / 3_600_000;
                     if hourly > last_hourly {
-                        stats.history.truncate_by_time(
+                        stats.history.fine.truncate_by_time(
                             start - to_ms(backlog_time));
                         snapshot = Some(format!("hourly-{}", hourly));
                         last_hourly = hourly;
@@ -81,7 +87,7 @@ pub fn scan_loop(deps: Dependencies, interval: u32, backlog_time: Duration)
                 } else {
                     // Never store hourly snapshot if backlog time less than
                     // an hour
-                    stats.history.truncate_by_time(
+                    stats.history.fine.truncate_by_time(
                         start - to_ms(backlog_time));
                 }
 
