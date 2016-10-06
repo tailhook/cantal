@@ -79,7 +79,7 @@ pub fn scan_loop(deps: Dependencies, interval: u32, backlog_time: Duration)
                 if backlog_time > Duration::new(3600, 0) {
                     let hourly = start / 3_600_000;
                     if hourly > last_hourly {
-                        stats.history.fine.truncate_by_time(
+                        stats.history.fine.smart_truncate(
                             start - to_ms(backlog_time));
                         snapshot = Some(format!("hourly-{}", hourly));
                         last_hourly = hourly;
@@ -87,7 +87,7 @@ pub fn scan_loop(deps: Dependencies, interval: u32, backlog_time: Duration)
                 } else {
                     // Never store hourly snapshot if backlog time less than
                     // an hour
-                    stats.history.fine.truncate_by_time(
+                    stats.history.fine.smart_truncate(
                         start - to_ms(backlog_time));
                 }
 
