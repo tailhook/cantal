@@ -37,6 +37,12 @@ view big(report, threads_report):
     <span.key> "CPU (w. children)"
     <span.value> `${percent(report.gross_cpu_usage)}`
   <div.row>
+    <span.key> "Uptime"
+    <span.value> `${format_uptime(till_now_ms(from_ms(report.start_time_ms)))}`
+  <div.row>
+    <span.key> "System Uptime"
+    <span.value> `${format_uptime(report.system_uptime_ms)}`
+  <div.row>
     <span.key> "RSS (Peak)"
     <span.value> `${mem(report.memory_rss)} / ${mem(report.memory_rss_peak)}`
   <div.row>

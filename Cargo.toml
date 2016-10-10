@@ -36,7 +36,7 @@ rotor-tools = "0.3.2"
 scan_dir = "0.3.3"
 humantime = "1.0.0"
 lazy_static = "0.2.1"
-self-meter = "0.1.0"
+self-meter = "0.3.0"
 
 [dependencies.probor]
 version = "0.2.0"
