@@ -3,7 +3,7 @@ use std::path::Path;
 use std::io::Error as IoError;
 use std::mem::zeroed;
 use std::os::unix::io::AsRawFd;
-use libc::{stat, dev_t, off_t, time_t, c_long, ino_t};
+use libc::{dev_t, off_t, time_t, c_long, ino_t};
 use libc::{stat as stat_path};
 use libc::{fstat};
 
