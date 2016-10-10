@@ -119,12 +119,12 @@ impl Value {
         }
         return false;
     }
-    fn truncate(&mut self, age: u64, truncate_if_older: u64) -> bool {
+    fn truncate(&mut self, age: u64) -> bool {
         use self::Value as V;
         match self {
-            &mut V::Counter(ref mut b) => b.truncate(age, truncate_if_older),
-            &mut V::Integer(ref mut b) => b.truncate(age, truncate_if_older),
-            &mut V::Float(ref mut b) => b.truncate(age, truncate_if_older),
+            &mut V::Counter(ref mut b) => b.truncate(age),
+            &mut V::Integer(ref mut b) => b.truncate(age),
+            &mut V::Float(ref mut b) => b.truncate(age),
         }
     }
     pub fn age(&self) -> u64 {
@@ -186,10 +186,7 @@ impl<T: Copy, U:ValueBuf<T>> Inner<T, U> {
         self.age = age;
         return true;
     }
-    fn truncate(&mut self, trim_age: u64, skip_if_older: u64) -> bool {
-        if self.buf.size() == 0 {
-            return self.age >= skip_if_older;
-        }
+    fn truncate(&mut self, trim_age: u64) -> bool {
         if self.age <= trim_age {
             return false;
         }
@@ -354,31 +351,18 @@ impl Backlog {
             }
         }
     }
-    /// Same as truncate by time but also clears outdated values without
-    /// any history
-    ///
-    /// This is current approach to fix #8
-    pub fn smart_truncate(&mut self, timestamp: u64) {
-        let idx = self.timestamps.iter().enumerate()
-            .find(|&(_idx, &(ts, _dur))| ts < timestamp)
-            .map(|(idx, _)| idx)
-            .unwrap_or(self.age as usize);
-        self.truncate_by_num(idx, true);
-    }
     pub fn truncate_by_time(&mut self, timestamp: u64) {
         if let Some((idx, _)) = self.timestamps.iter().enumerate()
             .find(|&(_idx, &(ts, _dur))| ts < timestamp)
         {
-            self.truncate_by_num(idx, false);
+            self.truncate_by_num(idx);
         }
     }
-    fn truncate_by_num(&mut self, idx: usize, truncate_short: bool) {
+    pub fn truncate_by_num(&mut self, idx: usize) {
         let target_age = self.age.saturating_sub(idx as u64);
         self.values = replace(&mut self.values, HashMap::new()).into_iter()
             .filter_map(|(key, mut val)| {
-                if val.truncate(target_age,
-                    (if truncate_short { self.age-1 } else { target_age }))
-                {
+                if val.truncate(target_age) {
                     return Some((key, val));
                 } else {
                     return None;
