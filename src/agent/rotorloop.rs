@@ -24,22 +24,15 @@ rotor_compose!(enum Fsm/Seed<Context> {
 });
 
 
-// All new async things should be in rotor main loop
-pub fn start(configs: &Configs, stats: Arc<RwLock<Stats>>,
-    meter: Arc<Mutex<Meter>>)
+// All new async things should be in tokio main loop (not here)
+pub fn start(configs: &Configs, stats: &Arc<RwLock<Stats>>,
+    meter: &Arc<Mutex<Meter>>)
 {
     let loop_creator = Loop::new(&Config::new()).unwrap();
-    let meter2 = meter.clone();
+    let meter = meter.clone();
     let mut loop_inst = loop_creator.instantiate(Context {
-        stats: stats,
+        stats: stats.clone(),
     });
-    loop_inst.add_machine_with(|scope| {
-        interval_func(scope,
-            Duration::new(1, 0), move |_| {
-                meter2.lock().unwrap()
-                .scan().map_err(|e| error!("Self-scan error: {}", e)).ok();
-            }).wrap(Fsm::SelfScanTimer)
-    }).unwrap();
 
     for cfg in &configs.carbon {
         let sink = loop_inst.add_and_fetch(Fsm::Carbon, |scope| {

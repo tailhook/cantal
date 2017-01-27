@@ -27,6 +27,9 @@ extern crate rotor_carbon;
 extern crate rotor_tools;
 extern crate humantime;
 extern crate self_meter;
+extern crate futures;
+extern crate tokio_core;
+extern crate tk_easyloop;
 
 extern crate cantal_values as cantal;
 extern crate cantal_history as history;
@@ -74,6 +77,7 @@ mod info;
 mod rotorloop;
 mod carbon;
 mod configs;
+mod tokioloop;
 
 
 fn main() {
@@ -278,7 +282,9 @@ fn run() -> Result<(), Box<Error>> {
             .ok();
     });
 
-    rotorloop::start(&configs, stats, meter);
+    tokioloop::start(&configs, &stats, &meter);
+
+    rotorloop::start(&configs, &stats, &meter);
 
     try!(server::server_loop(server_init, deps));
 
