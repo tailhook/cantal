@@ -295,7 +295,7 @@ containers:
     - !Ubuntu precise
     - &pkgs !Install [git, make, ca-certificates, gcc, libssl-dev, lsb-release]
     - &rust !TarInstall
-      url: "https://static.rust-lang.org/dist/rust-1.12.0-x86_64-unknown-linux-gnu.tar.gz"
+      url: "https://static.rust-lang.org/dist/rust-1.14.0-x86_64-unknown-linux-gnu.tar.gz"
       script: "./install.sh --prefix=/usr \
                 --components=rustc,rust-std-x86_64-unknown-linux-gnu,cargo"
 
@@ -398,7 +398,7 @@ containers:
     - *pkgs
     - *rust
     - !TarInstall
-      url: "https://static.rust-lang.org/dist/rust-std-1.12.0-x86_64-unknown-linux-musl.tar.gz"
+      url: "https://static.rust-lang.org/dist/rust-std-1.14.0-x86_64-unknown-linux-musl.tar.gz"
       script: "./install.sh --prefix=/musl \
                --components=rust-std-x86_64-unknown-linux-musl"
     - !Sh 'ln -s /musl/lib/rustlib/x86_64-unknown-linux-musl /usr/lib/rustlib/x86_64-unknown-linux-musl'
