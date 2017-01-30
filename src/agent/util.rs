@@ -3,26 +3,9 @@ use std::ptr::copy;
 use std::io::{Read, Write};
 use std::io::ErrorKind::{Interrupted, WouldBlock};
 use std::cmp::min;
-use std::hash::{Hash};
-use std::collections::HashMap;
 
 const BUFFER_SIZE: usize = 4096;
 
-
-pub fn tree_collect<K: Hash + Eq, V, I: Iterator<Item=(K, V)>>(iter: I)
-    -> HashMap<K, Vec<V>>
-{
-    let mut result = HashMap::new();
-    for (k, v) in iter {
-        if let Some(vec) = result.get_mut(&k) {
-            let mut val: &mut Vec<V> = vec;
-            val.push(v);
-            continue;
-        }
-        result.insert(k, vec!(v));
-    }
-    return result;
-}
 
 pub enum ReadVec {
     Full,

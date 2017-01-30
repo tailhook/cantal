@@ -1,6 +1,5 @@
 use std::iter::repeat;
 use std::ops::Deref;
-use std::net::{Ipv4Addr};
 
 use libc::pid_t;
 use probor;
@@ -312,14 +311,4 @@ pub fn beacon(deps: &Dependencies) -> Vec<u8> {
         remote_connected: remote_connected,
         peers_with_remote: peers_with_remote,
     }))
-}
-
-fn ip_to_u32(ip: Ipv4Addr) -> u32 {
-    let o = ip.octets();
-    (((o[0] as u32) << 24) | ((o[1] as u32) << 16) |
-     ((o[2] as u32) << 8) | (o[3] as u32))
-}
-
-pub fn new_peer(host: Ipv4Addr, port: u16) -> Vec<u8> {
-    probor::to_buf(&OutputMessage::NewIPv4Peer(ip_to_u32(host), port))
 }

@@ -1,5 +1,5 @@
 use std::io::Write;
-use std::net::{SocketAddr, SocketAddrV4};
+use std::net::SocketAddr;
 use std::mem::replace;
 use std::sync::Arc;
 use std::collections::HashMap;
@@ -135,7 +135,6 @@ fn get_friends(peers: &HashMap<HostId, Peer>, exclude: SocketAddr)
 impl Context {
     pub fn gossip_broadcast(&mut self) {
         let tm = time_ms();
-        let cut_time = tm - MIN_PROBE;
         let mut stats = self.deps.write::<GossipStats>();
         if self.queue.len() == 0 {
             if stats.peers.len() == 0 {
@@ -199,7 +198,7 @@ impl Context {
                     peer.apply_roundtrip(rtt, source, false));
                 if peer.primary_addr.is_none() {
                     let addr = friend.my_primary_addr.and_then(|x| {
-                        x.parse().map_err(|e| error!("Can't parse IP address"))
+                        x.parse().map_err(|_| error!("Can't parse IP address"))
                         .ok()
                     });
                     peer.primary_addr = addr;
@@ -263,12 +262,6 @@ impl Context {
     pub fn consume_gossip(&self, packet: Packet, addr: SocketAddr,
         stats: &mut GossipStats) {
         let tm = time_ms();
-        let v4: SocketAddrV4 =
-            if let SocketAddr::V4(val) = addr {
-                val
-            } else {
-                return;
-            };
 
         match packet {
             Packet::Ping { cluster,  me: info, now, friends } => {
@@ -393,7 +386,7 @@ impl Context {
             let mut statsguard = self.deps.write::<GossipStats>();
             let ref mut stats = &mut *statsguard;
             let addrs = stats.peers.iter()
-                .flat_map(|(id, peer)| peer.addresses.iter())
+                .flat_map(|(_, peer)| peer.addresses.iter())
                 .map(|x| Json::String(x.to_string()))
                 .collect();
             write!(&mut buf, "{}", Json::Object(vec![

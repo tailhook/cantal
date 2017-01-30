@@ -122,7 +122,7 @@ impl Peer {
             self.last_roundtrip = Some((source, rtt.0, rtt.1));
         } else {
             match self.random_peer_roundtrip {
-                Some((sa, tm, _)) if tm < rtt.0 => {
+                Some((_, tm, _)) if tm < rtt.0 => {
                     self.random_peer_roundtrip = Some((source, rtt.0, rtt.1));
                 }
                 Some(_) => {}
