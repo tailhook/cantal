@@ -30,6 +30,7 @@ extern crate self_meter;
 extern crate futures;
 extern crate tokio_core;
 extern crate tk_easyloop;
+#[macro_use] extern crate quick_error;
 
 extern crate cantal_values as cantal;
 extern crate cantal_history as history;
@@ -66,6 +67,7 @@ mod scanner;
 mod scan;
 mod storage;
 mod p2p;
+mod gossip;
 mod http;
 mod websock;
 mod respond;
@@ -282,7 +284,11 @@ fn run() -> Result<(), Box<Error>> {
             .ok();
     });
 
-    tokioloop::start(&configs, &stats, &meter);
+    tokioloop::start(gossip::Config {
+            host: host.to_string(),
+            port: port,
+        },
+        &configs, &stats, &meter);
 
     rotorloop::start(&configs, &stats, &meter);
 
