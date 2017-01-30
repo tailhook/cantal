@@ -25,6 +25,11 @@ commands:
     container: trusty
     run: [cargo, build, --release]
 
+  build: !Command
+    description: Build debugging binary
+    container: trusty
+    run: [cargo, build]
+
   make: !Command
     description: Build cantal binaries and javascript in ubuntu container
     container: trusty
