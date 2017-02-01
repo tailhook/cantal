@@ -35,7 +35,7 @@ fn spawn_self_scan(meter: Arc<Mutex<Meter>>) {
 
 
 // All new async things should be in tokio main loop
-pub fn start(gossip: gossip::Config,
+pub fn start(mut gossip: Option<Arc<gossip::Config>>,
     _configs: &Configs, stats: &Arc<RwLock<Stats>>,
     meter: &Arc<Mutex<Meter>>)
 {
@@ -46,8 +46,13 @@ pub fn start(gossip: gossip::Config,
     thread::spawn(move || {
         meter.lock().unwrap().track_current_thread("tokio");
         tk_easyloop::run_forever(|| -> Result<(), InitError> {
+
             spawn_self_scan(meter);
-            gossip::spawn(gossip)?;
+
+            if let Some(ref gossip) = gossip {
+                gossip::spawn(gossip)?;
+            }
+
             Ok(())
         }).map_err(|e| {
             error!("Error initializing tokio loop: {}", e);

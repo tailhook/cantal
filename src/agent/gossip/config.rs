@@ -1,0 +1,135 @@
+use std::net::SocketAddr;
+use std::sync::Arc;
+
+use {HostId};
+use gossip::Config;
+
+
+pub struct ConfigBuilder {
+    machine_id: Option<HostId>,
+    cluster_name: Option<String>,
+    name: Option<String>,
+    hostname: Option<String>,
+    bind: Option<SocketAddr>,
+    addresses: Vec<SocketAddr>,
+
+    /// Wake up once per 1000 ms to send few probes
+    interval: u64,
+    /// Number of probes to send at each interval
+    num_probes: u64,
+
+    /// If we got any probe or report during 5 seconds, don't probe this node
+    min_probe: u64,
+
+    /// But if we sent no probe within 60 seconds (but were receiving reports,
+    /// so didn't hit 5 seconds timeout above), we should send probe anyway.
+    /// This allows too keep roundtrip times on both nodes reasonably up to
+    /// date
+    max_probe: u64,
+
+    /// Num of friend nodes to send within each request, everything must fit
+    /// MAX_PACKET_SIZE which is capped at maximum UDP packet size (65535),
+    /// better if it fits single IP packet (< 1500)
+    num_friends: usize,
+
+    /// After we had no reports from node for 20 seconds (but we sent probe
+    /// during this time) we consider node to be inaccessible by it's primary
+    /// IP and are trying to reach it by pinging any other random IP address.
+    prefail_time: u64,
+
+
+    /// Maximum expected roundtrip time. We consider report failing if it's not
+    /// received during this time. Note, this doesn't need to be absolute
+    /// ceiling of RTT, and we don't do any crazy things based on the timeout,
+    /// this is just heuristic for pre-fail condition.
+    max_roundtrip: u64,
+
+    /// After this time we consider node failing and don't send it in
+    /// friendlist.  Note that all nodes that where up until we marked node as
+    /// failinig do know the node, and do ping it. This is currently used only
+    fail_time: u64,
+
+
+    /// This is time after last heartbeat when node will be removed from the
+    /// list of known nodes. This should be long after FAIL_TIME. (But not
+    /// necessarily 48x longer, as we do now).  Also note that node will be
+    /// removed from all peers after FAIL_TIME + REMOVE_TIME +
+    /// longest-round-trip-time
+    remove_time: u64,
+
+    /// This is a size of our UDP buffers. The maximum value depends on
+    /// NUM_FRIENDS and the number of IP addresses at each node. It's always
+    /// capped at maximum UDP packet size of 65535
+    max_packet_size: usize,
+}
+
+impl Config {
+    pub fn new() -> ConfigBuilder {
+        ConfigBuilder {
+            machine_id: None,
+            cluster_name: None,
+            name: None,
+            hostname: None,
+            bind: None,
+            addresses: Vec::new(),
+
+            interval: 1000,
+            num_probes: 10,
+            min_probe: 5000,
+            max_probe: 60000,
+            num_friends: 10,
+            prefail_time: 20_000,
+            max_roundtrip: 2000,
+            fail_time: 3600_000,
+            remove_time: 2 * 86400_000,
+            max_packet_size: 8192,
+        }
+    }
+}
+
+impl ConfigBuilder {
+    pub fn bind(&mut self, addr: SocketAddr) -> &mut Self {
+        self.bind = Some(addr);
+        self
+    }
+    pub fn cluster_name(&mut self, name: &str) -> &mut Self {
+        self.cluster_name = Some(name.into());
+        self
+    }
+    pub fn name(&mut self, name: &str) -> &mut Self {
+        self.name = Some(name.into());
+        self
+    }
+    pub fn hostname(&mut self, name: &str) -> &mut Self {
+        self.hostname = Some(name.into());
+        self
+    }
+    pub fn addresses(&mut self, addresses: &[SocketAddr]) -> &mut Self {
+        self.addresses = addresses.to_vec();
+        self
+    }
+    pub fn done(&mut self) -> Arc<Config> {
+        Arc::new(Config {
+            machine_id: self.machine_id.clone().expect("machine_id"),
+            cluster_name: Arc::new(
+                self.cluster_name.clone().expect("cluster_name")),
+            hostname: Arc::new(self.hostname.clone().expect("hostname")),
+            name: Arc::new(self.name.clone().expect("name")),
+            bind: self.bind.expect("bind address"),
+            addresses: self.addresses.clone(),
+            str_addresses: Arc::new(
+                self.addresses.iter().map(ToString::to_string).collect()),
+
+            interval: self.interval,
+            num_probes: self.num_probes,
+            min_probe: self.min_probe,
+            max_probe: self.max_probe,
+            num_friends: self.num_friends,
+            prefail_time: self.prefail_time,
+            max_roundtrip: self.max_roundtrip,
+            fail_time: self.fail_time,
+            remove_time: self.remove_time,
+            max_packet_size: self.max_packet_size,
+        })
+    }
+}

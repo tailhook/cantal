@@ -30,6 +30,7 @@ extern crate self_meter;
 extern crate futures;
 extern crate tokio_core;
 extern crate tk_easyloop;
+extern crate void;
 #[macro_use] extern crate quick_error;
 
 extern crate cantal_values as cantal;
@@ -80,6 +81,7 @@ mod rotorloop;
 mod carbon;
 mod configs;
 mod tokioloop;
+mod time_util;
 
 
 fn main() {
@@ -182,6 +184,8 @@ fn run() -> Result<(), Box<Error>> {
         panic!("Failed to initialize global logger: {}", e);
     }
 
+    let address = SocketAddr::new(host.parse()?, port);
+
     let meter = Arc::new(Mutex::new(
         self_meter::Meter::new(Duration::new(1, 0))
         .expect("meter created")));
@@ -205,7 +209,8 @@ fn run() -> Result<(), Box<Error>> {
     deps.insert(meter.clone());
 
     let p2p_init = try!(p2p::p2p_init(&mut deps, &host, port,
-        machine_id, addresses, hostname, name, cluster_name.clone()));
+        machine_id, addresses.clone(),
+        hostname.clone(), name.clone(), cluster_name.clone()));
     let server_init = try!(
         server::server_init(&mut deps, &host, port, bind_localhost));
 
@@ -284,11 +289,15 @@ fn run() -> Result<(), Box<Error>> {
             .ok();
     });
 
-    tokioloop::start(gossip::Config {
-            host: host.to_string(),
-            port: port,
-        },
-        &configs, &stats, &meter);
+    tokioloop::start(cluster_name.as_ref().map(|cluster| {
+            gossip::Config::new()
+            .bind(address)
+            .cluster_name(&cluster)
+            .addresses(&addresses)
+            .hostname(&hostname)
+            .name(&name)
+            .done()
+        }), &configs, &stats, &meter);
 
     rotorloop::start(&configs, &stats, &meter);
 
