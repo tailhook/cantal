@@ -208,6 +208,16 @@ fn run() -> Result<(), Box<Error>> {
     deps.insert(stats.clone());
     deps.insert(meter.clone());
 
+    let mut gossip = cluster_name.as_ref().map(|cluster| {
+        gossip::Config::new()
+        .bind(address)
+        .cluster_name(&cluster)
+        .addresses(&addresses)
+        .hostname(&hostname)
+        .name(&name)
+        .done()
+    }).map(|x| gossip::init(&x));
+
     let p2p_init = try!(p2p::p2p_init(&mut deps, &host, port,
         machine_id, addresses.clone(),
         hostname.clone(), name.clone(), cluster_name.clone()));
@@ -266,6 +276,7 @@ fn run() -> Result<(), Box<Error>> {
                     item.as_string()
                     .and_then(|x| SocketAddr::from_str(x).ok())
                     .and_then(|x| {
+                        gossip.as_ref().map(|&(ref g, _)| g.add_host(x));
                         p2p_chan.send(p2p::Command::AddGossipHost(x)).ok()
                     }); // ignore bad hosts
                 }
@@ -289,15 +300,7 @@ fn run() -> Result<(), Box<Error>> {
             .ok();
     });
 
-    tokioloop::start(cluster_name.as_ref().map(|cluster| {
-            gossip::Config::new()
-            .bind(address)
-            .cluster_name(&cluster)
-            .addresses(&addresses)
-            .hostname(&hostname)
-            .name(&name)
-            .done()
-        }), &configs, &stats, &meter);
+    tokioloop::start(gossip.take().map(|(_, x)| x), &configs, &stats, &meter);
 
     rotorloop::start(&configs, &stats, &meter);
 

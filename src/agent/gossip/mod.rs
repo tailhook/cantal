@@ -3,17 +3,23 @@ mod proto;
 mod errors;
 mod peer;
 mod info;
-mod constants;
+mod constants;  // TODO(tailhook) to remove
+mod command;
+mod public;
 
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-use tk_easyloop;
+use futures::stream::Stream;
+use futures::sync::mpsc::{unbounded as channel, UnboundedReceiver};
 use quick_error::ResultExt;
+use tk_easyloop;
+use void::Void;
 
 use {HostId};
 
 pub use self::errors::InitError;
+pub use self::public::Gossip;
 
 
 /// Fields are documented in `config.rs`
@@ -38,9 +44,27 @@ pub struct Config {
     max_packet_size: usize,
 }
 
-
-pub fn spawn(cfg: &Arc<Config>) -> Result<(), InitError> {
-    tk_easyloop::spawn(proto::Proto::bind(cfg)?);
-    Ok(())
+pub struct GossipInit {
+    receiver: UnboundedReceiver<command::Command>,
+    config: Arc<Config>,
 }
 
+pub fn init(cfg: &Arc<Config>) -> (Gossip, GossipInit) {
+    let (tx, rx) = channel();
+    return (
+        public::new(tx),
+        GossipInit {
+            receiver: rx,
+            config: cfg.clone(),
+        }
+    );
+}
+
+impl GossipInit {
+    pub fn spawn(self) -> Result<(), InitError> {
+        let rx = self.receiver
+            .map_err(|_| -> Void { panic!("gossip stream canceled") });
+        tk_easyloop::spawn(proto::Proto::bind(&self.config, rx)?);
+        Ok(())
+    }
+}

@@ -2,7 +2,8 @@ use std::sync::{Arc, Mutex};
 use std::net::SocketAddr;
 
 use cbor::Encoder;
-use futures::{Future, Async};
+use void::Void;
+use futures::{Future, Async, Stream};
 use tk_easyloop;
 use quick_error::ResultExt;
 use tokio_core::net::UdpSocket;
@@ -14,12 +15,14 @@ use gossip::errors::InitError;
 use gossip::peer::{Report};
 use gossip::info::Info;
 use gossip::constants::MAX_PACKET_SIZE;
+use gossip::command::Command;
 
 
-pub struct Proto {
+pub struct Proto<S> {
     sock: UdpSocket,
     config: Arc<Config>,
     info: Arc<Mutex<Info>>,
+    stream: S,
 }
 
 #[derive(Debug, Clone, RustcEncodable, RustcDecodable)]
@@ -60,9 +63,9 @@ pub struct FriendInfo {
 }
 
 
-impl Proto {
-    pub fn bind(config: &Arc<Config>)
-       -> Result<Proto, InitError>
+impl<S: Stream<Item=Command, Error=Void>> Proto<S> {
+    pub fn bind(config: &Arc<Config>, stream: S)
+       -> Result<Proto<S>, InitError>
     {
         let s = UdpSocket::bind(&config.bind, &tk_easyloop::handle())
             .context(config.bind)?;
@@ -71,11 +74,12 @@ impl Proto {
             sock: s,
             config: config.clone(),
             info: Arc::new(Mutex::new(info)),
+            stream: stream,
         })
     }
 }
 
-impl Future for Proto {
+impl<S: Stream<Item=Command, Error=Void>> Future for Proto<S> {
     type Item = ();
     type Error = ();
     fn poll(&mut self) -> Result<Async<()>, ()> {
@@ -84,7 +88,7 @@ impl Future for Proto {
     }
 }
 
-impl Proto {
+impl<S: Stream<Item=Command, Error=Void>> Proto<S> {
     fn send_gossip(&mut self, addr: SocketAddr) {
         debug!("Sending gossip {}", addr);
         let mut buf = Vec::with_capacity(MAX_PACKET_SIZE);
