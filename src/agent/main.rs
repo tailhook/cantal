@@ -212,15 +212,17 @@ fn run() -> Result<(), Box<Error>> {
         gossip::Config::new()
         .bind(address)
         .cluster_name(&cluster)
+        .machine_id(&machine_id)
         .addresses(&addresses)
         .hostname(&hostname)
         .name(&name)
         .done()
     }).map(|x| gossip::init(&x));
-
+    /*
     let p2p_init = try!(p2p::p2p_init(&mut deps, &host, port,
         machine_id, addresses.clone(),
         hostname.clone(), name.clone(), cluster_name.clone()));
+    */
     let server_init = try!(
         server::server_init(&mut deps, &host, port, bind_localhost));
 
@@ -291,6 +293,7 @@ fn run() -> Result<(), Box<Error>> {
         scanner::scan_loop(mydeps, scan_interval, *backlog_time);
     });
 
+    /*
     let mydeps = deps.clone();
     let mymeter = meter.clone();
     let _p2p = thread::spawn(move || {
@@ -299,6 +302,7 @@ fn run() -> Result<(), Box<Error>> {
             .map_err(|e| error!("Error in p2p loop: {}", e))
             .ok();
     });
+    */
 
     tokioloop::start(gossip.take().map(|(_, x)| x), &configs, &stats, &meter);
 

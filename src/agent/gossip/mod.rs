@@ -9,6 +9,7 @@ mod public;
 
 use std::net::SocketAddr;
 use std::sync::Arc;
+use std::time::Duration;
 
 use futures::stream::Stream;
 use futures::sync::mpsc::{unbounded as channel, UnboundedReceiver};
@@ -32,7 +33,7 @@ pub struct Config {
     addresses: Vec<SocketAddr>,
     str_addresses: Arc<Vec<String>>,
 
-    interval: u64,
+    interval: Duration,
     num_probes: u64,
     min_probe: u64,
     max_probe: u64,
@@ -42,6 +43,12 @@ pub struct Config {
     fail_time: u64,
     remove_time: u64,
     max_packet_size: usize,
+
+    add_host_retry_times: u32,
+    add_host_retry_min: Duration,
+    add_host_retry_exponent: f32,
+    add_host_retry_cap: u32,
+    add_host_retry_random: (f32, f32),
 }
 
 pub struct GossipInit {

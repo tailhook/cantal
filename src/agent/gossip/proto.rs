@@ -1,27 +1,49 @@
-use std::sync::{Arc, Mutex};
+use std::cmp::{PartialOrd, Ordering, min};
 use std::net::SocketAddr;
+use std::sync::{Arc, Mutex};
+use std::time::{Instant, Duration};
+use std::collections::{HashMap, BinaryHeap};
 
 use cbor::Encoder;
-use void::Void;
+use void::{Void, unreachable};
 use futures::{Future, Async, Stream};
-use tk_easyloop;
+use tk_easyloop::{self, timeout};
 use quick_error::ResultExt;
 use tokio_core::net::UdpSocket;
+use tokio_core::reactor::Timeout;
 
+use gossip::command::Command;
+use gossip::Config;
+use gossip::constants::MAX_PACKET_SIZE;
+use gossip::errors::InitError;
+use gossip::info::Info;
+use gossip::peer::{Report};
 use {HostId};
 use time_util::time_ms;
-use gossip::Config;
-use gossip::errors::InitError;
-use gossip::peer::{Report};
-use gossip::info::Info;
-use gossip::constants::MAX_PACKET_SIZE;
-use gossip::command::Command;
 
+
+#[derive(Eq)]
+struct FutureHost {
+    deadline: Instant,
+    address: SocketAddr,
+    attempts: u32,
+    timeout: Duration,
+}
+
+#[derive(Clone, Copy)]
+enum AddrStatus {
+    Available,
+    PingSent,
+}
 
 pub struct Proto<S> {
     sock: UdpSocket,
     config: Arc<Config>,
     info: Arc<Mutex<Info>>,
+    addr_status: HashMap<SocketAddr, AddrStatus>,
+    queue: BinaryHeap<FutureHost>,
+    next_ping: Instant,
+    clock: Timeout,
     stream: S,
 }
 
@@ -75,6 +97,10 @@ impl<S: Stream<Item=Command, Error=Void>> Proto<S> {
             config: config.clone(),
             info: Arc::new(Mutex::new(info)),
             stream: stream,
+            addr_status: HashMap::new(),
+            queue: BinaryHeap::new(),
+            next_ping: Instant::now() + config.interval,
+            clock: timeout(config.interval),
         })
     }
 }
@@ -83,12 +109,82 @@ impl<S: Stream<Item=Command, Error=Void>> Future for Proto<S> {
     type Item = ();
     type Error = ();
     fn poll(&mut self) -> Result<Async<()>, ()> {
+        let current_timeout = self.next_wakeup();
+        loop {
+            self.internal_messages().unwrap_or_else(|e| unreachable(e));
 
+            let new_timeout = self.next_wakeup();
+            if new_timeout != current_timeout {
+                let now = Instant::now();
+                if new_timeout <= now {
+                    continue;
+                } else {
+                    let mut timeo = timeout(new_timeout.duration_since(now));
+                    // We need to `poll` it to get wakeup scheduled
+                    match timeo.poll().map_err(|_| ())? {
+                        Async::Ready(()) => continue,
+                        Async::NotReady => {}
+                    }
+                    self.clock = timeo;
+                    break;
+                }
+            } else {
+                break;
+            }
+        }
         Ok(Async::NotReady)
     }
 }
 
 impl<S: Stream<Item=Command, Error=Void>> Proto<S> {
+    fn next_wakeup(&self) -> Instant {
+        self.queue.peek().map(|x| min(x.deadline, self.next_ping))
+            .unwrap_or(self.next_ping)
+    }
+    fn internal_messages(&mut self) -> Result<(), Void> {
+        use gossip::command::Command::*;
+        while let Async::Ready(msg) = self.stream.poll()? {
+            let msg = msg.expect("gossip stream never ends");
+            match msg {
+                AddHost(addr) => {
+                    use self::AddrStatus::*;
+                    let status = self.addr_status.get(&addr).map(|x| *x);
+                    match status {
+                        Some(Available) => {}
+                        Some(PingSent)|None => {
+                            // We send ping anyway, so that you can trigger
+                            // adding failed host faster (not waiting for
+                            // longer exponential back-off at this moment).
+                            //
+                            // While at a glance this may make us susceptible
+                            // to DoS attacks, but presumably this requires a
+                            // lot less resources than the initial HTTP
+                            // request or websocket message that triggers
+                            // `AddHost()` message itself
+                            self.send_gossip(addr);
+                        }
+                    }
+                    match status {
+                        Some(Available) => {}
+                        // .. but we keep same timestamp for the next retry
+                        // to avoid memory leaks
+                        Some(PingSent) => { }
+                        None => {
+                            self.addr_status.insert(addr, PingSent);
+                            let timeout = self.config.add_host_first_sleep();
+                            self.queue.push(FutureHost {
+                                deadline: Instant::now() + timeout,
+                                address: addr,
+                                attempts: 1,
+                                timeout: timeout,
+                            });
+                        }
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
     fn send_gossip(&mut self, addr: SocketAddr) {
         debug!("Sending gossip {}", addr);
         let mut buf = Vec::with_capacity(MAX_PACKET_SIZE);
@@ -123,5 +219,23 @@ impl<S: Stream<Item=Command, Error=Void>> Proto<S> {
         if let Err(e) = self.sock.send_to(&buf[..], &addr) {
             error!("Error sending probe to {}: {}", addr, e);
         }
+    }
+}
+
+impl Ord for FutureHost {
+    fn cmp(&self, other: &FutureHost) -> Ordering {
+        self.deadline.cmp(&other.deadline)
+    }
+}
+
+impl PartialOrd for FutureHost {
+    fn partial_cmp(&self, other: &FutureHost) -> Option<Ordering> {
+        self.deadline.partial_cmp(&other.deadline)
+    }
+}
+
+impl PartialEq for FutureHost {
+    fn eq(&self, other: &FutureHost) -> bool {
+        self.deadline.eq(&other.deadline)
     }
 }

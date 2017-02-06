@@ -1,5 +1,8 @@
 use std::net::SocketAddr;
 use std::sync::Arc;
+use std::time::Duration;
+
+use rand::{thread_rng, Rng};
 
 use {HostId};
 use gossip::Config;
@@ -14,7 +17,7 @@ pub struct ConfigBuilder {
     addresses: Vec<SocketAddr>,
 
     /// Wake up once per 1000 ms to send few probes
-    interval: u64,
+    interval: Duration,
     /// Number of probes to send at each interval
     num_probes: u64,
 
@@ -61,6 +64,23 @@ pub struct ConfigBuilder {
     /// NUM_FRIENDS and the number of IP addresses at each node. It's always
     /// capped at maximum UDP packet size of 65535
     max_packet_size: usize,
+
+    /// Number of times to retry failed AddHost
+    add_host_retry_times: u32,
+    /// A timeout of the first retry
+    add_host_retry_min: Duration,
+    /// The exponent of the next retry
+    add_host_retry_exponent: f32,
+    /// Maximum retry timeout (before randomization)
+    add_host_retry_cap: u32,
+    /// Randomization coefficients, e.g. (0.5, 1.5)
+    ///
+    /// This is used so that lots of pings were not sent at the same time
+    add_host_retry_random: (f32, f32),
+}
+
+fn duration_to_millis(dur: Duration) -> u64 {
+    dur.as_secs()*1000 + (dur.subsec_nanos() / 1000_000) as u64
 }
 
 impl Config {
@@ -73,7 +93,7 @@ impl Config {
             bind: None,
             addresses: Vec::new(),
 
-            interval: 1000,
+            interval: Duration::new(1, 0),
             num_probes: 10,
             min_probe: 5000,
             max_probe: 60000,
@@ -83,7 +103,19 @@ impl Config {
             fail_time: 3600_000,
             remove_time: 2 * 86400_000,
             max_packet_size: 8192,
+
+            add_host_retry_times: 5,
+            add_host_retry_min: Duration::from_millis(100),
+            add_host_retry_exponent: 2.0,
+            add_host_retry_cap: 3600,
+            add_host_retry_random: (0.5, 1.5),
         }
+    }
+    pub fn add_host_first_sleep(&self) -> Duration {
+        let ms = duration_to_millis(self.add_host_retry_min) as f32;
+        let (low, high) = self.add_host_retry_random;
+        let rnd_ms = thread_rng().gen_range(ms*low, ms*high) as u64;
+        return Duration::from_millis(rnd_ms);
     }
 }
 
@@ -102,6 +134,10 @@ impl ConfigBuilder {
     }
     pub fn hostname(&mut self, name: &str) -> &mut Self {
         self.hostname = Some(name.into());
+        self
+    }
+    pub fn machine_id(&mut self, machine_id: &HostId) -> &mut Self {
+        self.machine_id = Some(machine_id.clone());
         self
     }
     pub fn addresses(&mut self, addresses: &[SocketAddr]) -> &mut Self {
@@ -130,6 +166,12 @@ impl ConfigBuilder {
             fail_time: self.fail_time,
             remove_time: self.remove_time,
             max_packet_size: self.max_packet_size,
+
+            add_host_retry_times: self.add_host_retry_times,
+            add_host_retry_min: self.add_host_retry_min,
+            add_host_retry_exponent: self.add_host_retry_exponent,
+            add_host_retry_cap: self.add_host_retry_cap,
+            add_host_retry_random: self.add_host_retry_random,
         })
     }
 }
