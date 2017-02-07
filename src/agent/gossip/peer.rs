@@ -1,5 +1,6 @@
-use std::net::SocketAddr;
 use std::collections::HashSet;
+use std::net::SocketAddr;
+use std::sync::Arc;
 
 use rustc_serialize::json::{Json, ToJson};
 use rustc_serialize::hex::ToHex;
@@ -85,7 +86,9 @@ impl Peer {
             self.report = src;
         }
     }
-    pub fn apply_hostname(&mut self, hostname: Option<String>, direct: bool) {
+    pub fn apply_hostname(&mut self, hostname: Option<&str>,
+        direct: bool)
+    {
         let overwrite = match (&self.host, &hostname) {
             (&None, &Some(_)) => true,
             (&Some(ref x), &Some(ref y)) if x != y => {
@@ -97,10 +100,11 @@ impl Peer {
             _ => false,
         };
         if overwrite {
-            self.host = hostname;
+            self.host = hostname.map(|x| x.to_string());
         }
     }
-    pub fn apply_node_name(&mut self, name: Option<String>, direct: bool) {
+    pub fn apply_node_name(&mut self, name: Option<&str>, direct: bool)
+    {
         let overwrite = match (&self.name, &name) {
             (&None, &Some(_)) => true,
             (&Some(ref x), &Some(ref y)) if x != y => {
@@ -112,7 +116,7 @@ impl Peer {
             _ => false,
         };
         if overwrite {
-            self.name = name;
+            self.name = name.map(|x| x.to_string());
         }
     }
     pub fn apply_roundtrip(&mut self, rtt: (u64, u64),
