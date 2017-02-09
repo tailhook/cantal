@@ -35,7 +35,7 @@ pub struct Config {
     str_addresses: Arc<Vec<String>>,
 
     interval: Duration,
-    num_probes: u64,
+    num_pings_to_send: u64,
     min_probe: u64,
     max_probe: u64,
     num_friends: usize,

@@ -19,7 +19,7 @@ pub struct ConfigBuilder {
     /// Wake up once per 1000 ms to send few probes
     interval: Duration,
     /// Number of probes to send at each interval
-    num_probes: u64,
+    num_pings_to_send: u64,
 
     /// If we got any probe or report during 5 seconds, don't probe this node
     min_probe: u64,
@@ -94,7 +94,7 @@ impl Config {
             addresses: Vec::new(),
 
             interval: Duration::new(1, 0),
-            num_probes: 10,
+            num_pings_to_send: 10,
             min_probe: 5000,
             max_probe: 60000,
             num_friends: 10,
@@ -157,7 +157,7 @@ impl ConfigBuilder {
                 self.addresses.iter().map(ToString::to_string).collect()),
 
             interval: self.interval,
-            num_probes: self.num_probes,
+            num_pings_to_send: self.num_pings_to_send,
             min_probe: self.min_probe,
             max_probe: self.max_probe,
             num_friends: self.num_friends,

@@ -8,6 +8,7 @@ use std::time::{Instant, Duration};
 use cbor::{Encoder, Decoder};
 use futures::{Future, Async, Stream};
 use quick_error::ResultExt;
+use rand::{thread_rng, Rng, sample};
 use tk_easyloop::{self, timeout};
 use tokio_core::net::UdpSocket;
 use tokio_core::reactor::Timeout;
@@ -43,6 +44,7 @@ pub struct Proto<S> {
     info: Arc<Mutex<Info>>,
     addr_status: HashMap<SocketAddr, AddrStatus>,
     queue: BinaryHeap<FutureHost>,
+    ping_queue: Vec<HostId>,
     next_ping: Instant,
     clock: Timeout,
     stream: S,
@@ -100,6 +102,7 @@ impl<S: Stream<Item=Command, Error=Void>> Proto<S> {
             stream: stream,
             addr_status: HashMap::new(),
             queue: BinaryHeap::new(),
+            ping_queue: Vec::new(),
             next_ping: Instant::now() + config.interval,
             clock: timeout(config.interval),
             buf: vec![0; config.max_packet_size],
@@ -115,6 +118,10 @@ impl<S: Stream<Item=Command, Error=Void>> Future for Proto<S> {
         loop {
             self.internal_messages().unwrap_or_else(|e| unreachable(e));
             self.receive_messages();
+            if Instant::now() >= self.next_ping {
+                self.ping_hosts();
+                self.next_ping = Instant::now() + self.config.interval;
+            }
 
             let new_timeout = self.next_wakeup();
             if new_timeout != current_timeout {
@@ -405,6 +412,45 @@ impl<S: Stream<Item=Command, Error=Void>> Proto<S> {
                 }
             };
             sendto_addr.map(|addr| {
+                self.send_gossip(addr);
+            });
+        }
+    }
+    fn ping_hosts(&mut self) {
+        let tm = time_ms();
+        if self.ping_queue.len() == 0 {
+            let info = self.info.lock().expect("gossip not poisoned");
+            if info.peers.len() == 0 {
+                return // nothing to do
+            }
+            self.ping_queue = info.peers.keys().cloned().collect();
+        }
+        thread_rng().shuffle(&mut self.ping_queue[..]);
+        for _ in 0..self.config.num_pings_to_send {
+            if self.ping_queue.len() == 0 {
+                break;
+            }
+            let id = self.ping_queue.pop().unwrap();
+            // if not expired yet
+            let addr = {
+                let mut info = self.info.lock().expect("gossip not poisoned");
+                info.peers.get_mut(&id).and_then(|peer| {
+                    if !peer.has_fresh_report() {
+                        let mut addr = peer.primary_addr;
+                        if addr.is_none() || !peer.ping_primary_address() {
+                            addr = peer.random_ping_addr()
+                        };
+                        addr.map(|addr| {
+                            peer.last_probe = Some((tm, addr));
+                            peer.probes_sent += 1;
+                            addr
+                        })
+                    } else {
+                        None
+                    }
+                })
+            };
+            addr.map(|addr| {
                 self.send_gossip(addr);
             });
         }
