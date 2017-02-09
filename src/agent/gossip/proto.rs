@@ -1,5 +1,6 @@
 use std::cmp::{PartialOrd, Ordering, min};
 use std::collections::{HashMap, BinaryHeap};
+use std::io::Write;
 use std::mem;
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
@@ -21,7 +22,10 @@ use gossip::info::Info;
 use gossip::peer::{Report, Peer};
 use {HostId};
 use remote::Remote;
+use storage::Storage;
 use time_util::time_ms;
+use rustc_serialize::json::Json;
+use rustc_serialize::hex::ToHex;
 
 
 #[derive(Eq)]
@@ -46,9 +50,11 @@ pub struct Proto<S> {
     queue: BinaryHeap<FutureHost>,
     ping_queue: Vec<HostId>,
     next_ping: Instant,
+    next_gc: Instant,
     clock: Timeout,
     stream: S,
     remote: Remote,
+    storage: Arc<Storage>,
     input_buf: Vec<u8>,
     output_buf: Vec<u8>,
 }
@@ -93,7 +99,7 @@ pub struct FriendInfo {
 
 impl<S: Stream<Item=Command, Error=Void>> Proto<S> {
     pub fn new(info: &Arc<Mutex<Info>>, config: &Arc<Config>, stream: S,
-        remote: &Remote)
+        remote: &Remote, storage: &Arc<Storage>)
        -> Result<Proto<S>, InitError>
     {
         let s = UdpSocket::bind(&config.bind, &tk_easyloop::handle())
@@ -101,6 +107,7 @@ impl<S: Stream<Item=Command, Error=Void>> Proto<S> {
         Ok(Proto {
             sock: s,
             remote: remote.clone(),
+            storage: storage.clone(),
             config: config.clone(),
             info: info.clone(),
             stream: stream,
@@ -108,6 +115,7 @@ impl<S: Stream<Item=Command, Error=Void>> Proto<S> {
             queue: BinaryHeap::new(),
             ping_queue: Vec::new(),
             next_ping: Instant::now() + config.interval,
+            next_gc: Instant::now() + config.garbage_collector_interval,
             clock: timeout(config.interval),
             input_buf: vec![0; config.max_packet_size],
             output_buf: vec![0; config.max_packet_size],
@@ -126,6 +134,11 @@ impl<S: Stream<Item=Command, Error=Void>> Future for Proto<S> {
             if Instant::now() >= self.next_ping {
                 self.ping_hosts();
                 self.next_ping = Instant::now() + self.config.interval;
+            }
+            if Instant::now() >= self.next_gc {
+                self.garbage_collector();
+                self.next_gc = Instant::now() +
+                    self.config.garbage_collector_interval;
             }
 
             let new_timeout = self.next_wakeup();
@@ -153,8 +166,9 @@ impl<S: Stream<Item=Command, Error=Void>> Future for Proto<S> {
 
 impl<S: Stream<Item=Command, Error=Void>> Proto<S> {
     fn next_wakeup(&self) -> Instant {
-        self.queue.peek().map(|x| min(x.deadline, self.next_ping))
-            .unwrap_or(self.next_ping)
+        let static_next = min(self.next_ping, self.next_gc);
+        self.queue.peek().map(|x| min(x.deadline, static_next))
+            .unwrap_or(static_next)
     }
     fn internal_messages(&mut self) -> Result<(), Void> {
         use gossip::command::Command::*;
@@ -461,6 +475,40 @@ impl<S: Stream<Item=Command, Error=Void>> Proto<S> {
                 self.send_gossip(addr);
             });
         }
+    }
+
+    fn store_peers(&mut self) {
+        let data = {
+            let info = self.info.lock().expect("gossip not poisoned");
+            let mut buf = Vec::with_capacity(1024);
+            let addrs = info.peers.iter()
+                .flat_map(|(_, peer)| peer.addresses.iter())
+                .map(|x| Json::String(x.to_string()))
+                .collect();
+            write!(&mut buf, "{}", Json::Object(vec![
+                (String::from("ip_addresses"), Json::Array(addrs)),
+                ].into_iter().collect())).unwrap();
+            buf.into_boxed_slice()
+        }; // unlocks self.info to avoid potential deadlocks
+
+        self.storage.store_peers(data);
+    }
+    fn remove_failed_nodes(&mut self) {
+        let mut info = self.info.lock().expect("gossip not poisoned");
+        info.peers = mem::replace(&mut info.peers, HashMap::new()).into_iter()
+            .filter(|&(ref id, ref peer)| {
+                if peer.should_remove(&self.config) {
+                    warn!("Peer {} / {:?} is removed",
+                        id.to_hex(), peer.addresses);
+                    false
+                } else {
+                    true
+                }
+            }).collect();
+    }
+    fn garbage_collector(&mut self) {
+        self.remove_failed_nodes();
+        self.store_peers();
     }
 }
 

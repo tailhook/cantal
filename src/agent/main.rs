@@ -229,7 +229,8 @@ fn run() -> Result<(), Box<Error>> {
         .clone()
     );
 
-    deps.insert(Arc::new(storage::Storage::new()));
+    let storage = Arc::new(storage::Storage::new());
+    deps.insert(storage.clone());
 
     let _storage = storage_dir.as_ref().map(|path| {
         let mydeps = deps.clone();
@@ -266,8 +267,6 @@ fn run() -> Result<(), Box<Error>> {
             mymeter.lock().unwrap().track_current_thread("storage");
             storage::storage_loop(mydeps, &path);
         })
-
-
     });
     if let Some(ref path) = storage_dir {
         File::open(&path.join("peers.json"))
@@ -292,7 +291,8 @@ fn run() -> Result<(), Box<Error>> {
         scanner::scan_loop(mydeps, scan_interval, *backlog_time);
     });
 
-    tokioloop::start(gossip_init.take(), &configs, &stats, &meter, &remote);
+    tokioloop::start(gossip_init.take(), &configs, &stats, &meter,
+        &remote, &storage);
 
     rotorloop::start(&configs, &stats, &meter);
 

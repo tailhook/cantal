@@ -17,6 +17,7 @@ use void::Void;
 
 use {HostId};
 use remote::Remote;
+use storage::Storage;
 
 pub use self::errors::InitError;
 pub use self::public::{Gossip, noop};
@@ -43,6 +44,8 @@ pub struct Config {
     fail_time: u64,
     remove_time: u64,
     max_packet_size: usize,
+
+    garbage_collector_interval: Duration,
 
     add_host_retry_times: u32,
     add_host_retry_min: Duration,
@@ -71,14 +74,17 @@ pub fn init(cfg: &Arc<Config>) -> (Gossip, GossipInit) {
 }
 
 impl GossipInit {
-    pub fn spawn(self, remote: &Remote) -> Result<(), InitError> {
+    pub fn spawn(self, remote: &Remote, storage: &Arc<Storage>)
+        -> Result<(), InitError>
+    {
         let rx = self.receiver
             .map_err(|_| -> Void { panic!("gossip stream canceled") });
         tk_easyloop::spawn(proto::Proto::new(
             &self.info,
             &self.config,
             rx,
-            remote
+            remote,
+            storage,
         )?);
         Ok(())
     }

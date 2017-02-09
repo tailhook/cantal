@@ -67,6 +67,9 @@ pub struct ConfigBuilder {
     /// capped at maximum UDP packet size of 65535
     max_packet_size: usize,
 
+    /// Garbage collector removes failed hosts and stores them on disk
+    garbage_collector_interval: Duration,
+
     /// Number of times to retry failed AddHost
     add_host_retry_times: u32,
     /// A timeout of the first retry
@@ -101,6 +104,8 @@ impl Config {
             fail_time: 3600_000,
             remove_time: 2 * 86400_000,
             max_packet_size: 8192,
+
+            garbage_collector_interval: Duration::new(300, 0),
 
             add_host_retry_times: 5,
             add_host_retry_min: Duration::from_millis(100),
@@ -174,6 +179,8 @@ impl ConfigBuilder {
             fail_time: self.fail_time,
             remove_time: self.remove_time,
             max_packet_size: self.max_packet_size,
+
+            garbage_collector_interval: self.garbage_collector_interval,
 
             add_host_retry_times: self.add_host_retry_times,
             add_host_retry_min: self.add_host_retry_min,
