@@ -8,7 +8,7 @@ mod command;
 mod public;
 
 use std::net::SocketAddr;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use futures::stream::Stream;
@@ -21,6 +21,7 @@ use {HostId};
 
 pub use self::errors::InitError;
 pub use self::public::{Gossip, noop};
+pub use self::info::Info;
 
 
 /// Fields are documented in `config.rs`
@@ -53,15 +54,18 @@ pub struct Config {
 
 pub struct GossipInit {
     receiver: UnboundedReceiver<command::Command>,
+    info: Arc<Mutex<Info>>,
     config: Arc<Config>,
 }
 
 pub fn init(cfg: &Arc<Config>) -> (Gossip, GossipInit) {
     let (tx, rx) = channel();
+    let info = Arc::new(Mutex::new(Info::new()));
     return (
-        public::new(tx),
+        public::new(tx, &info),
         GossipInit {
             receiver: rx,
+            info: info,
             config: cfg.clone(),
         }
     );
@@ -71,7 +75,7 @@ impl GossipInit {
     pub fn spawn(self) -> Result<(), InitError> {
         let rx = self.receiver
             .map_err(|_| -> Void { panic!("gossip stream canceled") });
-        tk_easyloop::spawn(proto::Proto::bind(&self.config, rx)?);
+        tk_easyloop::spawn(proto::Proto::new(&self.info, &self.config, rx)?);
         Ok(())
     }
 }

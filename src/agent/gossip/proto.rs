@@ -88,16 +88,15 @@ pub struct FriendInfo {
 
 
 impl<S: Stream<Item=Command, Error=Void>> Proto<S> {
-    pub fn bind(config: &Arc<Config>, stream: S)
+    pub fn new(info: &Arc<Mutex<Info>>, config: &Arc<Config>, stream: S)
        -> Result<Proto<S>, InitError>
     {
         let s = UdpSocket::bind(&config.bind, &tk_easyloop::handle())
             .context(config.bind)?;
-        let info = Info::new();
         Ok(Proto {
             sock: s,
             config: config.clone(),
-            info: Arc::new(Mutex::new(info)),
+            info: info.clone(),
             stream: stream,
             addr_status: HashMap::new(),
             queue: BinaryHeap::new(),

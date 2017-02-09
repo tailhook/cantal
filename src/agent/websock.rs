@@ -11,11 +11,11 @@ use hyper::version::HttpVersion as Version;
 use hyper::header::ConnectionOption::ConnectionHeader;
 use websocket::header::{WebSocketVersion, WebSocketKey};
 
+use gossip::Gossip;
 use query::{Filter, Dataset};
 use super::http;
 use super::scan::time_ms;
 use super::remote::Peers;
-use super::p2p::GossipStats;
 use super::http::{Request, BadRequest};
 use super::util::Consume;
 use super::server::{Context};
@@ -279,8 +279,8 @@ pub fn beacon(deps: &Dependencies) -> Vec<u8> {
                 st.history.fine.age)
     };
     let (gossip_peers, peers_with_remote) = {
-        let gossip = deps.read::<GossipStats>();
-        (gossip.peers.len(), 0 /* TODO(tailhook) num having remote */)
+        let gossip = deps.get::<Gossip>().expect("gossip always here");
+        gossip.get_peer_numbers()
     };
     let (remote_total, remote_connected) =
         if let &Some(ref peers) = deps.lock::<Option<Peers>>().deref() {
