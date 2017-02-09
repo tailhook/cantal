@@ -22,29 +22,31 @@ commands:
 
   make-bin: !Command
     description: Build cantal binaries
-    container: trusty
+    container: xenial
     run: [cargo, build, --release]
 
   build: !Command
     description: Build debugging binary
-    container: trusty
+    container: xenial
     run: [cargo, build]
 
   make: !Command
     description: Build cantal binaries and javascript in ubuntu container
-    container: trusty
+    container: xenial
     prerequisites: [make-bin, make-js]
     run: |
       cp ./target/release/cantal-agent .
 
   cargo: !Command
     description: Run arbitrary cargo command
-    container: trusty
+    link-as: cargo
+    work-dir: /work
+    container: xenial
     run: [cargo]
 
   bulk: !Command
     description: Run arbitrary bulk command
-    container: trusty
+    container: xenial
     run: [bulk]
 
   cargo-outdated: !Command
@@ -85,7 +87,7 @@ commands:
     prerequisites: [make]
     <<: &run
       description: Runs cantal (is not very useful run in container)
-      container: trusty
+      container: xenial
       environ:
         RUST_LOG: debug
       run:
@@ -93,10 +95,22 @@ commands:
       - --host=0.0.0.0
       - --config-dir=/work/example-configs
 
+  debug-run: !Command
+    prerequisites: [build, make-js]
+    <<: &run
+      description: Runs cantal (is not very useful run in container)
+      container: xenial
+      environ:
+        RUST_LOG: debug
+        RUST_BACKTRACE: 1
+      run: |
+        cp ./target/debug/cantal-agent .
+        ./cantal-agent --host=0.0.0.0 --config-dir=/work/example-configs
+
   run-with-process-flood: !Command
     prerequisites: [make]
     description: Runs cantal and lots of processes
-    container: trusty
+    container: xenial
     environ:
       RUST_LOG: debug
     run: |
@@ -128,67 +142,67 @@ commands:
     prerequisites: [make]
     children:
       n0: !Command
-        container: trusty
+        container: xenial
         #environ: {RUST_LOG: debug}
         run: "./cantal-agent --host 0.0.0.0 \
           --cluster-name=local-test \
           --port 22682"
       n1: !Command
-        container: trusty
+        container: xenial
         #environ: {RUST_LOG: debug}
         run: "./cantal-agent --host 0.0.0.0 \
           --cluster-name=local-test \
           --port 20001"
       n2: !Command
-        container: trusty
+        container: xenial
         #environ: {RUST_LOG: debug}
         run: "./cantal-agent --host 0.0.0.0 \
           --cluster-name=local-test \
           --port 20002"
       n3: !Command
-        container: trusty
+        container: xenial
         #environ: {RUST_LOG: debug}
         run: "./cantal-agent --host 0.0.0.0 \
           --cluster-name=local-test \
           --port 20003"
       n4: !Command
-        container: trusty
+        container: xenial
         #environ: {RUST_LOG: debug}
         run: "./cantal-agent --host 0.0.0.0 \
           --cluster-name=local-test \
           --port 20004"
       n5: !Command
-        container: trusty
+        container: xenial
         #environ: {RUST_LOG: debug}
         run: "./cantal-agent --host 0.0.0.0 \
           --cluster-name=local-test \
           --port 20005"
       n6: !Command
-        container: trusty
+        container: xenial
         #environ: {RUST_LOG: debug}
         run: "./cantal-agent --host 0.0.0.0 \
           --cluster-name=local-test \
           --port 20006"
       n7: !Command
-        container: trusty
+        container: xenial
         #environ: {RUST_LOG: debug}
         run: "./cantal-agent --host 0.0.0.0 \
           --cluster-name=local-test \
           --port 20007"
       n8: !Command
-        container: trusty
+        container: xenial
         #environ: {RUST_LOG: debug}
         run: "./cantal-agent --host 0.0.0.0 \
           --cluster-name=local-test \
           --port 20008"
       n9: !Command
-        container: trusty
+        container: xenial
         #environ: {RUST_LOG: debug}
         run: "./cantal-agent --host 0.0.0.0 \
           --cluster-name=local-test \
           --port 20009"
       connector: !Command
-        container: trusty
+        container: xenial
         run: |
           sleep 2
           for i in $(seq 1 9); do
@@ -314,7 +328,6 @@ containers:
     - *pkgs
     - *rust
     - *bulk
-    - !Install [wget] # just for 'vagga ten'
     environ: *environ
 
   xenial:
@@ -323,6 +336,7 @@ containers:
     - *pkgs
     - *rust
     - *bulk
+    - !Install [wget] # just for 'vagga ten'
     environ: *environ
 
 
