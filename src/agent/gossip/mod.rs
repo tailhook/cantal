@@ -20,7 +20,7 @@ use void::Void;
 use {HostId};
 
 pub use self::errors::InitError;
-pub use self::public::Gossip;
+pub use self::public::{Gossip, noop};
 
 
 /// Fields are documented in `config.rs`
