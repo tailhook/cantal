@@ -8,7 +8,7 @@ use std::time::{Instant, Duration};
 use cbor::{Encoder, Decoder};
 use futures::{Future, Async, Stream};
 use quick_error::ResultExt;
-use rand::{thread_rng, Rng, sample};
+use rand::{thread_rng, Rng};
 use tk_easyloop::{self, timeout};
 use tokio_core::net::UdpSocket;
 use tokio_core::reactor::Timeout;
@@ -16,11 +16,11 @@ use void::{Void, unreachable};
 
 use gossip::command::Command;
 use gossip::Config;
-use gossip::constants::MAX_PACKET_SIZE;
 use gossip::errors::InitError;
 use gossip::info::Info;
 use gossip::peer::{Report, Peer};
 use {HostId};
+use remote::Remote;
 use time_util::time_ms;
 
 
@@ -48,7 +48,9 @@ pub struct Proto<S> {
     next_ping: Instant,
     clock: Timeout,
     stream: S,
-    buf: Vec<u8>,
+    remote: Remote,
+    input_buf: Vec<u8>,
+    output_buf: Vec<u8>,
 }
 
 #[derive(Debug, Clone, RustcEncodable, RustcDecodable)]
@@ -90,13 +92,15 @@ pub struct FriendInfo {
 
 
 impl<S: Stream<Item=Command, Error=Void>> Proto<S> {
-    pub fn new(info: &Arc<Mutex<Info>>, config: &Arc<Config>, stream: S)
+    pub fn new(info: &Arc<Mutex<Info>>, config: &Arc<Config>, stream: S,
+        remote: &Remote)
        -> Result<Proto<S>, InitError>
     {
         let s = UdpSocket::bind(&config.bind, &tk_easyloop::handle())
             .context(config.bind)?;
         Ok(Proto {
             sock: s,
+            remote: remote.clone(),
             config: config.clone(),
             info: info.clone(),
             stream: stream,
@@ -105,7 +109,8 @@ impl<S: Stream<Item=Command, Error=Void>> Proto<S> {
             ping_queue: Vec::new(),
             next_ping: Instant::now() + config.interval,
             clock: timeout(config.interval),
-            buf: vec![0; config.max_packet_size],
+            input_buf: vec![0; config.max_packet_size],
+            output_buf: vec![0; config.max_packet_size],
         })
     }
 }
@@ -195,10 +200,10 @@ impl<S: Stream<Item=Command, Error=Void>> Proto<S> {
         }
         Ok(())
     }
-    fn receive_messages(&mut self) -> Result<(), Void> {
+    fn receive_messages(&mut self) {
         // Steal buffer to satisfy borrow checker
         // It should be cheap, as empty vector is non-allocating
-        let mut buf = mem::replace(&mut self.buf, Vec::new());
+        let mut buf = mem::replace(&mut self.input_buf, Vec::new());
         assert!(buf.len() == self.config.max_packet_size);
 
         while let Ok((bytes, addr)) = self.sock.recv_from(&mut buf) {
@@ -220,8 +225,7 @@ impl<S: Stream<Item=Command, Error=Void>> Proto<S> {
             }
         }
         // return buffer back
-        self.buf = buf;
-        Ok(())
+        self.input_buf = buf;
     }
     pub fn consume_gossip(&mut self, packet: Packet, addr: SocketAddr) {
         let tm = time_ms();
@@ -241,7 +245,8 @@ impl<S: Stream<Item=Command, Error=Void>> Proto<S> {
                     let mut info = self.info.lock()
                         .expect("gossip info poisoned");
                     let peer = info.peers.entry(id.clone())
-                        .or_insert_with(|| Peer::new(id.clone()));
+                        .or_insert_with(|| Arc::new(Peer::new(id.clone())));
+                    let peer = Arc::make_mut(peer);
                     peer.apply_addresses(
                         // TODO(tailhook) filter out own IP addressses
                         pinfo.addresses.iter().filter_map(|x| x.parse().ok()),
@@ -252,14 +257,15 @@ impl<S: Stream<Item=Command, Error=Void>> Proto<S> {
                     peer.pings_received += 1;
                     if peer.primary_addr.as_ref() != Some(&addr) {
                         peer.primary_addr = Some(addr);
-                        self.send_touch(id);
+                        self.remote.touch(id);
                     }
                 }
                 self.apply_friends(friends, addr);
-                let mut buf = Vec::with_capacity(self.config.max_packet_size);
+                let ref mut buf = &mut self.output_buf;
+                buf.truncate(0);
                 {
                     let info = self.info.lock().expect("gossip info poisoned");
-                    let mut e = Encoder::from_writer(&mut buf);
+                    let mut e = Encoder::from_writer(&mut *buf);
                     e.encode(&[&Packet::Pong {
                         cluster: cluster,
                         me: MyInfo {
@@ -274,11 +280,11 @@ impl<S: Stream<Item=Command, Error=Void>> Proto<S> {
                         },
                         ping_time: now,
                         peer_time: tm,
-                        friends: info.get_friends(addr),
+                        friends: info.get_friends(addr, &self.config),
                     }]).unwrap();
                 }
 
-                if buf.len() == MAX_PACKET_SIZE {
+                if buf.len() >= self.config.max_packet_size {
                     // Unfortunately cbor encoder doesn't report error of
                     // truncated data so we consider full buffer the truncated
                     // data
@@ -309,7 +315,8 @@ impl<S: Stream<Item=Command, Error=Void>> Proto<S> {
                         .expect("gossip info poisoned");
                     let id = pinfo.id.clone();
                     let peer = info.peers.entry(id.clone())
-                        .or_insert_with(|| Peer::new(id.clone()));
+                        .or_insert_with(|| Arc::new(Peer::new(id.clone())));
+                    let peer = Arc::make_mut(peer);
                     peer.apply_addresses(
                         // TODO(tailhook) filter out own IP addressses
                         pinfo.addresses.iter().filter_map(|x| x.parse().ok()),
@@ -325,7 +332,7 @@ impl<S: Stream<Item=Command, Error=Void>> Proto<S> {
                     peer.apply_node_name(Some(pinfo.name.as_ref()), true);
                     if peer.primary_addr.as_ref() != Some(&addr) {
                         peer.primary_addr = Some(addr);
-                        self.send_touch(id);
+                        self.remote.touch(id);
                     }
                 }
                 self.apply_friends(friends, addr);
@@ -334,10 +341,11 @@ impl<S: Stream<Item=Command, Error=Void>> Proto<S> {
     }
     fn send_gossip(&mut self, addr: SocketAddr) {
         debug!("Sending gossip {}", addr);
-        let mut buf = Vec::with_capacity(MAX_PACKET_SIZE);
+        let ref mut buf = self.output_buf;
+        buf.truncate(0);
         {
             let info = self.info.lock().expect("gossip info poisoned");
-            let mut e = Encoder::from_writer(&mut buf);
+            let mut e = Encoder::from_writer(&mut *buf);
             e.encode(&[&Packet::Ping {
                 cluster: self.config.cluster_name.clone(),
                 me: MyInfo {
@@ -351,10 +359,10 @@ impl<S: Stream<Item=Command, Error=Void>> Proto<S> {
                     },
                 },
                 now: time_ms(),
-                friends: info.get_friends(addr),
+                friends: info.get_friends(addr, &self.config),
             }]).unwrap();
         }
-        if buf.len() >= MAX_PACKET_SIZE {
+        if buf.len() >= self.config.max_packet_size {
             // Unfortunately cbor encoder doesn't report error of truncated
             // data so we consider full buffer the truncated data
             error!("Error sending probe to {}: Data is too long. \
@@ -367,11 +375,6 @@ impl<S: Stream<Item=Command, Error=Void>> Proto<S> {
             error!("Error sending probe to {}: {}", addr, e);
         }
     }
-    fn send_touch(&self, _id: HostId) {
-        // TODO(tailhook) this is a notification to a network subsystem that
-        // new host created (i.e. we should connect to it with a websocket)
-        unimplemented!();
-    }
     fn apply_friends(&mut self, friends: Vec<FriendInfo>, source: SocketAddr) {
         for friend in friends.into_iter() {
             let sendto_addr = {
@@ -383,7 +386,8 @@ impl<S: Stream<Item=Command, Error=Void>> Proto<S> {
                 let mut info = self.info.lock()
                     .expect("gossip info poisoned");
                 let peer = info.peers.entry(id.clone())
-                    .or_insert_with(|| Peer::new(id.clone()));
+                    .or_insert_with(|| Arc::new(Peer::new(id.clone())));
+                let peer = Arc::make_mut(peer);
                 peer.apply_addresses(
                     // TODO(tailhook) filter out own IP addressses
                     friend.addresses.iter().filter_map(|x| x.parse().ok()),
@@ -401,7 +405,7 @@ impl<S: Stream<Item=Command, Error=Void>> Proto<S> {
                     });
                     peer.primary_addr = addr;
                     addr.map(|addr| {
-                        self.send_touch(id);
+                        self.remote.touch(id);
                         peer.last_probe = Some((time_ms(), addr));
                         peer.probes_sent += 1;
                         addr
@@ -435,9 +439,12 @@ impl<S: Stream<Item=Command, Error=Void>> Proto<S> {
             let addr = {
                 let mut info = self.info.lock().expect("gossip not poisoned");
                 info.peers.get_mut(&id).and_then(|peer| {
-                    if !peer.has_fresh_report() {
+                    let peer = Arc::make_mut(peer);
+                    if !peer.has_fresh_report(&self.config) {
                         let mut addr = peer.primary_addr;
-                        if addr.is_none() || !peer.ping_primary_address() {
+                        if addr.is_none() ||
+                           !peer.ping_primary_address(&self.config)
+                        {
                             addr = peer.random_ping_addr()
                         };
                         addr.map(|addr| {

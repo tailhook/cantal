@@ -3,8 +3,10 @@ use std::sync::{Arc, Mutex};
 
 use futures::sync::mpsc::UnboundedSender;
 
+use HostId;
 use gossip::command::Command;
 use gossip::info::Info;
+use gossip::peer::Peer;
 
 
 /// A struct representing public interface for gossip
@@ -35,7 +37,8 @@ impl Gossip {
     /// Asynchronous adds host to the list of known hosts
     pub fn add_host(&self, addr: SocketAddr) {
         if let Some(ref sender) = self.sender {
-            sender.send(Command::AddHost(addr));
+            sender.send(Command::AddHost(addr))
+                .expect("can always send add host");
         }
     }
     /// Number of peers total and those having "remote" enabled
@@ -49,5 +52,25 @@ impl Gossip {
             })
             .count();
         return (info.peers.len(), num_remote);
+    }
+
+    pub fn notify_remote(&self, value: bool) {
+        let mut info = self.info.lock().expect("gossip is not poisoned");
+        info.has_remote = value;
+    }
+
+    pub fn get_peers(&self) -> Vec<Arc<Peer>> {
+        let info = self.info.lock().expect("gossip is not poisoned");
+        info.peers.values().cloned().collect()
+    }
+
+    pub fn get_peer(&self, name: &HostId) -> Option<Arc<Peer>> {
+        let info = self.info.lock().expect("gossip is not poisoned");
+        info.peers.get(name).map(|x| x.clone())
+    }
+
+    pub fn get_peer_ids(&self) -> Vec<HostId> {
+        let info = self.info.lock().expect("gossip is not poisoned");
+        info.peers.keys().cloned().collect()
     }
 }

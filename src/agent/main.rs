@@ -49,7 +49,6 @@ use std::sync::{RwLock, Arc, Mutex};
 use std::process::exit;
 use std::error::Error;
 
-use mio::Sender;
 use nix::unistd::getpid;
 use argparse::{ArgumentParser, Store, ParseOption, StoreOption, Parse, Print};
 use argparse::{StoreTrue};
@@ -67,7 +66,6 @@ mod staticfiles;
 mod scanner;
 mod scan;
 mod storage;
-mod p2p;
 mod gossip;
 mod http;
 mod websock;
@@ -221,13 +219,15 @@ fn run() -> Result<(), Box<Error>> {
       .map(|(g, i)| (g, Some(i)))
       .unwrap_or_else(|| (gossip::noop(), None));
     deps.insert(gossip.clone());
-    /*
-    let p2p_init = try!(p2p::p2p_init(&mut deps, &host, port,
-        machine_id, addresses.clone(),
-        hostname.clone(), name.clone(), cluster_name.clone()));
-    */
+
     let server_init = try!(
         server::server_init(&mut deps, &host, port, bind_localhost));
+    let remote = remote::Remote::new(
+        // temporary hack, remote subsystem must return Remote instance
+        deps.get::<mio::Sender<server::Message>>()
+        .expect("remote subsystem already initialized")
+        .clone()
+    );
 
     deps.insert(Arc::new(storage::Storage::new()));
 
@@ -270,7 +270,6 @@ fn run() -> Result<(), Box<Error>> {
 
     });
     if let Some(ref path) = storage_dir {
-        let p2p_chan = deps.get::<Sender<_>>().unwrap();
         File::open(&path.join("peers.json"))
         .map_err(|e| error!("Error reading peers: {}. Ignoring...", e))
         .and_then(|mut x| Json::from_reader(&mut x)
@@ -280,10 +279,7 @@ fn run() -> Result<(), Box<Error>> {
                 for item in lst {
                     item.as_string()
                     .and_then(|x| SocketAddr::from_str(x).ok())
-                    .and_then(|x| {
-                        gossip.add_host(x);
-                        p2p_chan.send(p2p::Command::AddGossipHost(x)).ok()
-                    }); // ignore bad hosts
+                    .map(|x| gossip.add_host(x));
                 }
             }))
         .ok();
@@ -296,18 +292,7 @@ fn run() -> Result<(), Box<Error>> {
         scanner::scan_loop(mydeps, scan_interval, *backlog_time);
     });
 
-    /*
-    let mydeps = deps.clone();
-    let mymeter = meter.clone();
-    let _p2p = thread::spawn(move || {
-        mymeter.lock().unwrap().track_current_thread("gossip");
-        p2p::p2p_loop(p2p_init, mydeps)
-            .map_err(|e| error!("Error in p2p loop: {}", e))
-            .ok();
-    });
-    */
-
-    tokioloop::start(gossip_init.take(), &configs, &stats, &meter);
+    tokioloop::start(gossip_init.take(), &configs, &stats, &meter, &remote);
 
     rotorloop::start(&configs, &stats, &meter);
 

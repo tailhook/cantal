@@ -10,6 +10,7 @@ use tk_easyloop;
 use gossip;
 use configs::Configs;
 use stats::Stats;
+use remote::Remote;
 
 
 quick_error! {
@@ -37,9 +38,10 @@ fn spawn_self_scan(meter: Arc<Mutex<Meter>>) {
 // All new async things should be in tokio main loop
 pub fn start(mut gossip: Option<gossip::GossipInit>,
     _configs: &Configs, stats: &Arc<RwLock<Stats>>,
-    meter: &Arc<Mutex<Meter>>)
+    meter: &Arc<Mutex<Meter>>, remote: &Remote)
 {
     let meter = meter.clone();
+    let remote = remote.clone();
     let _stats = stats.clone();
     debug!("Starting tokio loop");
 
@@ -50,7 +52,7 @@ pub fn start(mut gossip: Option<gossip::GossipInit>,
             spawn_self_scan(meter);
 
             if let Some(gossip) = gossip.take() {
-                gossip.spawn()?;
+                gossip.spawn(&remote)?;
             }
 
             Ok(())

@@ -11,7 +11,6 @@ use hyper::version::HttpVersion as Version;
 use hyper::header::ConnectionOption::ConnectionHeader;
 use websocket::header::{WebSocketVersion, WebSocketKey};
 
-use gossip::Gossip;
 use query::{Filter, Dataset};
 use super::http;
 use super::scan::time_ms;
@@ -278,10 +277,7 @@ pub fn beacon(deps: &Dependencies) -> Vec<u8> {
                 st.history.fine.timestamps.len(),
                 st.history.fine.age)
     };
-    let (gossip_peers, peers_with_remote) = {
-        let gossip = deps.get::<Gossip>().expect("gossip always here");
-        gossip.get_peer_numbers()
-    };
+    let (gossip_peers, peers_with_remote) = deps.gossip().get_peer_numbers();
     let (remote_total, remote_connected) =
         if let &Some(ref peers) = deps.lock::<Option<Peers>>().deref() {
             (Some(peers.tokens.len()), Some(peers.connected))
