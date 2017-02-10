@@ -9,14 +9,12 @@ use rustc_serialize::json;
 use rustc_serialize::json::ToJson;
 use probor;
 use mio;
-use mio::Sender;
 use mio::{EventSet, PollOpt};
 use mio::{EventLoop, Token};
 use mio::tcp::TcpStream;
 use mio::util::Slab;
 
 use query::{Filter, Rule, query_history};
-use super::p2p;
 use super::http;
 use super::staticfiles;
 use super::respond;
@@ -241,10 +239,8 @@ fn do_add_host(req: &Request, context: &mut Context)
    .map_err(|_| BadRequest::err("Request format error")))
    .and_then(|x: Query| x.addr.parse()
    .map_err(|_| BadRequest::err("Can't parse IP address")))
-   .and_then(|x| context.deps.get::<Sender<_>>()
-                        .unwrap().send(p2p::Command::AddGossipHost(x))
-   .map_err(|e| error!("Error sending to p2p loop: {:?}", e))
-   .map_err(|_| ServerError::err("Notify Error")))
+   .map(|x| context.deps.gossip().add_host(x))
+   .map_err(|_| ServerError::err("Notify Error"))
    .and_then(|_| {
         Ok(http::Response::json(&vec![
             (String::from("ok"), true)

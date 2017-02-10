@@ -69,18 +69,6 @@ fn get_env_vars(pid: u32) -> (Option<String>, Option<PathBuf>) {
     }
 }
 
-fn relative_from(path: &Path, prefix: &Path) -> PathBuf {
-    let mut pref_iter = prefix.components();
-    let mut path_iter = path.components();
-    loop {
-        if let Some(cmp) = pref_iter.next() {
-            assert_eq!(Some(cmp), path_iter.next());
-        } else {
-            return path_iter.as_path().to_path_buf();
-        }
-    }
-}
-
 fn add_suffix<P: AsRef<Path>, E: AsRef<OsStr>>(path: P, ext: E) -> PathBuf
 {
     let result: &Path = path.as_ref();

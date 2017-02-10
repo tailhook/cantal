@@ -1,6 +1,5 @@
 use std::iter::repeat;
 use std::ops::Deref;
-use std::net::{Ipv4Addr};
 
 use libc::pid_t;
 use probor;
@@ -16,7 +15,6 @@ use query::{Filter, Dataset};
 use super::http;
 use super::scan::time_ms;
 use super::remote::Peers;
-use super::p2p::GossipStats;
 use super::http::{Request, BadRequest};
 use super::util::Consume;
 use super::server::{Context};
@@ -279,10 +277,7 @@ pub fn beacon(deps: &Dependencies) -> Vec<u8> {
                 st.history.fine.timestamps.len(),
                 st.history.fine.age)
     };
-    let (gossip_peers, peers_with_remote) = {
-        let gossip = deps.read::<GossipStats>();
-        (gossip.peers.len(), 0 /* TODO(tailhook) num having remote */)
-    };
+    let (gossip_peers, peers_with_remote) = deps.gossip().get_peer_numbers();
     let (remote_total, remote_connected) =
         if let &Some(ref peers) = deps.lock::<Option<Peers>>().deref() {
             (Some(peers.tokens.len()), Some(peers.connected))
@@ -312,14 +307,4 @@ pub fn beacon(deps: &Dependencies) -> Vec<u8> {
         remote_connected: remote_connected,
         peers_with_remote: peers_with_remote,
     }))
-}
-
-fn ip_to_u32(ip: Ipv4Addr) -> u32 {
-    let o = ip.octets();
-    (((o[0] as u32) << 24) | ((o[1] as u32) << 16) |
-     ((o[2] as u32) << 8) | (o[3] as u32))
-}
-
-pub fn new_peer(host: Ipv4Addr, port: u16) -> Vec<u8> {
-    probor::to_buf(&OutputMessage::NewIPv4Peer(ip_to_u32(host), port))
 }

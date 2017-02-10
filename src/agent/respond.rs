@@ -15,7 +15,6 @@ use super::storage::{StorageStats};
 use super::http::{Request, BadRequest};
 use super::server::Context;
 use super::stats::Stats;
-use super::p2p::GossipStats;
 use super::remote::{Peers};
 use super::deps::LockedDeps;
 use super::websock::Beacon;
@@ -107,12 +106,12 @@ pub fn serve_metrics(_req: &Request, context: &mut Context)
 pub fn serve_peers(_req: &Request, context: &mut Context)
     -> Result<http::Response, Box<http::Error>>
 {
-    let gossip: &GossipStats = &*context.deps.read();
+    let gossip = context.deps.gossip();
     let resp = http::Response::json(
         &json::Json::Object(vec![
             (String::from("peers"), json::Json::Array(
-                gossip.peers.values()
-                .map(ToJson::to_json)
+                gossip.get_peers().iter()
+                .map(|x| x.to_json())
                 .collect())),
         ].into_iter().collect()
        ));
@@ -122,15 +121,15 @@ pub fn serve_peers(_req: &Request, context: &mut Context)
 pub fn serve_peers_with_remote(_req: &Request, context: &mut Context)
     -> Result<http::Response, Box<http::Error>>
 {
-    let gossip: &GossipStats = &*context.deps.read();
+    let gossip = context.deps.gossip();
     let resp = http::Response::json(
         &json::Json::Object(vec![
             (String::from("peers"), json::Json::Array(
-                gossip.peers.values()
+                gossip.get_peers().iter()
                 .filter(|x| x.report.as_ref()
                              .map(|&(_, ref r)| r.has_remote)
                              .unwrap_or(false))
-                .map(ToJson::to_json)
+                .map(|x| x.to_json())
                 .collect())),
         ].into_iter().collect()
        ));

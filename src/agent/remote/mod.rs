@@ -21,13 +21,12 @@ use super::websock::InputMessage as OutputMessage;
 use super::websock::OutputMessage as InputMessage;
 use super::deps::{LockedDeps};
 use super::server::Timer::{ReconnectPeer, ResetPeer};
-use super::p2p::GossipStats;
-use super::p2p;
 use self::owebsock::WebSocket;
 use super::history::History;
 use super::ioutil::Poll;
 use super::server::Timer::{RemoteCollectGarbage};
 use {HostId};
+use server::Message::{self, Touch};
 
 mod owebsock;
 mod aggregate;
@@ -63,6 +62,13 @@ const DATA_POINTS: usize = 150;  // ~ five minutes ~ 150px of graph
 
 pub const EXTRACT: Extract = Extract::HistoryByNum(DATA_POINTS);
 pub const EXTRACT_ONE: Extract = Extract::HistoryByNum(1);  // just latest one
+
+
+/// A new remote subsystem accessor, more incapsulated
+#[derive(Clone)]
+pub struct Remote {
+    sender: Sender<Message>,
+}
 
 
 #[allow(unused)] // start_time will be used later
@@ -103,8 +109,7 @@ pub fn ensure_started(ctx: &mut Context) {
     debug!("Starting remote tracking");
     let range = Range::new(5, 150);
     let mut rng = thread_rng();
-    let peers:Vec<_>;
-    peers = ctx.deps.read::<GossipStats>().peers.keys().cloned().collect();
+    let peers = ctx.deps.gossip().get_peer_ids();
     let mut data = Peers {
         touch_time: SteadyTime::now(),
         peers: Slab::new_starting_at(Token(SLAB_START),
@@ -134,10 +139,7 @@ pub fn ensure_started(ctx: &mut Context) {
     }
     *opt_peers = Some(data);
 
-    ctx.deps.get::<Sender<p2p::Command>>().unwrap()
-        .send(p2p::Command::RemoteSwitch(true))
-        .map_err(|_| error!("Error sending RemoteSwitch to p2p"))
-        .ok();
+    ctx.deps.gossip().notify_remote(true);
 }
 
 pub fn touch(id: HostId, ctx: &mut Context) {
@@ -192,7 +194,7 @@ pub fn reconnect_peer(tok: Token, ctx: &mut Context) {
     };
 
     let addr = {
-        if let Some(peer) = ctx.deps.read::<GossipStats>().peers.get(&id) {
+        if let Some(peer) = ctx.deps.gossip().get_peer(&id) {
             match peer.primary_addr {
                 Some(addr) => {
                     debug!("The addr {} {:?} has primary ip {}",
@@ -330,11 +332,10 @@ pub fn try_io(tok: Token, ev: EventSet, ctx: &mut Context) -> bool
                         InputMessage::NewIPv4Peer(ip, port) => {
                             // TODO(tailhook) process it
                             let ip = Ipv4Addr::from(ip);
+                            let addr = SocketAddr::V4(
+                                SocketAddrV4::new(ip, port));
                             debug!("New peer from websock {:?}", ip);
-                            ctx.deps.get::<Sender<p2p::Command>>().unwrap()
-                            .send(p2p::Command::AddGossipHost(
-                                  SocketAddr::V4(SocketAddrV4::new(ip, port))))
-                            .unwrap()
+                            ctx.deps.gossip().add_host(addr);
                         }
                         InputMessage::Stats(stats) => {
                             debug!("New stats from peer {} at {:?}",
@@ -432,4 +433,17 @@ pub fn garbage_collector(ctx: &mut Context) {
     }
     // no subscriptions left
     *peers_opt = None;
+}
+
+impl Remote {
+    pub fn new(sender: Sender<Message>) -> Remote {
+        Remote {
+            sender: sender,
+        }
+    }
+
+    pub fn touch(&self, host: HostId) {
+        self.sender.send(Touch(host))
+            .expect("message to remote subsystem sent");
+    }
 }

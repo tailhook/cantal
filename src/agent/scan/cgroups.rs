@@ -56,7 +56,7 @@ fn get_name_dir() -> Option<PathBuf> {
 
 fn make_name(path: &Path, skip_prefix: usize) -> String {
     let mut buf = String::with_capacity(16);
-    for mut cmp in path.components().skip(skip_prefix) {
+    for cmp in path.components().skip(skip_prefix) {
         if let Normal(name_os) = cmp {
             if let Some(mut name) = name_os.to_str() {
                 if name.ends_with(".slice") || name.ends_with(".scope") {
@@ -116,7 +116,7 @@ pub fn read() -> CGroups {
                     pro.insert(pid, name.clone());
                 }
             }
-        }).map_err(|e| debug!("Error reading directory")).ok();
+        }).map_err(|_| debug!("Error reading directory")).ok();
     }
     return pro;
 }

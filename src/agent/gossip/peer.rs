@@ -1,13 +1,14 @@
-use std::net::SocketAddr;
 use std::collections::HashSet;
+use std::net::SocketAddr;
+use std::sync::Arc;
 
 use rustc_serialize::json::{Json, ToJson};
 use rustc_serialize::hex::ToHex;
 use rand::{thread_rng, sample};
 
 use super::super::scan::time_ms;
-use super::gossip::{PREFAIL_TIME, MAX_ROUNDTRIP, MAX_PROBE, MIN_PROBE};
-use super::gossip::{FAIL_TIME, REMOVE_TIME};
+use gossip::Config;
+use time_util::duration_to_millis;
 
 
 // TODO(tailhook) probably remove the structure
@@ -85,7 +86,9 @@ impl Peer {
             self.report = src;
         }
     }
-    pub fn apply_hostname(&mut self, hostname: Option<String>, direct: bool) {
+    pub fn apply_hostname(&mut self, hostname: Option<&str>,
+        direct: bool)
+    {
         let overwrite = match (&self.host, &hostname) {
             (&None, &Some(_)) => true,
             (&Some(ref x), &Some(ref y)) if x != y => {
@@ -97,10 +100,11 @@ impl Peer {
             _ => false,
         };
         if overwrite {
-            self.host = hostname;
+            self.host = hostname.map(|x| x.to_string());
         }
     }
-    pub fn apply_node_name(&mut self, name: Option<String>, direct: bool) {
+    pub fn apply_node_name(&mut self, name: Option<&str>, direct: bool)
+    {
         let overwrite = match (&self.name, &name) {
             (&None, &Some(_)) => true,
             (&Some(ref x), &Some(ref y)) if x != y => {
@@ -112,7 +116,7 @@ impl Peer {
             _ => false,
         };
         if overwrite {
-            self.name = name;
+            self.name = name.map(|x| x.to_string());
         }
     }
     pub fn apply_roundtrip(&mut self, rtt: (u64, u64),
@@ -122,7 +126,7 @@ impl Peer {
             self.last_roundtrip = Some((source, rtt.0, rtt.1));
         } else {
             match self.random_peer_roundtrip {
-                Some((sa, tm, _)) if tm < rtt.0 => {
+                Some((_, tm, _)) if tm < rtt.0 => {
                     self.random_peer_roundtrip = Some((source, rtt.0, rtt.1));
                 }
                 Some(_) => {}
@@ -133,13 +137,15 @@ impl Peer {
         }
     }
 
-    pub fn has_fresh_report(&self) -> bool {
+    pub fn has_fresh_report(&self, config: &Arc<Config>) -> bool {
         let now = time_ms();
+        let min_probe = duration_to_millis(config.min_ping_interval);
+        let max_probe = duration_to_millis(config.max_ping_interval);
         match self.report {
             // never reported
             None => { return false; }
             // outdated report
-            Some((ts, _)) if ts + MIN_PROBE < now => { return false; }
+            Some((ts, _)) if ts + min_probe < now => { return false; }
             _ => {}
         }
         // In case we have fresh report (probably pushed from host or from
@@ -148,26 +154,28 @@ impl Peer {
             // never reported
             None => { return false; }
             // outdated
-            Some((ts, _)) if ts + MAX_PROBE < now => { return false; }
+            Some((ts, _)) if ts + max_probe < now => { return false; }
             _ => {}
         }
         return true;
     }
 
-    pub fn ping_primary_address(&self) -> bool {
+    pub fn ping_primary_address(&self, config: &Arc<Config>) -> bool {
         let now = time_ms();
+        let max_roundtrip = config.max_roundtrip;
+        let prefail_time = config.prefail_time;
         match self.last_probe {
             // never probed (yet)
             None => { return true; }
             // not yet responed
-            Some((ts, _)) if ts + MAX_ROUNDTRIP > now => { return true; }
+            Some((ts, _)) if ts + max_roundtrip > now => { return true; }
             _ => {}
         }
         match self.report {
             // no report received ever
             None => false,
             // last report is recently received
-            Some((ts, _)) if ts + PREFAIL_TIME > now => true,
+            Some((ts, _)) if ts + prefail_time > now => true,
             _ => false,
         }
     }
@@ -185,23 +193,23 @@ impl Peer {
         }
     }
 
-    pub fn is_failing(&self) -> bool {
+    pub fn is_failing(&self, config: &Arc<Config>) -> bool {
         let now = time_ms();
         match self.report {
             // never probed (yet)
-            None => self.added + FAIL_TIME < now,
+            None => self.added + config.fail_time < now,
             // not yet responed
-            Some((ts, _)) => ts + FAIL_TIME < now,
+            Some((ts, _)) => ts + config.fail_time < now,
         }
     }
 
-    pub fn should_remove(&self) -> bool {
+    pub fn should_remove(&self, config: &Arc<Config>) -> bool {
         let now = time_ms();
         match self.report {
             // never probed (yet)
-            None => self.added + REMOVE_TIME < now,
+            None => self.added + config.remove_time < now,
             // not yet responed
-            Some((ts, _)) => ts + REMOVE_TIME < now,
+            Some((ts, _)) => ts + config.remove_time < now,
         }
     }
 }
@@ -211,7 +219,8 @@ impl ToJson for Peer {
         Json::Object(vec![
             ("id", self.id[..].to_hex().to_json()),
             ("known_since", self.added.to_json()),
-            ("is_failing", self.is_failing().to_json()),
+            // TODO(tailhook) config is needed!
+            //("is_failing", self.is_failing().to_json()),
             ("primary_addr", self.primary_addr
                 .map(|x| format!("{}", x)).to_json()),
             ("addresses", self.addresses.iter()

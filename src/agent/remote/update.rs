@@ -63,9 +63,12 @@ pub fn update_history(hist: &mut History, datasets: Vec<Dataset>) {
             SingleTip(_, _, _) => {
                 error!("Single series is not expected here");
             }
-            MultiTip(vec) => {
-                for (key, value, ts) in vec.into_iter() {
+            MultiTip(_vec) => {
+                error!("Multi tips are not supported yet");
+                /*
+                for (_key, _value, _ts) in vec.into_iter() {
                 }
+                */
             }
             Chart(_) => {
                 error!("Chart is not expected here");

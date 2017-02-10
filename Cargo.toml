@@ -39,7 +39,9 @@ lazy_static = "0.2.1"
 self-meter = "0.3.0"
 futures = "0.1.9"
 tokio-core = "0.1.4"
-tk-easyloop = "0.1.0"
+tk-easyloop = "0.1.1"
+quick-error = "1.1.0"
+void = "1.0.2"
 
 [dependencies.probor]
 version = "0.2.0"
