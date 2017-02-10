@@ -39,7 +39,6 @@ commands:
 
   cargo: !Command
     description: Run arbitrary cargo command
-    link-as: cargo
     work-dir: /work
     container: xenial
     run: [cargo]
