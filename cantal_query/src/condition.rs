@@ -2,7 +2,7 @@ use regex::Regex;
 use history::Key;
 
 /// A shim type to deserialize regex and hash it
-#[derive(Clone, PartialEq, Eq, Debug)]
+#[derive(Clone, Debug)]
 pub struct RegexWrap(Regex);
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -77,6 +77,14 @@ mod regex_wrap {
             &self.0
         }
     }
+
+    impl PartialEq for RegexWrap {
+        fn eq(&self, other: &RegexWrap) -> bool {
+            self.0.as_str().eq(other.0.as_str())
+        }
+    }
+
+    impl Eq for RegexWrap { }
 
     impl probor::Encodable for RegexWrap {
         fn encode<W:probor::Output>(&self, e: &mut probor::Encoder<W>)

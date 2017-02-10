@@ -10,11 +10,14 @@ authors = ["paul@colomiets.name"]
 
 [dependencies]
 log = "0.3"
-cbor-codec = "0.5.0"
-rustc-serialize = "0.3"
-regex = "0.1"
-probor = "0.2.0"
-num = "0.1"
+cbor-codec = "0.7.1"
+rustc-serialize = "0.3.22"
+regex = "0.2.1"
+num = "0.1.36"
+
+[dependencies.probor]
+version = "0.3.0"
+features = ["regex_serde"]
 
 [dependencies.cantal_values]
 path = "../cantal_values"

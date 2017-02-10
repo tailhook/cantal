@@ -113,8 +113,8 @@ fn store_metrics(path: &Path, buf: MetricBuffer, stats: &RwLock<Stats>) {
             entry.path().file_name()
             .and_then(|x| x.to_str())
             .and_then(|fname| file_re.captures(fname))
-            .and_then(|c| c.at(1))
-            .and_then(|x| FromStr::from_str(x).ok())
+            .and_then(|c| c.get(1))
+            .and_then(|x| FromStr::from_str(x.as_str()).ok())
             .map(|x: u64| {
                 if x < cut_off {
                     remove_file(entry.path())

@@ -57,7 +57,7 @@ pub fn scan(sender: &mut Sender, cfg: &Config, stats: &Stats)
             // simplify lithos_cmd's groups (see description of LITHOS_CMD)
             let captures = LITHOS_CMD.captures(cgroup);
             let cgroup = match captures {
-                Some(ref capt) => capt.at(1).unwrap(),
+                Some(ref capt) => capt.get(1).unwrap().as_str(),
                 None => cgroup,
             };
             key.get_with("metric", |metric| {
