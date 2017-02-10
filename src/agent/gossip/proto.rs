@@ -47,7 +47,7 @@ pub struct Proto<S> {
     config: Arc<Config>,
     info: Arc<Mutex<Info>>,
     addr_status: HashMap<SocketAddr, AddrStatus>,
-    queue: BinaryHeap<FutureHost>,
+    add_queue: BinaryHeap<FutureHost>,
     ping_queue: Vec<HostId>,
     next_ping: Instant,
     next_gc: Instant,
@@ -112,7 +112,7 @@ impl<S: Stream<Item=Command, Error=Void>> Proto<S> {
             info: info.clone(),
             stream: stream,
             addr_status: HashMap::new(),
-            queue: BinaryHeap::new(),
+            add_queue: BinaryHeap::new(),
             ping_queue: Vec::new(),
             next_ping: Instant::now() + config.interval,
             next_gc: Instant::now() + config.garbage_collector_interval,
@@ -131,14 +131,15 @@ impl<S: Stream<Item=Command, Error=Void>> Future for Proto<S> {
         loop {
             self.internal_messages().unwrap_or_else(|e| unreachable(e));
             self.receive_messages();
-            if Instant::now() >= self.next_ping {
-                self.ping_hosts();
-                self.next_ping = Instant::now() + self.config.interval;
-            }
             if Instant::now() >= self.next_gc {
                 self.garbage_collector();
                 self.next_gc = Instant::now() +
                     self.config.garbage_collector_interval;
+            }
+            self.retry_new_hosts();
+            if Instant::now() >= self.next_ping {
+                self.ping_hosts();
+                self.next_ping = Instant::now() + self.config.interval;
             }
 
             let new_timeout = self.next_wakeup();
@@ -167,7 +168,7 @@ impl<S: Stream<Item=Command, Error=Void>> Future for Proto<S> {
 impl<S: Stream<Item=Command, Error=Void>> Proto<S> {
     fn next_wakeup(&self) -> Instant {
         let static_next = min(self.next_ping, self.next_gc);
-        self.queue.peek().map(|x| min(x.deadline, static_next))
+        self.add_queue.peek().map(|x| min(x.deadline, static_next))
             .unwrap_or(static_next)
     }
     fn internal_messages(&mut self) -> Result<(), Void> {
@@ -201,7 +202,7 @@ impl<S: Stream<Item=Command, Error=Void>> Proto<S> {
                         None => {
                             self.addr_status.insert(addr, PingSent);
                             let timeout = self.config.add_host_first_sleep();
-                            self.queue.push(FutureHost {
+                            self.add_queue.push(FutureHost {
                                 deadline: Instant::now() + timeout,
                                 address: addr,
                                 attempts: 1,
@@ -242,6 +243,8 @@ impl<S: Stream<Item=Command, Error=Void>> Proto<S> {
         self.input_buf = buf;
     }
     pub fn consume_gossip(&mut self, packet: Packet, addr: SocketAddr) {
+        use self::AddrStatus::*;
+
         let tm = time_ms();
 
         match packet {
@@ -258,6 +261,7 @@ impl<S: Stream<Item=Command, Error=Void>> Proto<S> {
                     let id = pinfo.id.clone();
                     let mut info = self.info.lock()
                         .expect("gossip info poisoned");
+                    self.addr_status.insert(addr, Available);
                     let peer = info.peers.entry(id.clone())
                         .or_insert_with(|| Arc::new(Peer::new(id.clone())));
                     let peer = Arc::make_mut(peer);
@@ -328,6 +332,7 @@ impl<S: Stream<Item=Command, Error=Void>> Proto<S> {
                     let mut info = self.info.lock()
                         .expect("gossip info poisoned");
                     let id = pinfo.id.clone();
+                    self.addr_status.insert(addr, Available);
                     let peer = info.peers.entry(id.clone())
                         .or_insert_with(|| Arc::new(Peer::new(id.clone())));
                     let peer = Arc::make_mut(peer);
@@ -492,6 +497,29 @@ impl<S: Stream<Item=Command, Error=Void>> Proto<S> {
         }; // unlocks self.info to avoid potential deadlocks
 
         self.storage.store_peers(data);
+    }
+    fn retry_new_hosts(&mut self) {
+        use self::AddrStatus::*;
+        loop {
+            match self.add_queue.peek() {
+                Some(x) if x.deadline < Instant::now() => {}
+                _ => break,
+            }
+            let mut host = self.add_queue.pop().unwrap();
+            if let Some(&Available) = self.addr_status.get(&host.address) {
+                continue;
+            }
+            if host.attempts > self.config.add_host_retry_times {
+                error!("Host {} is unresponsive", host.address);
+                continue;
+            }
+            host.timeout = self.config.add_host_next_sleep(host.timeout);
+            host.deadline = Instant::now() + host.timeout;
+            host.attempts += 1;
+            self.addr_status.insert(host.address, PingSent);
+            self.send_gossip(host.address);
+            self.add_queue.push(host);
+        }
     }
     fn remove_failed_nodes(&mut self) {
         let mut info = self.info.lock().expect("gossip not poisoned");

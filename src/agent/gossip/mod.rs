@@ -31,6 +31,7 @@ pub struct Config {
     hostname: Arc<String>,
     name: Arc<String>,
     bind: SocketAddr,
+    #[allow(dead_code)]
     addresses: Vec<SocketAddr>,
     str_addresses: Arc<Vec<String>>,
 
