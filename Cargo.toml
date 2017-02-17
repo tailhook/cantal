@@ -62,6 +62,6 @@ features = ["rustc-serialize"]
 
 [[bin]]
 name = "cantal-agent"
-path = "src/agent/main.rs"
+path = "src/main.rs"
 
 
