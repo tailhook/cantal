@@ -1,4 +1,5 @@
 use std::path::Path;
+use std::sync::Arc;
 
 use scan_dir::ScanDir;
 use carbon::{Config as Carbon, validator as carbon_validator};
@@ -7,7 +8,7 @@ use quire::{parse_config, Options};
 
 #[derive(Clone)]
 pub struct Configs {
-   pub carbon: Vec<Carbon>,
+   pub carbon: Vec<Arc<Carbon>>,
 }
 
 pub fn read(dir: &Path) -> Configs {

@@ -1,36 +1,37 @@
-extern crate libc;
-#[macro_use] extern crate log;
-extern crate cbor;
-extern crate argparse;
-extern crate rustc_serialize;
-extern crate regex;
-extern crate nix;
-extern crate mio;
-extern crate time;
-extern crate rand;
-extern crate num;
-#[macro_use] extern crate mime;
-#[macro_use] extern crate matches;
-#[macro_use] extern crate probor;
-#[macro_use] extern crate lazy_static;
-extern crate httparse;
-extern crate unicase;
-extern crate hyper;
-extern crate websocket;
-extern crate byteorder;
 extern crate anymap;
+extern crate abstract_ns;
+extern crate argparse;
+extern crate byteorder;
+extern crate cbor;
 extern crate fern;
-extern crate quire;
-extern crate scan_dir;
-#[macro_use] extern crate rotor;
-extern crate rotor_carbon;
-extern crate rotor_tools;
-extern crate humantime;
-extern crate self_meter;
 extern crate futures;
-extern crate tokio_core;
+extern crate futures_cpupool;
+extern crate httparse;
+extern crate humantime;
+extern crate hyper;
+extern crate libc;
+extern crate mio;
+extern crate nix;
+extern crate ns_std_threaded;
+extern crate num;
+extern crate quire;
+extern crate rand;
+extern crate regex;
+extern crate rustc_serialize;
+extern crate scan_dir;
+extern crate self_meter;
+extern crate time;
+extern crate tk_carbon;
 extern crate tk_easyloop;
+extern crate tokio_core;
+extern crate unicase;
 extern crate void;
+extern crate websocket;
+#[macro_use] extern crate lazy_static;
+#[macro_use] extern crate log;
+#[macro_use] extern crate matches;
+#[macro_use] extern crate mime;
+#[macro_use] extern crate probor;
 #[macro_use] extern crate quick_error;
 
 extern crate cantal_values as cantal;
@@ -75,7 +76,6 @@ mod error;
 mod deps;
 mod ioutil;
 mod info;
-mod rotorloop;
 mod carbon;
 mod configs;
 mod tokioloop;
@@ -189,7 +189,7 @@ fn run() -> Result<(), Box<Error>> {
         .expect("meter created")));
     meter.lock().unwrap().track_current_thread("main");
 
-    let configs = configs::read(&config_dir);
+    let configs = Arc::new(configs::read(&config_dir));
 
     let hostname = info::hostname().unwrap();
     let addresses = info::my_addresses(port).unwrap();
@@ -293,8 +293,6 @@ fn run() -> Result<(), Box<Error>> {
 
     tokioloop::start(gossip_init.take(), &configs, &stats, &meter,
         &remote, &storage);
-
-    rotorloop::start(&configs, &stats, &meter);
 
     try!(server::server_loop(server_init, deps));
 

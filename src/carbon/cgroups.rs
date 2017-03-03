@@ -1,12 +1,13 @@
 use std::collections::HashMap;
+use std::time::{Duration, UNIX_EPOCH};
 
-use regex::Regex;
 use cantal::Value::{Integer};
+use regex::Regex;
+use tk_carbon::Carbon;
 
 use stats::Stats;
 
 use super::config::Config;
-use super::Sender;
 use super::util::{graphite_data, get_counter_diff};
 
 
@@ -37,7 +38,7 @@ struct CGroup {
     user_metrics: HashMap<String, f64>,
 }
 
-pub fn scan(sender: &mut Sender, cfg: &Config, stats: &Stats)
+pub fn scan(sender: &Carbon, cfg: &Config, stats: &Stats)
 {
     let ref backlog = stats.history.fine;
     if backlog.timestamps.len() < 2 {
@@ -51,7 +52,7 @@ pub fn scan(sender: &mut Sender, cfg: &Config, stats: &Stats)
         .next().map(|(x, _)| x)
         .unwrap_or(backlog.timestamps.len() - 1);
     let cut_age = backlog.age.saturating_sub(num as u64);
-    let unixtime = timestamp / 1000;
+    let unixtime = UNIX_EPOCH + Duration::from_millis(timestamp);
     for (key, value) in backlog.values.iter() {
         key.get_with("cgroup", |cgroup| {
             // simplify lithos_cmd's groups (see description of LITHOS_CMD)
