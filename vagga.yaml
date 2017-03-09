@@ -35,7 +35,7 @@ commands:
     container: xenial
     prerequisites: [make-bin, make-js]
     run: |
-      cp ./target/release/cantal-agent .
+      cp -f ./target/release/cantal-agent .
 
   cargo: !Command
     description: Run arbitrary cargo command
@@ -88,7 +88,7 @@ commands:
       description: Runs cantal (is not very useful run in container)
       container: xenial
       environ:
-        RUST_LOG: debug
+        RUST_LOG: info
       run:
       - ./cantal-agent
       - --host=0.0.0.0
@@ -105,6 +105,16 @@ commands:
       run: |
         cp ./target/debug/cantal-agent .
         ./cantal-agent --host=0.0.0.0 --config-dir=/work/example-configs
+
+  run-with-process: !Command
+    prerequisites: [make]
+    description: Runs cantal with test process submitting data
+    container: xenial
+    environ:
+      RUST_LOG: debug
+    run: |
+      ./cantal-agent --host=0.0.0.0 --config-dir=/work/example-configs &
+      CANTAL_APPNAME=example CANTAL_PATH=/tmp/cantal python3 py3/example.py
 
   run-with-process-flood: !Command
     prerequisites: [make]
@@ -219,8 +229,7 @@ commands:
       ./bin/carbon-cache.py start --debug
 
   graphite-web: &graphite !Command
-    description: Run graphite-web (cantal can submit data to carbon). You
-                 must run graphite-init before running this command
+    description: Run graphite-web (cantal can submit data to carbon)
     container: graphite
     work-dir: /opt/graphite/webapp/graphite
     run:
@@ -228,17 +237,16 @@ commands:
     - manage.py
     - runserver
 
-  init_graphite: !Command
+  _init_graphite: !Command
     description: Init graphite-web (cantal can submit data to carbon)
     container: graphite
     work-dir: /opt/graphite/webapp/graphite
     run: |
       python manage.py syncdb --noinput
-      mkdir -p /work/integrations/tmp/log/webapp
+      mkdir -p /opt/graphite/storage/log/webapp
 
   graphite-live: !Supervise
-    description: Run graphite-web (cantal can submit data to carbon). You
-                 must run graphite-init before running this command
+    description: Run graphite-web (cantal can submit data to carbon)
     children:
       <<: *live
       graphite: *graphite
@@ -402,7 +410,9 @@ containers:
           >> /opt/graphite/webapp/graphite/settings.py
     auto-clean: true
     volumes:
-      /opt/graphite/storage: !BindRW /work/integrations/tmp
+      /opt/graphite/storage: !Persistent
+        name: graphite
+        init-command: _init_graphite
 
   rust-musl:
     auto-clean: true
