@@ -28,11 +28,13 @@ Cantal starting with v0.3.0, has a default configuration directory
 .. code-block:: yaml
 
    # /etc/cantal/localhost.carbon.yaml
-   host: 127.0.0.1  # only IP address supported in v0.3.0
+   host: localhost
    port: 2003
    interval: 10
    enable-cgroup-stats: true
    enable-application-metrics: true
+
+
 
 All configurations which end with ``.carbon.yaml`` will be read. Multiple
 configurations may be used, each configuration is a separate connection with
