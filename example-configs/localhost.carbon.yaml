@@ -1,5 +1,0 @@
-host: localhost
-port: 2003
-interval: 10
-enable-cgroup-stats: true
-enable-application-metrics: true
