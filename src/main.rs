@@ -27,12 +27,15 @@ extern crate tokio_core;
 extern crate unicase;
 extern crate void;
 extern crate websocket;
+extern crate serde;
+extern crate serde_json;
 #[macro_use] extern crate lazy_static;
 #[macro_use] extern crate log;
 #[macro_use] extern crate matches;
 #[macro_use] extern crate mime;
 #[macro_use] extern crate probor;
 #[macro_use] extern crate quick_error;
+#[macro_use] extern crate serde_derive;
 
 extern crate cantal_values as cantal;
 extern crate cantal_history as history;

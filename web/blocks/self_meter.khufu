@@ -25,8 +25,8 @@ view big(report, threads_report):
   let mem = bytes_formatter()
   <div.row>
     <span.key> "Since (interval)"
-    <span.value> `${format_diff(till_now_ms(from_ms(report.timestamp_ms)))}
-                  (${format_diff(report.duration_ms)})`
+    <span.value> `${format_diff(till_now_ms(from_ms(report.timestamp)))}
+                  (${format_diff(report.duration)})`
   <div.row>
     <span.key> "System CPU"
     <span.value> `${percent(report.global_cpu_usage)}`
@@ -38,10 +38,10 @@ view big(report, threads_report):
     <span.value> `${percent(report.gross_cpu_usage)}`
   <div.row>
     <span.key> "Uptime"
-    <span.value> `${format_uptime(till_now_ms(from_ms(report.start_time_ms)))}`
+    <span.value> `${format_uptime(till_now_ms(from_ms(report.start_time)))}`
   <div.row>
     <span.key> "System Uptime"
-    <span.value> `${format_uptime(report.system_uptime_ms)}`
+    <span.value> `${format_uptime(report.system_uptime)}`
   <div.row>
     <span.key> "RSS (Peak)"
     <span.value> `${mem(report.memory_rss)} / ${mem(report.memory_rss_peak)}`

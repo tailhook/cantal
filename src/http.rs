@@ -19,6 +19,8 @@ use hyper::server::response::Response as HyperResponse;
 use websocket::header::{WebSocketAccept, WebSocketKey};
 use rustc_serialize::Encodable;
 use rustc_serialize::json::as_json;
+use serde::ser::Serialize;
+use serde_json;
 
 use super::util::ReadVec as R;
 use super::util::Consume;
@@ -157,6 +159,15 @@ impl Response {
             ContentType(mime!(Application/Json; Charset=Utf8)));
         res.status = StatusCode::Ok;
         res.body = Cow::Owned(format!("{}", as_json(body)).into_bytes());
+        return res;
+    }
+    pub fn serde_json<T: Serialize>(body: &T) -> Response
+    {
+        let mut res = Response::new();
+        res.headers.set(
+            ContentType(mime!(Application/Json; Charset=Utf8)));
+        res.status = StatusCode::Ok;
+        res.body = Cow::Owned(serde_json::to_vec(body).unwrap());
         return res;
     }
     pub fn probor<T: probor::Encodable>(body: &T) -> Response

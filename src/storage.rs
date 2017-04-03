@@ -23,7 +23,7 @@ pub enum Task {
     Peers(Box<[u8]>),
 }
 
-#[derive(Default, RustcEncodable, Clone, Copy)]
+#[derive(Default, RustcEncodable, Serialize, Clone, Copy)]
 pub struct StorageStats {
     pub time: u64,
     pub timestamp: u64,

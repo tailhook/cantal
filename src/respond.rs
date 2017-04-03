@@ -28,7 +28,7 @@ struct ProcessesData<'a> {
 pub fn serve_status(_req: &Request, context: &mut Context)
     -> Result<http::Response, Box<http::Error>>
 {
-    #[derive(RustcEncodable)]
+    #[derive(Serialize)]
     struct StatusData {
         startup_time: u64,
         scan_duration: u32,
@@ -45,7 +45,7 @@ pub fn serve_status(_req: &Request, context: &mut Context)
             .unwrap_or(HashMap::new()))
     };
     let stats: &Stats = &*context.deps.read();
-    Ok(http::Response::json(&StatusData {
+    Ok(http::Response::serde_json(&StatusData {
             startup_time: stats.startup_time,
             scan_duration: stats.scan_duration,
             storage: stats.storage,
