@@ -45,7 +45,7 @@ style:
     text-align: right
 
 view millis_delta(delta):
-  if delta:
+  if delta != null:
     if delta < 10000:
       `${delta} ms`
     else:
