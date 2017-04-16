@@ -114,8 +114,8 @@ fn vec_sum<X:Add<X, Output=X>+Copy>(mut target: Vec<Option<X>>,
                                         source: &&Vec<Option<X>>)
     -> Vec<Option<X>>
 {
-    for i in 0..target.len() {
-        match (&mut target[i], &source[i]) {
+    for (t, s) in target.iter_mut().zip(source.iter()) {
+        match (t, s) {
             (&mut Some(ref mut x), &Some(ref y)) => *x = *x + *y,
             (x @ &mut None, y) => *x = *y,
             (&mut Some(_), &None) => {}
