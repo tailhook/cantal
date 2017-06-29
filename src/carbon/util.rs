@@ -1,3 +1,5 @@
+use std::cmp::min;
+
 use history::{Value, Backlog, CounterHistory};
 
 
@@ -12,7 +14,9 @@ pub fn graphite_data(val: &Value, blog: &Backlog, num: usize)
                 (value as f64)*1000.0/(millis as f64)
             })
         }
-        &Integer(ref hist) => {
+        &Integer(ref hist)
+        if val.age() >= blog.age - min(num as u64, blog.age)
+        => {
             Some(hist.tip() as f64)
         }
         _ => None,
