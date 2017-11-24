@@ -127,7 +127,7 @@ dependencies = [
  "serde_derive 0.9.15 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 0.9.10 (registry+https://github.com/rust-lang/crates.io-index)",
  "time 0.1.38 (registry+https://github.com/rust-lang/crates.io-index)",
- "tk-carbon 0.1.0 (git+https://github.com/tailhook/tk-carbon?rev=1d91210)",
+ "tk-carbon 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "tk-easyloop 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio-core 0.1.10 (registry+https://github.com/rust-lang/crates.io-index)",
  "unicase 1.4.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -944,8 +944,8 @@ dependencies = [
 
 [[package]]
 name = "tk-carbon"
-version = "0.1.0"
-source = "git+https://github.com/tailhook/tk-carbon?rev=1d91210#1d9121057da6bb88a940f0fa928372143686b5f2"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "abstract-ns 0.4.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.1.17 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1254,7 +1254,7 @@ dependencies = [
 "checksum thread_local 0.3.4 (registry+https://github.com/rust-lang/crates.io-index)" = "1697c4b57aeeb7a536b647165a2825faddffb1d3bad386d507709bd51a90bb14"
 "checksum time 0.1.38 (registry+https://github.com/rust-lang/crates.io-index)" = "d5d788d3aa77bc0ef3e9621256885555368b47bd495c13dd2e7413c89f845520"
 "checksum tk-bufstream 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)" = "9bb87b067cbeb3362045e3f97e40ff3bd5b369bd1b23e6e8d308354534b83237"
-"checksum tk-carbon 0.1.0 (git+https://github.com/tailhook/tk-carbon?rev=1d91210)" = "<none>"
+"checksum tk-carbon 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "218146fb295ef68fd4051ffc3b0cbc8ce7c5fa210892dc9108562cd8de4d8fbb"
 "checksum tk-easyloop 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "291a100e486fc0ec2ff46122abf096f7481fdf2a15c251da8bad6c25fbc48ab1"
 "checksum tokio-core 0.1.10 (registry+https://github.com/rust-lang/crates.io-index)" = "c843a027f7c1df5f81e7734a0df3f67bf329411781ebf36393ce67beef6071e3"
 "checksum tokio-io 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)" = "514aae203178929dbf03318ad7c683126672d4d96eccb77b29603d33c9e25743"

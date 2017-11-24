@@ -37,7 +37,7 @@ self-meter = "0.4.4"
 futures = "0.1.10"
 tokio-core = "0.1.4"
 tk-easyloop = "0.1.1"
-tk-carbon = { git="https://github.com/tailhook/tk-carbon", rev="1d91210" }
+tk-carbon = "0.2.0"
 abstract-ns = "0.4.2"
 ns-std-threaded = "0.3.0"
 ns-router = "0.1.1"
