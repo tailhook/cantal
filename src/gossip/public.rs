@@ -37,7 +37,7 @@ impl Gossip {
     /// Asynchronous adds host to the list of known hosts
     pub fn add_host(&self, addr: SocketAddr) {
         if let Some(ref sender) = self.sender {
-            sender.send(Command::AddHost(addr))
+            sender.unbounded_send(Command::AddHost(addr))
                 .expect("can always send add host");
         }
     }

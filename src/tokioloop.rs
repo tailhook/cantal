@@ -3,13 +3,13 @@ use std::process::exit;
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::Duration;
 
-use abstract_ns::Resolver;
-use futures_cpupool;
+use abstract_ns::{HostResolve};
+use ns_router::{Router, SubscribeExt, Config as NsConfig};
 use futures::{Stream, Future};
 use ns_std_threaded;
 use self_meter::Meter;
 use tk_carbon;
-use tk_easyloop;
+use tk_easyloop::{self, handle, spawn, interval};
 
 use carbon;
 use gossip;
@@ -31,8 +31,8 @@ quick_error! {
 
 
 fn spawn_self_scan(meter: Arc<Mutex<Meter>>) {
-    tk_easyloop::handle().spawn(
-        tk_easyloop::interval(Duration::new(1, 0)).for_each(move |()| {
+    spawn(
+        interval(Duration::new(1, 0)).for_each(move |()| {
             meter.lock().expect("meter is not poisoned")
             .scan()
             .map_err(|e| error!("Self-scan error: {}", e)).ok();
@@ -57,10 +57,16 @@ pub fn start(mut gossip: Option<gossip::GossipInit>,
     thread::spawn(move || {
         meter.lock().unwrap().track_current_thread("tokio");
 
-        let resolver = ns_std_threaded::ThreadedResolver::new(
-            futures_cpupool::CpuPool::new(1));
+        let mut keep_router = None;
 
         tk_easyloop::run_forever(|| -> Result<(), InitError> {
+
+            let router = Router::from_config(&NsConfig::new()
+                .set_fallthrough(ns_std_threaded::ThreadedResolver::new()
+                    .null_service_resolver()
+                    .interval_subscriber(Duration::new(1, 0), &handle()))
+                .done(), &tk_easyloop::handle());
+            keep_router = Some(router.clone());
 
             spawn_self_scan(meter);
 
@@ -72,13 +78,13 @@ pub fn start(mut gossip: Option<gossip::GossipInit>,
                 let (carbon, init) = tk_carbon::Carbon::new(
                     &tk_carbon::Config::new().done());
                 init.connect_to(
-                    resolver.subscribe(&format!("{}:{}", cfg.host, cfg.port)),
-                    &tk_easyloop::handle());
+                    router.subscribe_many(&[&cfg.host], cfg.port),
+                    &handle());
                 let ivl = Duration::new(cfg.interval as u64, 0);
                 let carbon = carbon.clone();
                 let cfg = cfg.clone();
                 let stats = stats.clone();
-                tk_easyloop::spawn(tk_easyloop::interval(ivl)
+                spawn(interval(ivl)
                     .map_err(|_| -> () { unreachable!() })
                     .map(move |()| -> () {
                         debug!("Sending data to carbon {}:{}",

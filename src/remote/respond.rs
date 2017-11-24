@@ -40,7 +40,7 @@ pub fn serve_query_by_host(req: &Request, context: &mut Context)
 
         let mut resp = {
             let mut peerguard = context.deps.lock::<Option<Peers>>();
-            let mut peers = peerguard.as_mut().unwrap();
+            let peers = peerguard.as_mut().unwrap();
 
             for (_, rule) in query.rules.iter() {
                 let ts = SteadyTime::now();

@@ -12,6 +12,7 @@ extern crate hyper;
 extern crate libc;
 extern crate mio;
 extern crate nix;
+extern crate ns_router;
 extern crate ns_std_threaded;
 extern crate num;
 extern crate quire;
