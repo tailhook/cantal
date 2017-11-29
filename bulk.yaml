@@ -99,7 +99,7 @@ versions:
 
 - files:
   - Cargo.lock
-  block-start: ^\[root\]
+  block-start: ^name\s*=\s*"cantal"
   regex: ^version\s*=\s*"(\S+)"
   block-end: ^\[.*\]
 
