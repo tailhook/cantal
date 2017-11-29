@@ -81,7 +81,7 @@ dependencies = [
 
 [[package]]
 name = "cantal"
-version = "0.5.5"
+version = "0.5.6"
 dependencies = [
  "abstract-ns 0.4.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "anymap 0.12.1 (registry+https://github.com/rust-lang/crates.io-index)",
