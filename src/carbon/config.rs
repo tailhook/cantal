@@ -1,7 +1,7 @@
 use quire::validate::*;
 
 
-#[derive(Debug, RustcDecodable, Clone)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct Config {
     pub host: String,
     pub port: u16,

@@ -169,20 +169,16 @@ fn run() -> Result<(), Box<Error>> {
         ap.parse_args_or_exit();
     }
 
-    let logger_config = fern::DispatchConfig {
-        format: Box::new(|msg: &str, level: &log::LogLevel,
-                location: &log::LogLocation|
-        {
-            format!("[{}][{}] {} {}",
+    let logger_result = fern::Dispatch::new()
+        .format(|out, message, record| {
+            out.finish(format_args!("[{}][{}] {} {}",
                 time::now().strftime("%Y-%m-%d %H:%M:%S").unwrap(),
-                level, location.module_path(), msg)
-        }),
-        output: vec![fern::OutputConfig::stderr()],
-        level: log_level.unwrap_or(log::LogLevel::Warn).to_log_level_filter(),
-    };
-    if let Err(e) = fern::init_global_logger(logger_config,
-        log_level.unwrap_or(log::LogLevel::Warn).to_log_level_filter())
-    {
+                record.level(), record.location().module_path(), message))
+        })
+        .level(log_level.unwrap_or(log::LogLevel::Warn).to_log_level_filter())
+        .chain(std::io::stderr())
+        .apply();
+    if let Err(e) = logger_result {
         panic!("Failed to initialize global logger: {}", e);
     }
 
