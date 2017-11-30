@@ -7,7 +7,7 @@ commands:
     accepts-arguments: true
     run: |
       [ -d ../public/js ] || mkdir ../public/js
-      exec webpack "$@"
+      exec webpack --progress "$@"
 
   _make-js-for-package: !Command
     description: Build javascripts for packaging
