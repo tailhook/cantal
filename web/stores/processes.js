@@ -1,5 +1,5 @@
+import {uptime} from '../util/process.js'
 import {DATA, ERROR} from '../middleware/request'
-import {format_uptime, till_now_ms, from_ms} from '../util/time'
 
 function build_tree(data) {
     var toplevel = [];
@@ -7,8 +7,7 @@ function build_tree(data) {
     var tree = {};
     for(var p of data.all) {
 
-        p.uptime = format_uptime(till_now_ms(from_ms(
-                    p.start_time + data.boot_time*1000)))
+        p.uptime = uptime(p)
 
         by_id[p.pid] = p;
         var lst = tree[p.ppid];

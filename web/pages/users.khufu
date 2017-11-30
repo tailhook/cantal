@@ -1,3 +1,4 @@
+import {uptime} from '../util/process.js'
 import {refresher, json} from '../middleware/request'
 import {sockets} from '../stores/sockets'
 import {repr, pprint, sum_values} from '../util/view'
@@ -208,7 +209,8 @@ view show_group(uid, grp, sockets, show_processes):
                   item.cmdline
                 <div.process-info>
                   `pid: ${ item.pid },
-                   mem: ${(item.rss / 1048576).toFixed(1)} MiB`
+                   mem: ${(item.rss / 1048576).toFixed(1)} MiB,
+                   uptime: ${ uptime(item) }`
 
 
 view groups(processes, sockets, showhidden):
