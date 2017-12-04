@@ -13,9 +13,9 @@ Contents:
 
    concepts
    installation
+   config
    api
    mmap
-   carbon
 
 
 Indices and tables

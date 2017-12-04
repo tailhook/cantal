@@ -51,6 +51,7 @@ as a service. Here is one example::
     exec /usr/bin/cantal-agent --host 0.0.0.0 --port 22682 \
         --storage-dir /var/lib/cantal
 
+
 .. _rust: http://rust-lang.org
 
 .. _`instructions on official website`: http://www.rust-lang.org/install.html
