@@ -20,7 +20,7 @@ Cluster Setup
 
 Another piece of cluster setup is: introduce nodes to each other::
 
-    curl http://some.known.host:22682/add_host.json -d '{"addr": "1.2.3.4:22682"}'"
+    curl http://some.known.host:22682/add_host.json -d '{"addr": "1.2.3.4:22682"}'
 
 This only works if ``cluster-name`` matches and after nodes are able to
 interchange ping-pong packets between each other (also ``machine-id`` must be
