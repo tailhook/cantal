@@ -1,4 +1,6 @@
+use std::path::Path;
 use tk_http::server::{Head};
+
 
 #[derive(Clone, Debug)]
 pub enum Route {
@@ -23,6 +25,18 @@ fn path_component(path: &str) -> (&str, &str) {
     }
 }
 
+fn validate_path<P: AsRef<Path>>(path: P) -> bool {
+    use std::path::Component::Normal;
+    for cmp in Path::new(path.as_ref()).components(){
+        match cmp {
+            Normal(_) => {}
+            _ => return false,
+        }
+    }
+    return true;
+}
+
+
 pub fn route(head: &Head) -> Route {
     use self::Route::*;
     let path = if let Some(path) = head.path() {
@@ -36,9 +50,14 @@ pub fn route(head: &Head) -> Route {
     };
     let route = match path_component(&path[..]) {
         ("", _) => Index,
-        ("css", _) => Static(path.to_string()),
-        ("js", _) => Static(path.to_string()),
-        ("fonts", _) => Static(path.to_string()),
+        ("css", _) | ("js", _) | ("fonts", _) => {
+            let path = path.trim_left_matches('/');
+            if !validate_path(path) {
+                // TODO(tailhook) implement 400
+                return Route::NotFound;
+            }
+            Static(path.to_string())
+        }
         (_, _) => Index,
     };
     debug!("Routed {:?} to {:?}", path, route);

@@ -16,7 +16,6 @@ use tk_easyloop;
 use void::Void;
 
 use {HostId};
-use remote::Remote;
 use storage::Storage;
 
 pub use self::errors::InitError;
@@ -75,7 +74,7 @@ pub fn init(cfg: &Arc<Config>) -> (Gossip, GossipInit) {
 }
 
 impl GossipInit {
-    pub fn spawn(self, remote: &Remote, storage: &Arc<Storage>)
+    pub fn spawn(self, storage: &Arc<Storage>)
         -> Result<(), InitError>
     {
         let rx = self.receiver
@@ -84,7 +83,6 @@ impl GossipInit {
             &self.info,
             &self.config,
             rx,
-            remote,
             storage,
         )?);
         Ok(())

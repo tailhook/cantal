@@ -11,7 +11,6 @@ extern crate http_file_headers;
 extern crate humantime;
 extern crate hyper;
 extern crate libc;
-extern crate mio;
 extern crate nix;
 extern crate ns_env_config;
 extern crate num;
@@ -25,6 +24,7 @@ extern crate time;
 extern crate tk_carbon;
 extern crate tk_easyloop;
 extern crate tk_http;
+extern crate tk_listen;
 extern crate tokio_core;
 extern crate tokio_io;
 extern crate unicase;
@@ -35,7 +35,6 @@ extern crate serde_json;
 #[macro_use] extern crate lazy_static;
 #[macro_use] extern crate log;
 #[macro_use] extern crate matches;
-#[macro_use] extern crate mime;
 #[macro_use] extern crate probor;
 #[macro_use] extern crate quick_error;
 #[macro_use] extern crate serde_derive;
@@ -72,23 +71,16 @@ pub type HostId = Vec<u8>;
 mod carbon;
 mod configs;
 mod deps;
-mod error;
 mod frontend;
 mod gossip;
 mod http;
 mod info;
-mod ioutil;
-mod remote;
-mod respond;
 mod scan;
 mod scanner;
-mod server;
-mod staticfiles;
 mod stats;
 mod storage;
 mod time_util;
 mod util;
-mod websock;
 
 
 fn main() {
@@ -225,15 +217,6 @@ fn run() -> Result<(), Error> {
       .unwrap_or_else(|| (gossip::noop(), None));
     deps.insert(gossip.clone());
 
-    let server_init = try!(
-        server::server_init(&mut deps, &host, port, bind_localhost));
-    let remote = remote::Remote::new(
-        // temporary hack, remote subsystem must return Remote instance
-        deps.get::<mio::Sender<server::Message>>()
-        .expect("remote subsystem already initialized")
-        .clone()
-    );
-
     let storage = Arc::new(storage::Storage::new());
     deps.insert(storage.clone());
 
@@ -296,23 +279,17 @@ fn run() -> Result<(), Error> {
         scanner::scan_loop(mydeps, scan_interval, *backlog_time);
     });
 
-    let mymeter = meter.clone();
-    thread::spawn(move || {
-        debug!("Starting old server");
-        mymeter.lock().unwrap().track_current_thread("old_server");
-        server::server_loop(server_init, deps).unwrap();
-    });
-
     tk_easyloop::run_forever(|| -> Result<(), Error> {
-        let router = ns_env_config::init(&handle())?;
+        let ns = ns_env_config::init(&handle())?;
 
         spawn_self_scan(meter);
 
         if let Some(gossip) = gossip_init.take() {
-            gossip.spawn(&remote, &storage)?;
+            gossip.spawn(&storage)?;
         }
 
-        carbon::spawn_sinks(&router, &configs, &stats)?;
+        carbon::spawn_sinks(&ns, &configs, &stats)?;
+        http::spawn_listener(&ns, &host, port, bind_localhost)?;
 
         Ok(())
     })?;

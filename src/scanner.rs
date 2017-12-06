@@ -2,11 +2,9 @@ use std::cmp::min;
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
 
-use mio;
 use libc::usleep;
 use probor::{Encoder, Encodable};
 
-use super::server;
 use super::stats::Stats;
 use super::scan::Tip;
 use super::scan::machine;
@@ -31,7 +29,6 @@ pub fn scan_loop(deps: Dependencies, interval: u32, backlog_time: Duration)
 {
     let stats: &RwLock<Stats> = &*deps.copy();
     let storage = deps.get::<Arc<Storage>>().map(|x| &*x);
-    let server_msg = deps.get::<mio::Sender<server::Message>>().unwrap();
     let mut last_store = time_ms();
     let mut last_hourly = last_store / 3_600_000;
     let mut process_cache = processes::ReadCache::new();
@@ -112,9 +109,10 @@ pub fn scan_loop(deps: Dependencies, interval: u32, backlog_time: Duration)
                 }).map_err(|e| error!("Can't encode history: {}", e)).ok();
             }
         }
-        server_msg.send(server::Message::ScanComplete)
-            .map_err(|_| error!("Error sending ScanComplete msg"))
-            .ok();
+        // TODO(tailhook)
+        // server_msg.send(server::Message::ScanComplete)
+        //     .map_err(|_| error!("Error sending ScanComplete msg"))
+        //     .ok();
 
         unsafe { usleep(((interval as i64 - time_ms() as i64 % interval as i64)*1000) as u32) };
     }

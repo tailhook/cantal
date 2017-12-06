@@ -21,7 +21,6 @@ use gossip::errors::InitError;
 use gossip::info::Info;
 use gossip::peer::{Report, Peer};
 use {HostId};
-use remote::Remote;
 use storage::Storage;
 use time_util::time_ms;
 use rustc_serialize::json::Json;
@@ -53,7 +52,8 @@ pub struct Proto<S> {
     next_gc: Instant,
     clock: Timeout,
     stream: S,
-    remote: Remote,
+    // TODO(tailhook)
+    // remote: Remote,
     storage: Arc<Storage>,
     input_buf: Vec<u8>,
     output_buf: Vec<u8>,
@@ -99,14 +99,13 @@ pub struct FriendInfo {
 
 impl<S: Stream<Item=Command, Error=Void>> Proto<S> {
     pub fn new(info: &Arc<Mutex<Info>>, config: &Arc<Config>, stream: S,
-        remote: &Remote, storage: &Arc<Storage>)
+        storage: &Arc<Storage>)
        -> Result<Proto<S>, InitError>
     {
         let s = UdpSocket::bind(&config.bind, &tk_easyloop::handle())
             .context(config.bind)?;
         Ok(Proto {
             sock: s,
-            remote: remote.clone(),
             storage: storage.clone(),
             config: config.clone(),
             info: info.clone(),
@@ -275,7 +274,8 @@ impl<S: Stream<Item=Command, Error=Void>> Proto<S> {
                     peer.pings_received += 1;
                     if peer.primary_addr.as_ref() != Some(&addr) {
                         peer.primary_addr = Some(addr);
-                        self.remote.touch(id);
+                        // TODO(remote)
+                        // self.remote.touch(id);
                     }
                 }
                 self.apply_friends(friends, addr);
@@ -351,7 +351,8 @@ impl<S: Stream<Item=Command, Error=Void>> Proto<S> {
                     peer.apply_node_name(Some(pinfo.name.as_ref()), true);
                     if peer.primary_addr.as_ref() != Some(&addr) {
                         peer.primary_addr = Some(addr);
-                        self.remote.touch(id);
+                        // TODO(tailhook) remote
+                        // self.remote.touch(id);
                     }
                 }
                 self.apply_friends(friends, addr);
@@ -424,7 +425,8 @@ impl<S: Stream<Item=Command, Error=Void>> Proto<S> {
                     });
                     peer.primary_addr = addr;
                     addr.map(|addr| {
-                        self.remote.touch(id);
+                        // TODO(tailhook)
+                        // self.remote.touch(id);
                         peer.last_probe = Some((time_ms(), addr));
                         peer.probes_sent += 1;
                         addr
