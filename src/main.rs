@@ -7,6 +7,7 @@ extern crate fern;
 extern crate futures;
 extern crate futures_cpupool;
 extern crate httparse;
+extern crate http_file_headers;
 extern crate humantime;
 extern crate hyper;
 extern crate libc;
@@ -24,7 +25,9 @@ extern crate self_meter;
 extern crate time;
 extern crate tk_carbon;
 extern crate tk_easyloop;
+extern crate tk_http;
 extern crate tokio_core;
+extern crate tokio_io;
 extern crate unicase;
 extern crate void;
 extern crate websocket;
@@ -64,26 +67,27 @@ use deps::{Dependencies, LockedDeps};
 
 pub type HostId = Vec<u8>;
 
-mod util;
-mod server;
-mod stats;
-mod staticfiles;
-mod scanner;
-mod scan;
-mod storage;
-mod gossip;
-mod http;
-mod websock;
-mod respond;
-mod remote;
-mod error;
-mod deps;
-mod ioutil;
-mod info;
 mod carbon;
 mod configs;
-mod tokioloop;
+mod deps;
+mod error;
+mod frontend;
+mod gossip;
+mod http;
+mod info;
+mod ioutil;
+mod remote;
+mod respond;
+mod scan;
+mod scanner;
+mod server;
+mod staticfiles;
+mod stats;
+mod storage;
 mod time_util;
+mod tokioloop;
+mod util;
+mod websock;
 
 
 fn main() {
@@ -291,7 +295,8 @@ fn run() -> Result<(), Box<Error>> {
         scanner::scan_loop(mydeps, scan_interval, *backlog_time);
     });
 
-    tokioloop::start(gossip_init.take(), &configs, &stats, &meter,
+    tokioloop::start(gossip_init.take(),
+        &configs, &stats, &meter,
         &remote, &storage);
 
     try!(server::server_loop(server_init, deps));
