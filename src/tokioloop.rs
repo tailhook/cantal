@@ -3,10 +3,9 @@ use std::process::exit;
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::Duration;
 
-use abstract_ns::{HostResolve};
-use ns_router::{Router, SubscribeExt, Config as NsConfig};
+use failure::Error;
 use futures::{Stream, Future};
-use ns_std_threaded;
+use ns_env_config;
 use self_meter::Meter;
 use tk_carbon;
 use tk_easyloop::{self, handle, spawn, interval};
@@ -17,17 +16,6 @@ use configs::Configs;
 use stats::Stats;
 use remote::Remote;
 use storage::Storage;
-
-
-quick_error! {
-    #[derive(Debug)]
-    pub enum InitError {
-        Gossip(e: gossip::InitError) {
-            from()
-            display("error initializing gossip subsystem: {:?}", e)
-        }
-    }
-}
 
 
 fn spawn_self_scan(meter: Arc<Mutex<Meter>>) {
@@ -57,16 +45,8 @@ pub fn start(mut gossip: Option<gossip::GossipInit>,
     thread::spawn(move || {
         meter.lock().unwrap().track_current_thread("tokio");
 
-        let mut keep_router = None;
-
-        tk_easyloop::run_forever(|| -> Result<(), InitError> {
-
-            let router = Router::from_config(&NsConfig::new()
-                .set_fallthrough(ns_std_threaded::ThreadedResolver::new()
-                    .null_service_resolver()
-                    .interval_subscriber(Duration::new(1, 0), &handle()))
-                .done(), &tk_easyloop::handle());
-            keep_router = Some(router.clone());
+        tk_easyloop::run_forever(|| -> Result<(), Error> {
+            let router = ns_env_config::init(&handle())?;
 
             spawn_self_scan(meter);
 
