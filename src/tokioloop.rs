@@ -7,7 +7,6 @@ use failure::Error;
 use futures::{Stream, Future};
 use ns_env_config;
 use self_meter::Meter;
-use tk_carbon;
 use tk_easyloop::{self, handle, spawn, interval};
 
 use carbon;
@@ -54,25 +53,7 @@ pub fn start(mut gossip: Option<gossip::GossipInit>,
                 gossip.spawn(&remote, &storage)?;
             }
 
-            for cfg in &configs.carbon {
-                let (carbon, init) = tk_carbon::Carbon::new(
-                    &tk_carbon::Config::new().done());
-                init.connect_to(
-                    router.subscribe_many(&[&cfg.host], cfg.port),
-                    &handle());
-                let ivl = Duration::new(cfg.interval as u64, 0);
-                let carbon = carbon.clone();
-                let cfg = cfg.clone();
-                let stats = stats.clone();
-                spawn(interval(ivl)
-                    .map_err(|_| -> () { unreachable!() })
-                    .map(move |()| -> () {
-                        debug!("Sending data to carbon {}:{}",
-                            cfg.host, cfg.port);
-                        carbon::send(&carbon, &cfg,
-                                     &stats.read().expect("Can't lock stats"));
-                    }).for_each(|()| Ok(())));
-            }
+            carbon::spawn_sinks(&router, &configs, &stats)?;
 
             Ok(())
         }).map_err(|e| {

@@ -54,8 +54,8 @@ use std::path::PathBuf;
 use std::time::Duration;
 use std::sync::{RwLock, Arc, Mutex};
 use std::process::exit;
-use std::error::Error;
 
+use failure::Error;
 use nix::unistd::getpid;
 use argparse::{ArgumentParser, Store, ParseOption, StoreOption, Parse, Print};
 use argparse::{StoreTrue};
@@ -99,7 +99,7 @@ fn main() {
     }
 }
 
-fn run() -> Result<(), Box<Error>> {
+fn run() -> Result<(), Error> {
 
     let mut name = None;
     let mut host = "127.0.0.1".to_string();
