@@ -56,11 +56,14 @@ use std::sync::{RwLock, Arc, Mutex};
 use std::process::exit;
 
 use failure::Error;
+use futures::{Future, Stream};
 use nix::unistd::getpid;
 use argparse::{ArgumentParser, Store, ParseOption, StoreOption, Parse, Print};
 use argparse::{StoreTrue};
 use rustc_serialize::hex::{ToHex, FromHex};
 use rustc_serialize::json::Json;
+use self_meter::Meter;
+use tk_easyloop::{spawn, handle, interval};
 
 use deps::{Dependencies, LockedDeps};
 
@@ -84,7 +87,6 @@ mod staticfiles;
 mod stats;
 mod storage;
 mod time_util;
-mod tokioloop;
 mod util;
 mod websock;
 
@@ -294,11 +296,37 @@ fn run() -> Result<(), Error> {
         scanner::scan_loop(mydeps, scan_interval, *backlog_time);
     });
 
-    tokioloop::start(gossip_init.take(),
-        &configs, &stats, &meter,
-        &remote, &storage);
+    let mymeter = meter.clone();
+    thread::spawn(move || {
+        debug!("Starting old server");
+        mymeter.lock().unwrap().track_current_thread("old_server");
+        server::server_loop(server_init, deps).unwrap();
+    });
 
-    try!(server::server_loop(server_init, deps));
+    tk_easyloop::run_forever(|| -> Result<(), Error> {
+        let router = ns_env_config::init(&handle())?;
+
+        spawn_self_scan(meter);
+
+        if let Some(gossip) = gossip_init.take() {
+            gossip.spawn(&remote, &storage)?;
+        }
+
+        carbon::spawn_sinks(&router, &configs, &stats)?;
+
+        Ok(())
+    })?;
+
 
     Ok(())
+}
+
+fn spawn_self_scan(meter: Arc<Mutex<Meter>>) {
+    spawn(
+        interval(Duration::new(1, 0)).for_each(move |()| {
+            meter.lock().expect("meter is not poisoned")
+            .scan()
+            .map_err(|e| error!("Self-scan error: {}", e)).ok();
+            Ok(())
+        }).map_err(|_| -> () { unreachable!() }));
 }
