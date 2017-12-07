@@ -1,5 +1,6 @@
 mod disk;
 mod error_page;
+mod query;
 mod quick_reply;
 mod routing;
 mod status;
@@ -72,8 +73,8 @@ impl<S: AsyncWrite + Send + 'static> DispatcherTrait<S> for Dispatcher {
             StartRemote(_) => {  // POST
                 serve_error_page(Http::NotImplemented)
             }
-            Query(_) => {        // POST
-                serve_error_page(Http::NotImplemented)
+            Query(format) => {        // POST
+                Ok(query::serve(&self.stats, format))
             }
             Remote(_, _) => {
                 serve_error_page(Http::NotImplemented)

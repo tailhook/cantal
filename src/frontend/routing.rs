@@ -109,7 +109,7 @@ pub fn route(head: &Head) -> Route {
         ("peers_with_remote", "") => PeersWithRemote(fmt(path)),
         ("remote_stats", "") => RemoteStats(fmt(path)),
         ("start_remote", "") => StartRemote(fmt(path)),
-        ("query.cbor", "") => Query(fmt(path)),
+        ("query", "") => Query(fmt(path)),
         ("remote", "query_by_host") => Remote(QueryByHost, fmt(path)),
         ("remote", "mem_info") => Remote(MemInfo, fmt(path)),
         (_, _) => Index,

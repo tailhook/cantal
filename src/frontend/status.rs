@@ -8,20 +8,20 @@ use frontend::{Request};
 use frontend::routing::Format;
 use frontend::quick_reply::{reply, respond};
 
+#[derive(Serialize)]
+struct StatusData<'a> {
+    startup_time: u64,
+    scan_duration: u32,
+    storage: StorageStats,
+    boot_time: Option<u64>,
+    self_report: ProcessReport<'a>,
+    threads_report: ThreadReport<'a>,
+}
 
 pub fn serve<S: 'static>(meter: &Meter, stats: &Arc<RwLock<Stats>>,
     format: Format)
     -> Request<S>
 {
-    #[derive(Serialize)]
-    struct StatusData<'a> {
-        startup_time: u64,
-        scan_duration: u32,
-        storage: StorageStats,
-        boot_time: Option<u64>,
-        self_report: ProcessReport<'a>,
-        threads_report: ThreadReport<'a>,
-    }
     let meter = meter.clone();
     let stats = stats.clone();
     reply(move |e| {
