@@ -5,7 +5,7 @@ mod quick_reply;
 
 use futures::Future;
 use tokio_io::AsyncWrite;
-use tk_http::Status;
+use tk_http::{Status as Http};
 use tk_http::server::{Codec as CodecTrait, Dispatcher as DispatcherTrait};
 use tk_http::server::{Error, Head, EncoderDone};
 
@@ -36,7 +36,40 @@ impl<S: AsyncWrite + Send + 'static> DispatcherTrait<S> for Dispatcher {
                 disk::common_response(headers, path)
             }
             NotFound => {
-                serve_error_page(Status::NotFound)
+                serve_error_page(Http::NotFound)
+            }
+            WebSocket => {
+                serve_error_page(Http::NotImplemented)
+            }
+            Status(_) => {
+                serve_error_page(Http::NotImplemented)
+            }
+            AllProcesses(_) => {
+                serve_error_page(Http::NotImplemented)
+            }
+            AllSockets(_) => {
+                serve_error_page(Http::NotImplemented)
+            }
+            AllMetrics(_) => {
+                serve_error_page(Http::NotImplemented)
+            }
+            AllPeers(_) => {
+                serve_error_page(Http::NotImplemented)
+            }
+            PeersWithRemote(_) => {
+                serve_error_page(Http::NotImplemented)
+            }
+            RemoteStats(_) => {
+                serve_error_page(Http::NotImplemented)
+            }
+            StartRemote(_) => {  // POST
+                serve_error_page(Http::NotImplemented)
+            }
+            Query(_) => {        // POST
+                serve_error_page(Http::NotImplemented)
+            }
+            Remote(_, _) => {
+                serve_error_page(Http::NotImplemented)
             }
         }
     }
