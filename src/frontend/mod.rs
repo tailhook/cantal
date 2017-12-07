@@ -1,13 +1,15 @@
-mod routing;
 mod disk;
 mod error_page;
 mod quick_reply;
+mod routing;
+mod status;
 
 use futures::Future;
 use tokio_io::AsyncWrite;
 use tk_http::{Status as Http};
 use tk_http::server::{Codec as CodecTrait, Dispatcher as DispatcherTrait};
 use tk_http::server::{Error, Head, EncoderDone};
+use self_meter_http::Meter;
 
 use frontend::routing::{route, Route};
 pub use frontend::quick_reply::{reply, read_json};
@@ -19,6 +21,7 @@ pub type Reply<S> = Box<Future<Item=EncoderDone<S>, Error=Error>>;
 
 
 pub struct Dispatcher {
+    pub meter: Meter,
 }
 
 
@@ -41,8 +44,8 @@ impl<S: AsyncWrite + Send + 'static> DispatcherTrait<S> for Dispatcher {
             WebSocket => {
                 serve_error_page(Http::NotImplemented)
             }
-            Status(_) => {
-                serve_error_page(Http::NotImplemented)
+            Status(format) => {
+                Ok(status::serve(&self.meter, format))
             }
             AllProcesses(_) => {
                 serve_error_page(Http::NotImplemented)

@@ -8,11 +8,13 @@ use tk_easyloop::{handle, spawn};
 use tk_http;
 use tk_http::server::{Proto};
 use tk_listen::{BindMany, ListenExt};
+use self_meter_http;
 
 use frontend;
 
 
-pub fn spawn_listener(ns: &NsRouter, host: &str, port: u16, localhost: bool)
+pub fn spawn_listener(ns: &NsRouter, host: &str, port: u16, localhost: bool,
+    meter: &self_meter_http::Meter)
     -> Result<(), Error>
 {
     let hcfg = tk_http::server::Config::new()
@@ -26,6 +28,7 @@ pub fn spawn_listener(ns: &NsRouter, host: &str, port: u16, localhost: bool)
         .output_body_byte_timeout(Duration::new(1, 0))
         .output_body_whole_timeout(Duration::new(30, 0))
         .done();
+    let meter = meter.clone();
 
     let mut addr = vec![host];
     if localhost {
@@ -36,8 +39,11 @@ pub fn spawn_listener(ns: &NsRouter, host: &str, port: u16, localhost: bool)
                         .map(|addr| addr.addresses_at(0)), &handle())
         .sleep_on_error(Duration::from_millis(100), &handle())
         .map(move |(socket, saddr)| {
+            let meter = meter.clone();
             Proto::new(socket, &hcfg,
-                frontend::Dispatcher { },
+                frontend::Dispatcher {
+                    meter,
+                },
                 &handle())
             .map_err(move |e| {
                 debug!("Http protocol error for {}: {}", saddr, e);

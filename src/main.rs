@@ -19,7 +19,7 @@ extern crate rand;
 extern crate regex;
 extern crate rustc_serialize;
 extern crate scan_dir;
-extern crate self_meter;
+extern crate self_meter_http;
 extern crate time;
 extern crate tk_carbon;
 extern crate tk_easyloop;
@@ -50,19 +50,16 @@ use std::fs::File;
 use std::net::SocketAddr;
 use std::str::FromStr;
 use std::path::PathBuf;
-use std::time::Duration;
-use std::sync::{RwLock, Arc, Mutex};
+use std::sync::{RwLock, Arc};
 use std::process::exit;
 
 use failure::Error;
-use futures::{Future, Stream};
 use nix::unistd::getpid;
 use argparse::{ArgumentParser, Store, ParseOption, StoreOption, Parse, Print};
 use argparse::{StoreTrue};
 use rustc_serialize::hex::{ToHex, FromHex};
 use rustc_serialize::json::Json;
-use self_meter::Meter;
-use tk_easyloop::{spawn, handle, interval};
+use tk_easyloop::{handle};
 
 use deps::{Dependencies, LockedDeps};
 
@@ -181,10 +178,8 @@ fn run() -> Result<(), Error> {
 
     let address = SocketAddr::new(host.parse()?, port);
 
-    let meter = Arc::new(Mutex::new(
-        self_meter::Meter::new(Duration::new(1, 0))
-        .expect("meter created")));
-    meter.lock().unwrap().track_current_thread("main");
+    let meter = self_meter_http::Meter::new();
+    meter.track_current_thread("main");
 
     let configs = Arc::new(configs::read(&config_dir));
 
@@ -201,7 +196,6 @@ fn run() -> Result<(), Error> {
         addresses.iter().map(|x| x.to_string()).collect())));
     let mut deps = Dependencies::new();
     deps.insert(stats.clone());
-    deps.insert(meter.clone());
 
     let (gossip, mut gossip_init) = cluster_name.as_ref().map(|cluster| {
         gossip::Config::new()
@@ -252,7 +246,7 @@ fn run() -> Result<(), Error> {
         let path = path.clone();
         let mymeter = meter.clone();
         thread::spawn(move || {
-            mymeter.lock().unwrap().track_current_thread("storage");
+            mymeter.track_current_thread("storage");
             storage::storage_loop(mydeps, &path);
         })
     });
@@ -275,35 +269,26 @@ fn run() -> Result<(), Error> {
     let mydeps = deps.clone();
     let mymeter = meter.clone();
     let _scan = thread::spawn(move || {
-        mymeter.lock().unwrap().track_current_thread("scan");
+        mymeter.track_current_thread("scan");
         scanner::scan_loop(mydeps, scan_interval, *backlog_time);
     });
 
     tk_easyloop::run_forever(|| -> Result<(), Error> {
         let ns = ns_env_config::init(&handle())?;
 
-        spawn_self_scan(meter);
+        meter.spawn_scanner(&handle());
 
         if let Some(gossip) = gossip_init.take() {
             gossip.spawn(&storage)?;
         }
 
         carbon::spawn_sinks(&ns, &configs, &stats)?;
-        http::spawn_listener(&ns, &host, port, bind_localhost)?;
+        http::spawn_listener(&ns, &host, port, bind_localhost,
+            &meter)?;
 
         Ok(())
     })?;
 
 
     Ok(())
-}
-
-fn spawn_self_scan(meter: Arc<Mutex<Meter>>) {
-    spawn(
-        interval(Duration::new(1, 0)).for_each(move |()| {
-            meter.lock().expect("meter is not poisoned")
-            .scan()
-            .map_err(|e| error!("Self-scan error: {}", e)).ok();
-            Ok(())
-        }).map_err(|_| -> () { unreachable!() }));
 }

@@ -4,6 +4,7 @@ use tk_http::server::{Head};
 #[derive(Clone, Debug)]
 pub enum Format {
     Json,
+    Gron,
     Cbor,
 }
 
@@ -58,11 +59,27 @@ fn validate_path<P: AsRef<Path>>(path: P) -> bool {
     return true;
 }
 
+fn suffix(path: &str) -> &str {
+    match path.bytes().rposition(|x| x == b'.' || x == b'/') {
+        Some(i) if path.as_bytes()[i] == b'.' => &path[i+1..],
+        Some(_) => "",
+        None => "",
+    }
+}
+
+fn fmt(path: &str) -> Format {
+    use self::Format::*;
+    match suffix(path) {
+        "json" => Json,
+        "cbor" => Cbor,
+        "gron" => Gron,
+        _ => Json,
+    }
+}
 
 pub fn route(head: &Head) -> Route {
     use self::Route::*;
     use self::RemoteRoute::*;
-    use self::Format::*;
     let path = if let Some(path) = head.path() {
         path
     } else {
@@ -84,17 +101,17 @@ pub fn route(head: &Head) -> Route {
             }
         }
         ("ws", _) => WebSocket,
-        ("status.json", "") => Status(Json),
-        ("all_processes.json", "") => AllProcesses(Json),
-        ("all_sockets.json", "") => AllSockets(Json),
-        ("all_metrics.json", "") => AllMetrics(Json),
-        ("all_peers.json", "") => AllPeers(Json),
-        ("peers_with_remote.json", "") => PeersWithRemote(Json),
-        ("remote_stats.json", "") => RemoteStats(Json),
-        ("start_remote.json", "") => StartRemote(Json),
-        ("query.cbor", "") => Query(Cbor),
-        ("remote", "query_by_host.cbor") => Remote(QueryByHost, Cbor),
-        ("remote", "mem_info.json") => Remote(MemInfo, Json),
+        ("status", "") => Status(fmt(path)),
+        ("all_processes", "") => AllProcesses(fmt(path)),
+        ("all_sockets", "") => AllSockets(fmt(path)),
+        ("all_metrics", "") => AllMetrics(fmt(path)),
+        ("all_peers", "") => AllPeers(fmt(path)),
+        ("peers_with_remote", "") => PeersWithRemote(fmt(path)),
+        ("remote_stats", "") => RemoteStats(fmt(path)),
+        ("start_remote", "") => StartRemote(fmt(path)),
+        ("query.cbor", "") => Query(fmt(path)),
+        ("remote", "query_by_host") => Remote(QueryByHost, fmt(path)),
+        ("remote", "mem_info") => Remote(MemInfo, fmt(path)),
         (_, _) => Index,
     };
     debug!("Routed {:?} to {:?}", path, route);
