@@ -77,7 +77,6 @@ mod scanner;
 mod stats;
 mod storage;
 mod time_util;
-mod util;
 
 
 fn main() {
