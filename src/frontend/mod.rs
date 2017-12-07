@@ -1,5 +1,6 @@
 mod disk;
 mod error_page;
+mod processes;
 mod query;
 mod quick_reply;
 mod routing;
@@ -52,8 +53,8 @@ impl<S: AsyncWrite + Send + 'static> DispatcherTrait<S> for Dispatcher {
             Status(format) => {
                 Ok(status::serve(&self.meter, &self.stats, format))
             }
-            AllProcesses(_) => {
-                serve_error_page(Http::NotImplemented)
+            AllProcesses(format) => {
+                Ok(processes::serve(&self.stats, format))
             }
             AllSockets(_) => {
                 serve_error_page(Http::NotImplemented)
