@@ -4,6 +4,8 @@ mod quick_reply;
 mod routing;
 mod status;
 
+use std::sync::{Arc, RwLock};
+
 use futures::Future;
 use tokio_io::AsyncWrite;
 use tk_http::{Status as Http};
@@ -11,6 +13,7 @@ use tk_http::server::{Codec as CodecTrait, Dispatcher as DispatcherTrait};
 use tk_http::server::{Error, Head, EncoderDone};
 use self_meter_http::Meter;
 
+use stats::Stats;
 use frontend::routing::{route, Route};
 pub use frontend::quick_reply::{reply, read_json};
 pub use frontend::error_page::serve_error_page;
@@ -22,6 +25,7 @@ pub type Reply<S> = Box<Future<Item=EncoderDone<S>, Error=Error>>;
 
 pub struct Dispatcher {
     pub meter: Meter,
+    pub stats: Arc<RwLock<Stats>>,
 }
 
 
@@ -45,7 +49,7 @@ impl<S: AsyncWrite + Send + 'static> DispatcherTrait<S> for Dispatcher {
                 serve_error_page(Http::NotImplemented)
             }
             Status(format) => {
-                Ok(status::serve(&self.meter, format))
+                Ok(status::serve(&self.meter, &self.stats, format))
             }
             AllProcesses(_) => {
                 serve_error_page(Http::NotImplemented)

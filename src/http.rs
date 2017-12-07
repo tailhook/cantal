@@ -1,5 +1,6 @@
 use std::time::Duration;
 use std::process::exit;
+use std::sync::{Arc, RwLock};
 
 use failure::Error;
 use ns_env_config::Router as NsRouter;
@@ -9,12 +10,13 @@ use tk_http;
 use tk_http::server::{Proto};
 use tk_listen::{BindMany, ListenExt};
 use self_meter_http;
+use stats::Stats;
 
 use frontend;
 
 
 pub fn spawn_listener(ns: &NsRouter, host: &str, port: u16, localhost: bool,
-    meter: &self_meter_http::Meter)
+    meter: &self_meter_http::Meter, stats: &Arc<RwLock<Stats>>)
     -> Result<(), Error>
 {
     let hcfg = tk_http::server::Config::new()
@@ -29,6 +31,7 @@ pub fn spawn_listener(ns: &NsRouter, host: &str, port: u16, localhost: bool,
         .output_body_whole_timeout(Duration::new(30, 0))
         .done();
     let meter = meter.clone();
+    let stats = stats.clone();
 
     let mut addr = vec![host];
     if localhost {
@@ -40,9 +43,10 @@ pub fn spawn_listener(ns: &NsRouter, host: &str, port: u16, localhost: bool,
         .sleep_on_error(Duration::from_millis(100), &handle())
         .map(move |(socket, saddr)| {
             let meter = meter.clone();
+            let stats = stats.clone();
             Proto::new(socket, &hcfg,
                 frontend::Dispatcher {
-                    meter,
+                    meter, stats,
                 },
                 &handle())
             .map_err(move |e| {
