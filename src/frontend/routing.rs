@@ -29,6 +29,7 @@ pub enum Route {
     RemoteStats(Format),
     StartRemote(Format),  // POST
     Query(Format),        // POST
+    AddHost(Format),      // POST
     Remote(RemoteRoute, Format),
 }
 
@@ -110,6 +111,7 @@ pub fn route(head: &Head) -> Route {
         ("remote_stats", "") => RemoteStats(fmt(path)),
         ("start_remote", "") => StartRemote(fmt(path)),
         ("query", "") => Query(fmt(path)),
+        ("add_host", "") => AddHost(fmt(path)),
         ("remote", "query_by_host") => Remote(QueryByHost, fmt(path)),
         ("remote", "mem_info") => Remote(MemInfo, fmt(path)),
         (_, _) => Index,

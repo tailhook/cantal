@@ -1,3 +1,4 @@
+mod add_host;
 mod disk;
 mod error_page;
 mod processes;
@@ -77,8 +78,11 @@ impl<S: AsyncWrite + Send + 'static> DispatcherTrait<S> for Dispatcher {
             StartRemote(_) => {  // POST
                 serve_error_page(Http::NotImplemented)
             }
-            Query(format) => {        // POST
+            Query(format) => {   // POST
                 Ok(query::serve(&self.stats, format))
+            }
+            AddHost(format) => { // POST
+                Ok(add_host::add_host(&self.gossip, format))
             }
             Remote(_, _) => {
                 serve_error_page(Http::NotImplemented)
