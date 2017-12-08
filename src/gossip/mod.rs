@@ -15,9 +15,10 @@ use futures::sync::mpsc::{unbounded as channel, UnboundedReceiver};
 use tk_easyloop;
 use void::Void;
 
-use {HostId};
+use id::Id;
 use storage::Storage;
 
+pub use self::peer::Peer;
 pub use self::errors::InitError;
 pub use self::public::{Gossip, noop};
 pub use self::info::Info;
@@ -25,7 +26,7 @@ pub use self::info::Info;
 
 /// Fields are documented in `config.rs`
 pub struct Config {
-    machine_id: HostId,
+    machine_id: Id,
     cluster_name: Arc<String>,
     hostname: Arc<String>,
     name: Arc<String>,

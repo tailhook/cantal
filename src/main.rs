@@ -6,6 +6,7 @@ extern crate fern;
 extern crate failure;
 extern crate futures;
 extern crate futures_cpupool;
+extern crate hex;
 extern crate httparse;
 extern crate http_file_headers;
 extern crate humantime;
@@ -20,6 +21,7 @@ extern crate regex;
 extern crate rustc_serialize;
 extern crate scan_dir;
 extern crate self_meter_http;
+extern crate serde_cbor;
 extern crate time;
 extern crate tk_carbon;
 extern crate tk_easyloop;
@@ -57,13 +59,10 @@ use failure::Error;
 use nix::unistd::getpid;
 use argparse::{ArgumentParser, Store, ParseOption, StoreOption, Parse, Print};
 use argparse::{StoreTrue};
-use rustc_serialize::hex::{ToHex, FromHex};
 use rustc_serialize::json::Json;
 use tk_easyloop::{handle};
 
 use deps::{Dependencies, LockedDeps};
-
-pub type HostId = Vec<u8>;
 
 mod carbon;
 mod configs;
@@ -71,6 +70,7 @@ mod deps;
 mod frontend;
 mod gossip;
 mod http;
+mod id;
 mod info;
 mod scan;
 mod scanner;
@@ -96,7 +96,7 @@ fn run() -> Result<(), Error> {
     let mut port = 22682u16;
     let mut storage_dir = None::<PathBuf>;
     let mut config_dir = PathBuf::from("/etc/cantal");
-    let mut machine_id = None::<String>;
+    let mut machine_id = None::<id::Id>;
     let mut cluster_name = None::<String>;
     let mut scan_interval = 2000;
     let mut bind_localhost = false;
@@ -185,13 +185,12 @@ fn run() -> Result<(), Error> {
     let hostname = info::hostname().unwrap();
     let addresses = info::my_addresses(port).unwrap();
     let name = name.unwrap_or(hostname.clone());
-    let machine_id = machine_id
-        .map(|x| x.from_hex().expect("valid machine-id"))
-        .unwrap_or_else(info::machine_id);
+    let machine_id = machine_id.clone()
+            .unwrap_or_else(|| info::machine_id());
 
     let stats = Arc::new(RwLock::new(stats::Stats::new(
         getpid(), name.clone(), hostname.clone(), cluster_name.clone(),
-        machine_id.to_hex(),
+        &machine_id,
         addresses.iter().map(|x| x.to_string()).collect())));
     let mut deps = Dependencies::new();
     deps.insert(stats.clone());

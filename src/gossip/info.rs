@@ -4,14 +4,14 @@ use std::collections::HashMap;
 
 use rand::{thread_rng, sample};
 
-use {HostId};
+use id::Id;
 use gossip::Config;
 use gossip::peer::Peer;
 use gossip::proto::FriendInfo;
 
 
 pub struct Info {
-    pub peers: HashMap<HostId, Arc<Peer>>,
+    pub peers: HashMap<Id, Arc<Peer>>,
     pub has_remote: bool,
 }
 

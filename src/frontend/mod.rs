@@ -7,6 +7,7 @@ mod quick_reply;
 mod routing;
 mod sockets;
 mod status;
+mod peers;
 
 use std::sync::{Arc, RwLock};
 
@@ -66,8 +67,8 @@ impl<S: AsyncWrite + Send + 'static> DispatcherTrait<S> for Dispatcher {
             AllMetrics(_) => {
                 serve_error_page(Http::NotImplemented)
             }
-            AllPeers(_) => {
-                serve_error_page(Http::NotImplemented)
+            AllPeers(format) => {
+                Ok(peers::serve(&self.gossip, format))
             }
             PeersWithRemote(_) => {
                 serve_error_page(Http::NotImplemented)

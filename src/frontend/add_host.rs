@@ -1,5 +1,3 @@
-use std::sync::{Arc, RwLock};
-use std::collections::HashMap;
 use std::net::SocketAddr;
 
 use gossip::Gossip;

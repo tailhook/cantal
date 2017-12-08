@@ -6,7 +6,8 @@ use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 use std::time::{Instant, Duration};
 
-use cbor::{Encoder, Decoder};
+use serde_cbor::from_slice;
+use serde_cbor::ser::to_writer;
 use futures::{Future, Async, Stream};
 use quick_error::ResultExt;
 use rand::{thread_rng, Rng};
@@ -20,11 +21,10 @@ use gossip::Config;
 use gossip::errors::InitError;
 use gossip::info::Info;
 use gossip::peer::{Report, Peer};
-use {HostId};
+use id::Id as HostId;
 use storage::Storage;
 use time_util::time_ms;
 use rustc_serialize::json::Json;
-use rustc_serialize::hex::ToHex;
 
 
 #[derive(Eq)]
@@ -59,7 +59,7 @@ pub struct Proto<S> {
     output_buf: Vec<u8>,
 }
 
-#[derive(Debug, Clone, RustcEncodable, RustcDecodable)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Packet {
     Ping {
         cluster: Arc<String>,
@@ -76,7 +76,7 @@ pub enum Packet {
     },
 }
 
-#[derive(Debug, Clone, RustcEncodable, RustcDecodable)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MyInfo {
     id: HostId,
     addresses: Arc<Vec<String>>,
@@ -85,7 +85,7 @@ pub struct MyInfo {
     report: Report,
 }
 
-#[derive(Debug, Clone, RustcEncodable, RustcDecodable)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FriendInfo {
     pub id: HostId,
     pub my_primary_addr: Option<String>,
@@ -221,18 +221,12 @@ impl<S: Stream<Item=Command, Error=Void>> Proto<S> {
         assert!(buf.len() == self.config.max_packet_size);
 
         while let Ok((bytes, addr)) = self.sock.recv_from(&mut buf) {
-            let data = &buf[..bytes];
-            let mut dec = Decoder::from_reader(data);
-            match dec.decode::<Packet>().next() {
-                Some(Ok(packet)) => {
+            match from_slice(&buf[..bytes]) {
+                Ok(packet) => {
                     trace!("Packet {:?} from {:?}", packet, addr);
                     self.consume_gossip(packet, addr);
                 }
-                None => {
-                    warn!("Empty or truncated packet from {:?}",
-                          addr);
-                }
-                Some(Err(e)) => {
+                Err(e) => {
                     warn!("Errorneous packet from {:?}: {}",
                         addr, e);
                 }
@@ -283,8 +277,7 @@ impl<S: Stream<Item=Command, Error=Void>> Proto<S> {
                 buf.truncate(0);
                 {
                     let info = self.info.lock().expect("gossip info poisoned");
-                    let mut e = Encoder::from_writer(&mut *buf);
-                    e.encode(&[&Packet::Pong {
+                    to_writer(&mut *buf, &Packet::Pong {
                         cluster: cluster,
                         me: MyInfo {
                             id: self.config.machine_id.clone(),
@@ -299,7 +292,7 @@ impl<S: Stream<Item=Command, Error=Void>> Proto<S> {
                         ping_time: now,
                         peer_time: tm,
                         friends: info.get_friends(addr, &self.config),
-                    }]).unwrap();
+                    }).unwrap();
                 }
 
                 if buf.len() >= self.config.max_packet_size {
@@ -365,8 +358,7 @@ impl<S: Stream<Item=Command, Error=Void>> Proto<S> {
         buf.truncate(0);
         {
             let info = self.info.lock().expect("gossip info poisoned");
-            let mut e = Encoder::from_writer(&mut *buf);
-            e.encode(&[&Packet::Ping {
+            to_writer(&mut *buf, &Packet::Ping {
                 cluster: self.config.cluster_name.clone(),
                 me: MyInfo {
                     id: self.config.machine_id.clone(),
@@ -380,7 +372,7 @@ impl<S: Stream<Item=Command, Error=Void>> Proto<S> {
                 },
                 now: time_ms(),
                 friends: info.get_friends(addr, &self.config),
-            }]).unwrap();
+            }).unwrap();
         }
         if buf.len() >= self.config.max_packet_size {
             // Unfortunately cbor encoder doesn't report error of truncated
