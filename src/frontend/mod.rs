@@ -10,11 +10,12 @@ mod status;
 use std::sync::{Arc, RwLock};
 
 use futures::Future;
-use tokio_io::AsyncWrite;
-use tk_http::{Status as Http};
+use gossip::Gossip;
+use self_meter_http::Meter;
 use tk_http::server::{Codec as CodecTrait, Dispatcher as DispatcherTrait};
 use tk_http::server::{Error, Head, EncoderDone};
-use self_meter_http::Meter;
+use tk_http::{Status as Http};
+use tokio_io::AsyncWrite;
 
 use stats::Stats;
 use frontend::routing::{route, Route};
@@ -29,6 +30,7 @@ pub type Reply<S> = Box<Future<Item=EncoderDone<S>, Error=Error>>;
 pub struct Dispatcher {
     pub meter: Meter,
     pub stats: Arc<RwLock<Stats>>,
+    pub gossip: Gossip,
 }
 
 

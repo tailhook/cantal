@@ -11,12 +11,14 @@ use tk_http::server::{Proto};
 use tk_listen::{BindMany, ListenExt};
 use self_meter_http;
 use stats::Stats;
+use gossip::Gossip;
 
 use frontend;
 
 
 pub fn spawn_listener(ns: &NsRouter, host: &str, port: u16, localhost: bool,
-    meter: &self_meter_http::Meter, stats: &Arc<RwLock<Stats>>)
+    meter: &self_meter_http::Meter, stats: &Arc<RwLock<Stats>>,
+    gossip: &Gossip)
     -> Result<(), Error>
 {
     let hcfg = tk_http::server::Config::new()
@@ -32,6 +34,7 @@ pub fn spawn_listener(ns: &NsRouter, host: &str, port: u16, localhost: bool,
         .done();
     let meter = meter.clone();
     let stats = stats.clone();
+    let gossip = gossip.clone();
 
     let mut addr = vec![host];
     if localhost {
@@ -44,9 +47,10 @@ pub fn spawn_listener(ns: &NsRouter, host: &str, port: u16, localhost: bool,
         .map(move |(socket, saddr)| {
             let meter = meter.clone();
             let stats = stats.clone();
+            let gossip = gossip.clone();
             Proto::new(socket, &hcfg,
                 frontend::Dispatcher {
-                    meter, stats,
+                    meter, stats, gossip,
                 },
                 &handle())
             .map_err(move |e| {

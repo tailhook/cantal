@@ -283,7 +283,7 @@ fn run() -> Result<(), Error> {
 
         carbon::spawn_sinks(&ns, &configs, &stats)?;
         http::spawn_listener(&ns, &host, port, bind_localhost,
-            &meter, &stats)?;
+            &meter, &stats, &gossip)?;
 
         Ok(())
     })?;
