@@ -4,6 +4,7 @@ mod processes;
 mod query;
 mod quick_reply;
 mod routing;
+mod sockets;
 mod status;
 
 use std::sync::{Arc, RwLock};
@@ -56,8 +57,8 @@ impl<S: AsyncWrite + Send + 'static> DispatcherTrait<S> for Dispatcher {
             AllProcesses(format) => {
                 Ok(processes::serve(&self.stats, format))
             }
-            AllSockets(_) => {
-                serve_error_page(Http::NotImplemented)
+            AllSockets(format) => {
+                Ok(sockets::serve(&self.stats, format))
             }
             AllMetrics(_) => {
                 serve_error_page(Http::NotImplemented)
