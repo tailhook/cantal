@@ -71,8 +71,8 @@ impl<S: AsyncWrite + Send + 'static> DispatcherTrait<S> for Dispatcher {
             AllPeers(format) => {
                 Ok(peers::serve(&self.gossip, format))
             }
-            PeersWithRemote(_) => {
-                serve_error_page(Http::NotImplemented)
+            PeersWithRemote(format) => {
+                Ok(peers::serve_only_remote(&self.gossip, format))
             }
             RemoteStats(_) => {
                 serve_error_page(Http::NotImplemented)
