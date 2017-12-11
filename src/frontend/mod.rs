@@ -1,4 +1,5 @@
 mod add_host;
+mod all_metrics;
 mod disk;
 mod error_page;
 mod processes;
@@ -65,7 +66,7 @@ impl<S: AsyncWrite + Send + 'static> DispatcherTrait<S> for Dispatcher {
                 Ok(sockets::serve(&self.stats, format))
             }
             AllMetrics(_) => {
-                serve_error_page(Http::NotImplemented)
+                Ok(all_metrics::serve(&self.stats))
             }
             AllPeers(format) => {
                 Ok(peers::serve(&self.gossip, format))
