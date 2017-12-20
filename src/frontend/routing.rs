@@ -1,5 +1,5 @@
 use std::path::Path;
-use tk_http::server::{Head};
+use tk_http::server::{Head, WebsocketHandshake};
 
 #[derive(Clone, Debug)]
 pub enum Format {
@@ -14,12 +14,12 @@ pub enum RemoteRoute {
     MemInfo,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub enum Route {
     Index,
     Static(String),
     NotFound,
-    WebSocket,
+    WebSocket(WebsocketHandshake),
     Status(Format),
     AllProcesses(Format),
     AllSockets(Format),
@@ -78,7 +78,7 @@ fn fmt(path: &str) -> Format {
     }
 }
 
-pub fn route(head: &Head) -> Route {
+pub fn route(head: &Head, ws: Option<WebsocketHandshake>) -> Route {
     use self::Route::*;
     use self::RemoteRoute::*;
     let path = if let Some(path) = head.path() {
@@ -101,7 +101,10 @@ pub fn route(head: &Head) -> Route {
                 Static(path.to_string())
             }
         }
-        ("ws", _) => WebSocket,
+        ("ws", _) => match ws {
+            Some(ws) => WebSocket(ws),
+            None => NotFound,
+        },
         ("status", "") => Status(fmt(path)),
         ("all_processes", "") => AllProcesses(fmt(path)),
         ("all_sockets", "") => AllSockets(fmt(path)),

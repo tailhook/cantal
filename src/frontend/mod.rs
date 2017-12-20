@@ -9,6 +9,7 @@ mod routing;
 mod sockets;
 mod status;
 mod peers;
+mod websocket;
 
 use std::sync::{Arc, RwLock};
 
@@ -18,7 +19,7 @@ use self_meter_http::Meter;
 use tk_http::server::{Codec as CodecTrait, Dispatcher as DispatcherTrait};
 use tk_http::server::{Error, Head, EncoderDone};
 use tk_http::{Status as Http};
-use tokio_io::AsyncWrite;
+use tokio_io::{AsyncRead, AsyncWrite};
 
 use stats::Stats;
 use frontend::routing::{route, Route};
@@ -37,13 +38,22 @@ pub struct Dispatcher {
 }
 
 
-impl<S: AsyncWrite + Send + 'static> DispatcherTrait<S> for Dispatcher {
+impl<S> DispatcherTrait<S> for Dispatcher
+    where S: AsyncRead + AsyncWrite + Send + 'static
+{
     type Codec = Request<S>;
     fn headers_received(&mut self, headers: &Head)
         -> Result<Self::Codec, Error>
     {
         use self::Route::*;
-        match route(headers) {
+        let up = match headers.get_websocket_upgrade() {
+            Ok(up) => up,
+            Err(()) => {
+                info!("Invalid websocket handshake");
+                return serve_error_page(Http::BadRequest);
+            }
+        };
+        match route(headers, up) {
             Index => {
                 disk::index_response(headers)
             }
@@ -53,8 +63,8 @@ impl<S: AsyncWrite + Send + 'static> DispatcherTrait<S> for Dispatcher {
             NotFound => {
                 serve_error_page(Http::NotFound)
             }
-            WebSocket => {
-                serve_error_page(Http::NotImplemented)
+            WebSocket(ws) => {
+                Ok(websocket::serve(&self.stats, ws))
             }
             Status(format) => {
                 Ok(status::serve(&self.meter, &self.stats, format))
