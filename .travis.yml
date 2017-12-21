@@ -1,0 +1,57 @@
+language: rust
+rust: stable
+os: linux
+dist: trusty
+sudo: false
+addons:
+  apt:
+    packages:
+    - fakeroot
+    - musl-tools
+
+cache:
+- apt
+- cargo
+
+before_cache:
+- rm -r $TRAVIS_BUILD_DIR/target/debug
+
+script:
+- cargo build $CARGO_ARGS
+- cargo test $CARGO_ARGS
+
+jobs:
+  include:
+  - rust: stable
+  - rust: beta
+  - rust: nightly
+
+  # deploy
+  - stage: publish
+    #env:
+    # CARGO_TOKEN
+    # - secure: TODO
+    install: true
+    script: true
+    before_deploy: |
+      cd cantal_values
+      mkdir -p dist
+      rustup target add x86_64-unknown-linux-musl
+      cargo build --target=x86_64-unknown-linux-musl --release
+      fakeroot sh -ecx '
+        install -D ../target/x86_64-unknown-linux-musl/release/cantal pkg/usr/bin/cantal
+        tar -C pkg -czf dist/cantal-cli-$TRAVIS_TAG.tar.gz usr
+      '
+
+    deploy:
+    # - provider: script
+    #   script: 'cargo publish --verbose --token=$CARGO_TOKEN'
+    #   on:
+    #     tags: true
+    - provider: releases
+      api_key:
+        secure: "ePG90ZzWauEngDCL6fOT+cAH2ujrJ2NUnnMDYjWUwq6cFQE0BMRlDk7/jistLQJoZVD/XD12zEmgctZYihnAVwfUTmYhSFjZb22ta9xRPvFg2M4ss0yv9qym0Z2TyWDElizagdJHzrDSy4X8fYZBHlRXnZm8oM93kRzvaCnNxnc="
+      file: "dist/cantal-cli-$TRAVIS_TAG.tar.gz"
+      skip_cleanup: true
+      on:
+        tags: true
