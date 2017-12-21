@@ -69,4 +69,4 @@ features = ["rustc-serialize"]
 name = "cantal-agent"
 path = "src/main.rs"
 
-
+[workspace]
