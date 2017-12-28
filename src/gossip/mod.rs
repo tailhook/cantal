@@ -10,6 +10,7 @@ use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+use futures::Future;
 use futures::stream::Stream;
 use futures::sync::mpsc::{unbounded as channel, UnboundedReceiver};
 use tk_easyloop;
@@ -81,12 +82,15 @@ impl GossipInit {
         let rx = self.receiver
             .map_err(|_| -> Void { panic!("gossip stream canceled") });
         tk_easyloop::spawn(proto::Proto::new(
-            &self.info,
-            &self.config,
-            rx,
-            remote,
-            storage,
-        )?);
+                &self.info,
+                &self.config,
+                rx,
+                remote,
+                storage,
+            )?.then(|res| -> Result<(), ()> {
+                error!("FATAL ERROR: Gossip future is exited: {:?}", res);
+                panic!("gossip future is exited");
+            }));
         Ok(())
     }
 }
