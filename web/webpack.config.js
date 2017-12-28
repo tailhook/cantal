@@ -4,8 +4,8 @@ module.exports = {
     context: __dirname,
     entry: DEV ? [
         "./index",
-        "webpack-dev-server/client?http://localhost:8080",
-        "webpack/hot/only-dev-server",
+        //"webpack-dev-server/client?http://localhost:8080",
+        //"webpack/hot/only-dev-server",
     ] : "./index",
     output: {
         path: __dirname + "/../public/js",
@@ -15,25 +15,20 @@ module.exports = {
     module: {
         loaders: [{
             test: /\.khufu$/,
-            loaders: ['babel', 'khufu'],
+            loaders: ['babel-loader', 'khufu'],
             exclude: /node_modules/,
         }, {
             test: /\.js$/,
-            loaders: ['babel'],
+            loaders: ['babel-loader'],
             exclude: /node_modules/,
         }],
     },
-    babel: {
-        "presets": ["es2015"],
-        "plugins": [
-            "transform-object-rest-spread",
-        ],
-    },
     resolve: {
-        root: ["/usr/lib/node_modules"],
+        modules: process.env.NODE_PATH.split(':').filter(x => x),
     },
     resolveLoader: {
-        root: ["/usr/lib/node_modules"],
+        mainFields: ["webpackLoader", "main", "browser"],
+        modules: process.env.NODE_PATH.split(':').filter(x => x),
     },
     devServer: {
         contentBase: '../public',
@@ -52,11 +47,26 @@ module.exports = {
         hot: true,
         historyApiFallback: true,
     },
-    khufu: {
-        static_attrs: !DEV,
-    },
     plugins: [
-        new webpack.NoErrorsPlugin(),
+        new webpack.LoaderOptionsPlugin({
+            options: {
+                khufu: {
+                    static_attrs: !DEV,
+                },
+                babel: {
+                    "plugins": [
+                        "transform-strict-mode",
+                        "transform-object-rest-spread",
+                        "transform-es2015-block-scoping",
+                        "transform-es2015-parameters",
+                        "transform-es2015-destructuring",
+                        "transform-es2015-arrow-functions",
+                        "transform-es2015-block-scoped-functions",
+                    ],
+                },
+            }
+        }),
+        new webpack.NoEmitOnErrorsPlugin(),
         new webpack.DefinePlugin({
             VERSION: JSON.stringify("0.5.7"),
             "process.env.NODE_ENV": JSON.stringify(process.env['NODE_ENV']),

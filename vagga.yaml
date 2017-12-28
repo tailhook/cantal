@@ -304,10 +304,9 @@ containers:
 
   js:
     setup:
-    - !Alpine v3.3
-    - !NpmDependencies
-      file: "web/package.json"
-      optional: true
+    - !Alpine v3.7
+    - !YarnDependencies
+      dir: "web"
     - !Install [git]
     - &bulk !Tar
       url: "https://github.com/tailhook/bulk/releases/download/v0.4.9/bulk-v0.4.9.tar.gz"
@@ -315,6 +314,7 @@ containers:
       path: /
     environ:
       NODE_PATH: /usr/lib/node_modules
+      HOME: /tmp
 
   precise:
     setup:

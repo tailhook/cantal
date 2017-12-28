@@ -134,14 +134,14 @@ view self_status(beacon):
       <div.memgraph>
         donut(@mem.items, 52, 52, @mem.total)
 
-    store @cpu = cpu
+    store @cpu_metrics = cpu
       | query(fine_grained().matching('metric', '^cpu\\.').history()
               .derivative().sumby('metric'))
-    if @cpu:
+    if @cpu_metrics:
       <div.cpugraph>
-        sparkline(120, @cpu.timestamps, [{
+        sparkline(120, @cpu_metrics.timestamps, [{
             'title': 'Cpu',
-            'values': @cpu.total,
+            'values': @cpu_metrics.total,
             'yaxis': CPU_YAXIS
             }])
 

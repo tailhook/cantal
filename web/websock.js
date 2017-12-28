@@ -80,8 +80,6 @@ export function remote_enabled() {
     return last_beacon && last_beacon.remote_total != null
 }
 
-window.WEBSOCK_DEBUG_INTERFACE = exports
-
 if(module.hot) {
     module.hot.decline()
 }
