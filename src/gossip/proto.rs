@@ -450,8 +450,8 @@ impl<S: Stream<Item=Command, Error=Void>> Proto<S> {
                 return // nothing to do
             }
             self.ping_queue = info.peers.keys().cloned().collect();
+            thread_rng().shuffle(&mut self.ping_queue[..]);
         }
-        thread_rng().shuffle(&mut self.ping_queue[..]);
         for _ in 0..self.config.num_pings_to_send {
             if self.ping_queue.len() == 0 {
                 break;
