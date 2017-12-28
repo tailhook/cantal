@@ -1,4 +1,5 @@
 var webpack = require('webpack')
+var MinifyPlugin = require('babel-minify-webpack-plugin')
 var DEV = process.env['NODE_ENV'] != 'production';
 module.exports = {
     context: __dirname,
@@ -72,6 +73,8 @@ module.exports = {
             "process.env.NODE_ENV": JSON.stringify(process.env['NODE_ENV']),
             DEBUG: DEV,
         }),
-    ],
+    ].concat(DEV ? [] : [
+        new MinifyPlugin({}),
+    ]),
 }
 

@@ -18,7 +18,7 @@ commands:
       version=$(git describe --dirty)
       NODE_ENV=production \
         bulk with-version "${version}" \
-          sh -c "cd web && webpack --optimize-minimize"
+          sh -c "cd web && webpack"
 
   make-bin: !Command
     description: Build cantal binaries
