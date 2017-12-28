@@ -158,7 +158,10 @@ impl<S: Stream<Item=Command, Error=Void>> Future for Proto<S> {
                     break;
                 }
             } else {
-                break;
+                match self.clock.poll().map_err(|_| ())? {
+                    Async::Ready(()) => continue,
+                    Async::NotReady => break,
+                }
             }
         }
         Ok(Async::NotReady)
