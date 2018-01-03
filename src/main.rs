@@ -84,6 +84,7 @@ mod carbon;
 mod configs;
 mod tokioloop;
 mod time_util;
+mod watchdog;
 
 
 fn main() {
@@ -264,6 +265,7 @@ fn run() -> Result<(), Box<Error>> {
         let path = path.clone();
         let mymeter = meter.clone();
         thread::spawn(move || {
+            let _watchdog = watchdog::ExitOnReturn(81);
             mymeter.lock().unwrap().track_current_thread("storage");
             storage::storage_loop(mydeps, &path);
         })
@@ -287,6 +289,7 @@ fn run() -> Result<(), Box<Error>> {
     let mydeps = deps.clone();
     let mymeter = meter.clone();
     let _scan = thread::spawn(move || {
+        let _watchdog = watchdog::ExitOnReturn(82);
         mymeter.lock().unwrap().track_current_thread("scan");
         scanner::scan_loop(mydeps, scan_interval, *backlog_time);
     });

@@ -17,6 +17,7 @@ use configs::Configs;
 use stats::Stats;
 use remote::Remote;
 use storage::Storage;
+use watchdog;
 
 
 quick_error! {
@@ -55,6 +56,7 @@ pub fn start(mut gossip: Option<gossip::GossipInit>,
 
 
     thread::spawn(move || {
+        let _watchdog = watchdog::ExitOnReturn(83);
         meter.lock().unwrap().track_current_thread("tokio");
 
         let mut keep_router = None;
