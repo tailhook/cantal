@@ -70,4 +70,8 @@ features = ["rustc-serialize"]
 name = "cantal-agent"
 path = "src/main.rs"
 
+[profile.release]
+debug = true
+lto = true
+
 [workspace]
