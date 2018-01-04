@@ -10,6 +10,7 @@ extern crate httparse;
 extern crate humantime;
 extern crate hyper;
 extern crate libc;
+extern crate libcantal;
 extern crate mio;
 extern crate nix;
 extern crate ns_router;

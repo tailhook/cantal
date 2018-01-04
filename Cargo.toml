@@ -47,6 +47,7 @@ void = "1.0.2"
 serde = {version="1.0.0", features=["rc"]}
 serde_derive = "1.0.0"
 serde_json = "1.0.0"
+libcantal = "0.3.2"
 
 [dependencies.probor]
 version = "0.3.0"

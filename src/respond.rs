@@ -19,6 +19,8 @@ use super::remote::{Peers};
 use super::deps::LockedDeps;
 use super::websock::Beacon;
 
+use gossip::{NUM_PEERS, NUM_STALE};
+
 #[derive(RustcEncodable)]
 struct ProcessesData<'a> {
     boot_time: Option<u64>,
@@ -36,6 +38,8 @@ pub fn serve_status(_req: &Request, context: &mut Context)
         boot_time: Option<u64>,
         self_report: Option<self_meter::Report>,
         threads_report: HashMap<String, self_meter::ThreadReport>,
+        num_peers: i64,
+        num_stale: i64,
     }
     let (me, thr) = {
         let meter = context.deps.lock::<self_meter::Meter>();
@@ -52,6 +56,8 @@ pub fn serve_status(_req: &Request, context: &mut Context)
             boot_time: stats.boot_time,
             self_report: me,
             threads_report: thr,
+            num_peers: NUM_PEERS.get(),
+            num_stale: NUM_STALE.get(),
         }))
 }
 

@@ -6,6 +6,7 @@ mod config;
 mod util;
 mod cgroups;
 mod appmetrics;
+mod myself;
 
 
 pub use self::config::{Config, validator};
@@ -17,5 +18,7 @@ pub fn send(snd: &Carbon, cfg: &Config, stats: &Stats) {
     }
     if cfg.enable_application_metrics {
         appmetrics::scan(snd, cfg, stats);
+        // consider this a special case of application metrics
+        myself::scan(snd, cfg, stats);
     }
 }

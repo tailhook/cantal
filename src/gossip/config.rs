@@ -54,6 +54,10 @@ pub struct ConfigBuilder {
     /// failinig do know the node, and do ping it. This is currently used only
     fail_time: u64,
 
+    /// After this time we consider node stale and show it in monitoring.
+    /// Other than monitoring we don't use it for anything
+    stale_time: u64,
+
 
     /// This is time after last heartbeat when node will be removed from the
     /// list of known nodes. This should be long after FAIL_TIME. (But not
@@ -102,6 +106,8 @@ impl Config {
             prefail_time: 20_000,
             max_roundtrip: 2000,
             fail_time: 3600_000,
+            // max of (2 * max_ping_interval, 2 * GC interval)
+            stale_time: 600_000,
             remove_time: 2 * 86400_000,
             max_packet_size: 8192,
 
@@ -177,6 +183,7 @@ impl ConfigBuilder {
             prefail_time: self.prefail_time,
             max_roundtrip: self.max_roundtrip,
             fail_time: self.fail_time,
+            stale_time: self.stale_time,
             remove_time: self.remove_time,
             max_packet_size: self.max_packet_size,
 

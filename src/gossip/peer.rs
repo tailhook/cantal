@@ -203,6 +203,15 @@ impl Peer {
         }
     }
 
+    pub fn is_stale(&self, config: &Arc<Config>) -> bool {
+        let now = time_ms();
+        match self.report {
+            // never probed (yet)
+            None => self.added + config.stale_time < now,
+            Some((ts, _)) => ts + config.stale_time < now,
+        }
+    }
+
     pub fn should_remove(&self, config: &Arc<Config>) -> bool {
         let now = time_ms();
         match self.report {

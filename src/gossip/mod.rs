@@ -23,6 +23,7 @@ use storage::Storage;
 pub use self::errors::InitError;
 pub use self::public::{Gossip, noop};
 pub use self::info::Info;
+pub use self::proto::{NUM_PEERS, NUM_STALE};
 
 
 /// Fields are documented in `config.rs`
@@ -44,6 +45,7 @@ pub struct Config {
     prefail_time: u64,
     max_roundtrip: u64,
     fail_time: u64,
+    stale_time: u64,
     remove_time: u64,
     max_packet_size: usize,
 

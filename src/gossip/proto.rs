@@ -14,6 +14,8 @@ use tk_easyloop::{self, timeout};
 use tokio_core::net::UdpSocket;
 use tokio_core::reactor::Timeout;
 use void::{Void, unreachable};
+use rustc_serialize::json::Json;
+use rustc_serialize::hex::ToHex;
 
 use gossip::command::Command;
 use gossip::Config;
@@ -24,9 +26,13 @@ use {HostId};
 use remote::Remote;
 use storage::Storage;
 use time_util::time_ms;
-use rustc_serialize::json::Json;
-use rustc_serialize::hex::ToHex;
+use libcantal::Integer;
 
+
+lazy_static! {
+    pub static ref NUM_PEERS: Integer = Integer::new();
+    pub static ref NUM_STALE: Integer = Integer::new();
+}
 
 #[derive(Eq)]
 struct FutureHost {
@@ -249,6 +255,7 @@ impl<S: Stream<Item=Command, Error=Void>> Proto<S> {
         use self::AddrStatus::*;
 
         let tm = time_ms();
+        let mut update = false;
 
         match packet {
             Packet::Ping { cluster,  me: pinfo, now, friends } => {
@@ -266,7 +273,10 @@ impl<S: Stream<Item=Command, Error=Void>> Proto<S> {
                         .expect("gossip info poisoned");
                     self.addr_status.insert(addr, Available);
                     let peer = info.peers.entry(id.clone())
-                        .or_insert_with(|| Arc::new(Peer::new(id.clone())));
+                        .or_insert_with(|| {
+                            update = true;
+                            Arc::new(Peer::new(id.clone()))
+                        });
                     let peer = Arc::make_mut(peer);
                     peer.apply_addresses(
                         // TODO(tailhook) filter out own IP addressses
@@ -337,7 +347,10 @@ impl<S: Stream<Item=Command, Error=Void>> Proto<S> {
                     let id = pinfo.id.clone();
                     self.addr_status.insert(addr, Available);
                     let peer = info.peers.entry(id.clone())
-                        .or_insert_with(|| Arc::new(Peer::new(id.clone())));
+                        .or_insert_with(|| {
+                            update = true;
+                            Arc::new(Peer::new(id.clone()))
+                        });
                     let peer = Arc::make_mut(peer);
                     peer.apply_addresses(
                         // TODO(tailhook) filter out own IP addressses
@@ -359,6 +372,9 @@ impl<S: Stream<Item=Command, Error=Void>> Proto<S> {
                 }
                 self.apply_friends(friends, addr);
             }
+        }
+        if update {
+            self.update_metrics();
         }
     }
     fn send_gossip(&mut self, addr: SocketAddr) {
@@ -540,6 +556,13 @@ impl<S: Stream<Item=Command, Error=Void>> Proto<S> {
     fn garbage_collector(&mut self) {
         self.remove_failed_nodes();
         self.store_peers();
+        self.update_metrics();
+    }
+    fn update_metrics(&mut self) {
+        let info = self.info.lock().expect("gossip not poisoned");
+        NUM_PEERS.set(info.peers.len() as i64);
+        NUM_STALE.set(info.peers.values()
+            .map(|p| p.is_stale(&self.config)).count() as i64);
     }
 }
 
