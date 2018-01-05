@@ -562,7 +562,7 @@ impl<S: Stream<Item=Command, Error=Void>> Proto<S> {
         let info = self.info.lock().expect("gossip not poisoned");
         NUM_PEERS.set(info.peers.len() as i64);
         NUM_STALE.set(info.peers.values()
-            .map(|p| p.is_stale(&self.config)).count() as i64);
+            .filter(|p| p.is_stale(&self.config)).count() as i64);
     }
 }
 
