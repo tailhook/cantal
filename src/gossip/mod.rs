@@ -10,6 +10,7 @@ use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+use futures::Future;
 use futures::stream::Stream;
 use futures::sync::mpsc::{unbounded as channel, UnboundedReceiver};
 use tk_easyloop;
@@ -22,6 +23,7 @@ pub use self::peer::Peer;
 pub use self::errors::InitError;
 pub use self::public::{Gossip, noop};
 pub use self::info::Info;
+pub use self::proto::{NUM_PEERS, NUM_STALE};
 
 
 /// Fields are documented in `config.rs`
@@ -43,6 +45,7 @@ pub struct Config {
     prefail_time: u64,
     max_roundtrip: u64,
     fail_time: u64,
+    stale_time: u64,
     remove_time: u64,
     max_packet_size: usize,
 
@@ -85,7 +88,10 @@ impl GossipInit {
             &self.config,
             rx,
             storage,
-        )?);
+        )?.then(|res| -> Result<(), ()> {
+            error!("FATAL ERROR: Gossip future is exited: {:?}", res);
+            panic!("gossip future is exited");
+        }));
         Ok(())
     }
 }

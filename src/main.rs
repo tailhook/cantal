@@ -12,6 +12,7 @@ extern crate http_file_headers;
 extern crate humantime;
 extern crate hyper;
 extern crate libc;
+extern crate libcantal;
 extern crate nix;
 extern crate ns_env_config;
 extern crate num;
@@ -80,6 +81,7 @@ mod scanner;
 mod stats;
 mod storage;
 mod time_util;
+mod watchdog;
 
 
 fn main() {
@@ -247,6 +249,7 @@ fn run() -> Result<(), Error> {
         let path = path.clone();
         let mymeter = meter.clone();
         thread::spawn(move || {
+            let _watchdog = watchdog::ExitOnReturn(81);
             mymeter.track_current_thread("storage");
             storage::storage_loop(mydeps, &path);
         })
@@ -270,6 +273,7 @@ fn run() -> Result<(), Error> {
     let mydeps = deps.clone();
     let mymeter = meter.clone();
     let _scan = thread::spawn(move || {
+        let _watchdog = watchdog::ExitOnReturn(82);
         mymeter.track_current_thread("scan");
         scanner::scan_loop(mydeps, scan_interval, *backlog_time);
     });

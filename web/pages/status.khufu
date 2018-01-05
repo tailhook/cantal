@@ -53,7 +53,7 @@ view memtable(mem):
           else:
             icon('arrow-down')
 
-view cpu(series):
+view cpu_graph(series):
   compact(1100, series.timestamps, [
         {
         'title': 'Cpu',
@@ -78,7 +78,7 @@ view cpu(series):
         'yaxis': CPU_YAXIS
         }])
 
-view net(series):
+view net_graph(series):
   let net_yaxis = {
     height: 40,
     bg_color: 'rgb(237,248,233)',
@@ -102,7 +102,7 @@ view net(series):
         'yaxis': net_yaxis
         }])
 
-view disk(series, series_in_progress):
+view disk_graph(series, series_in_progress):
   let bytes_yaxis = {
     height: 40,
     bg_color: 'rgb(237,248,233)',
@@ -187,7 +187,7 @@ view main():
       if not @cpu:
         "Loading ..."
       else:
-        cpu(@cpu)
+        cpu_graph(@cpu)
 
   <h2> "Network"
   <div.pure-g>
@@ -200,7 +200,7 @@ view main():
       if not @net:
         "Loading ..."
       else:
-        net(@net)
+        net_graph(@net)
 
   <h2> "Disk"
 
@@ -219,5 +219,5 @@ view main():
       if not @disk:
         "Loading ..."
       else:
-        disk(@disk, @disk_pro)
+        disk_graph(@disk, @disk_pro)
 

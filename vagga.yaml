@@ -18,7 +18,7 @@ commands:
       version=$(git describe --dirty)
       NODE_ENV=production \
         bulk with-version "${version}" \
-          sh -c "cd web && webpack --optimize-minimize"
+          sh -c "cd web && webpack"
 
   make-bin: !Command
     description: Build cantal binaries
@@ -221,12 +221,46 @@ commands:
           done
           sleep 100000
 
+  trio: !Supervise
+    description: Runs three servers in network namespace
+    prerequisites: [make]
+    children:
+      n1: !Command
+        network: &n1
+          ip: 172.23.0.1
+          ports: {20001: 22682}
+        container: xenial
+        run: "./cantal-agent --host 172.23.0.1 --cluster-name=local-test"
+      n2: !Command
+        container: xenial
+        network: &n2
+          ip: 172.23.0.2
+          ports: {20002: 22682}
+        run: "./cantal-agent --host 172.23.0.2 --cluster-name=local-test"
+      n3: !Command
+        container: xenial
+        network: &n3
+          ip: 172.23.0.3
+          ports: {20003: 22682}
+        run: "./cantal-agent --host 172.23.0.3 --cluster-name=local-test"
+      connector: !BridgeCommand
+        container: net
+        volumes:
+          /usr/lib/vagga: !VaggaBin
+        run: |
+          sleep 2
+          for i in $(seq 2 3); do
+            curl http://172.23.0.1:22682/add_host.json -sf \
+              -d'{"addr": "172.23.0.'$i':22682"}'
+          done
+          sleep 1000000
+
   carbon: &carbon !Command
     description: Run carbon (cantal can submit data to carbon)
     container: graphite
     work-dir: /opt/graphite
     run: |
-      rm /work/integrations/tmp/carbon-cache-a.pid || true
+      rm /opt/graphite/storage/carbon-cache-a.pid || true
       ./bin/carbon-cache.py start --debug
 
   graphite-web: &graphite !Command
@@ -305,10 +339,9 @@ containers:
 
   js:
     setup:
-    - !Alpine v3.3
-    - !NpmDependencies
-      file: "web/package.json"
-      optional: true
+    - !Alpine v3.7
+    - !YarnDependencies
+      dir: "web"
     - !Install [git]
     - &bulk !Tar
       url: "https://github.com/tailhook/bulk/releases/download/v0.4.9/bulk-v0.4.9.tar.gz"
@@ -316,6 +349,7 @@ containers:
       path: /
     environ:
       NODE_PATH: /usr/lib/node_modules
+      HOME: /tmp
 
   precise:
     setup:
@@ -329,6 +363,14 @@ containers:
     - *bulk
     environ: &environ
       HOME: /work/target
+
+  net:
+    setup:
+    - !Alpine v3.7
+    - !Install [curl, iproute2, iptables, bash, bind-tools]
+    - !EnsureDir /usr/lib/vagga
+    environ:
+      PATH: /usr/lib/vagga:/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin
 
   trusty:
     setup:
