@@ -17,7 +17,7 @@ function _two(n) {
 }
 
 export function format_datetime(dt) {
-    return ( `${dt.getFullYear()}-${_two(dt.getMonth())}-${_two(dt.getDate())}`
+    return ( `${dt.getFullYear()}-${_two(dt.getMonth()+1)}-${_two(dt.getDate())}`
            + ` ${_two(dt.getHours())}:${_two(dt.getMinutes())}`
            + `:${_two(dt.getSeconds())}`)
 }
