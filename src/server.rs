@@ -621,11 +621,14 @@ pub fn server_init(deps: &mut Dependencies,
     -> Result<Init, Error>
 {
     let mut servers = vec![];
-    servers.push(try!(mio::tcp::TcpListener::bind(&SocketAddr::V4(
-        SocketAddrV4::new(try!(host.parse()), port)))));
+    let main = SocketAddr::V4(SocketAddrV4::new(try!(host.parse()), port));
+    servers.push(try!(mio::tcp::TcpListener::bind(&main)));
     if bind_localhost {
-        servers.push(try!(mio::tcp::TcpListener::bind(&SocketAddr::V4(
-            SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), port)))));
+        let local = SocketAddr::V4(SocketAddrV4::new(
+            Ipv4Addr::new(127, 0, 0, 1), port));
+        if local != main {
+            servers.push(try!(mio::tcp::TcpListener::bind(&local)));
+        }
     }
     let mut eloop = try!(EventLoop::new());
     for serv in &servers {
