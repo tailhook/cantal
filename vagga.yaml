@@ -303,6 +303,10 @@ commands:
   _package-trusty: &package !Command
     container: trusty
     prerequisites: [_make-js-for-package]
+    environ:
+      CARGO_HOME: /cargo
+    volumes:
+      /cargo: !Persistent trusty-home
     run: |
       set -ex
       rm -rf dist/pkg || true
@@ -317,10 +321,14 @@ commands:
 
   _package-xenial: !Command
     container: xenial
+    volumes:
+      /cargo: !Persistent xenial-home
     <<: *package
 
   _package-bionic: !Command
     container: bionic
+    volumes:
+      /cargo: !Persistent bionic-home
     <<: *package
 
 
@@ -362,6 +370,7 @@ containers:
                 --components=rustc,rust-std-x86_64-unknown-linux-gnu,cargo"
 
     - *bulk
+    - !EnsureDir /cargo
     environ: &environ
       HOME: /work/target
 
@@ -379,6 +388,7 @@ containers:
     - *pkgs
     - *rust
     - *bulk
+    - !EnsureDir /cargo
     environ: *environ
 
   xenial:
@@ -390,13 +400,7 @@ containers:
     - !Install
       - wget  # just for 'vagga ten'
       - vim   # for tag notes
-    environ: *environ
-
-
-  outdated:
-    setup:
-    - !Container trusty
-    - !Sh cargo install --root=/usr cargo-outdated
+    - !EnsureDir /cargo
     environ: *environ
 
   doc:
