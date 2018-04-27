@@ -28,6 +28,7 @@ pub struct MinimalProcess {
     pub state: char,
     pub vsize: u64,
     pub rss: u64,
+    pub swap: u64,
     pub num_threads: u32,
     pub start_time: u64,
     pub user_time: u32,
@@ -68,11 +69,12 @@ fn parse_io(pid: Pid) -> Result<(u64, u64), ()> {
     Ok((read_bytes, write_bytes))
 }
 
-fn parse_status(pid: Pid) -> Result<(u32, u32), ()> {
+fn parse_status(pid: Pid) -> Result<(u32, u32, u64), ()> {
     let buf = BufReader::new(try!(File::open(&format!("/proc/{}/status", pid))
         .map_err(|e| debug!("Can't read io file: {}", e))));
     let mut uid = None;
     let mut gid = None;
+    let mut swap = None;
     for line in buf.lines() {
         let line = try!(line
             .map_err(|e| debug!("Can't read io file: {}", e)));
@@ -92,15 +94,25 @@ fn parse_status(pid: Pid) -> Result<(u32, u32), ()> {
                 gid = v.split_whitespace().next()
                     .and_then(|x| x.parse().ok());
             }
+            (Some("VmSwap"), Some(v)) => {
+                let mut parts = v.split_whitespace();
+                let maybe_kb = parts.next()
+                    .and_then(|x| x.parse().ok());
+                if parts.next() == Some("kB") {
+                    swap = maybe_kb;
+                } // any other units possible?
+            }
             _ => {}
         }
-        if uid.is_some() && gid.is_some() { break; }
+        if uid.is_some() && gid.is_some() && swap.is_some() { break; }
     }
     let uid = try!(uid.ok_or(())
         .map_err(|_| error!("Can't parse /proc/{}/status", pid)));
     let gid = try!(gid.ok_or(())
         .map_err(|_| error!("Can't parse /proc/{}/status", pid)));
-    Ok((uid, gid))
+    let swap = try!(swap.ok_or(())
+        .map_err(|_| error!("Can't parse /proc/{}/status", pid)));
+    Ok((uid, gid, swap))
 }
 
 fn read_process(cache: &mut ReadCache, cgroup: Option<&Arc<String>>, pid: Pid)
@@ -138,7 +150,7 @@ fn read_process(cache: &mut ReadCache, cgroup: Option<&Arc<String>>, pid: Pid)
     let mut words = stat_line.split_whitespace();
 
     let (read_bytes, write_bytes) = try!(parse_io(pid));
-    let (uid, gid) = try!(parse_status(pid));
+    let (uid, gid, swap) = try!(parse_status(pid));
 
     return Ok(MinimalProcess {
         pid: pid,
@@ -159,6 +171,7 @@ fn read_process(cache: &mut ReadCache, cgroup: Option<&Arc<String>>, pid: Pid)
         rss: {
             let rss: u64 = try!(words.next_value());
             rss * page_size() as u64},
+        swap,
         cmdline: cmdline,
         read_bytes: read_bytes,
         write_bytes: write_bytes,

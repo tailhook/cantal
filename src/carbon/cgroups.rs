@@ -29,6 +29,7 @@ lazy_static! {
 struct CGroup {
     vsize: u64,
     rss: u64,
+    swap: u64,
     num_threads: u64,
     num_processes: u64,
     user_cpu: f64,
@@ -75,6 +76,12 @@ pub fn scan(sender: &Carbon, cfg: &Config, stats: &Stats)
                         if let Some(Integer(val)) = value.tip_or_none(cut_age)
                         {
                             grp.rss += val as u64;
+                        }
+                    }
+                    "swap" => {
+                        if let Some(Integer(val)) = value.tip_or_none(cut_age)
+                        {
+                            grp.swap += val as u64;
                         }
                     }
                     "num_threads" => {
@@ -149,6 +156,10 @@ pub fn scan(sender: &Carbon, cfg: &Config, stats: &Stats)
                 cls, stats.hostname, name),
             cgroup.rss, unixtime);
         sender.add_value_at(
+            format_args!("cantal.{}.{}.cgroups.{}.swap",
+                cls, stats.hostname, name),
+            cgroup.swap, unixtime);
+        sender.add_value_at(
             format_args!("cantal.{}.{}.cgroups.{}.num_processes",
                 cls, stats.hostname, name),
             cgroup.num_processes, unixtime);
@@ -186,6 +197,7 @@ impl CGroup {
         CGroup {
             vsize: 0,
             rss: 0,
+            swap: 0,
             num_threads: 0,
             num_processes: 0,
             user_cpu: 0.,
