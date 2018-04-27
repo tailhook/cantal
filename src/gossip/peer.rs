@@ -2,18 +2,17 @@ use std::collections::HashSet;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-use rustc_serialize::json::{Json, ToJson};
-use rustc_serialize::hex::ToHex;
 use rand::{thread_rng};
 use rand::seq::sample_iter;
 
 use super::super::scan::time_ms;
 use gossip::Config;
 use time_util::duration_to_millis;
+use id::Id;
 
 
 // TODO(tailhook) probably remove the structure
-#[derive(Debug, Clone, RustcEncodable, RustcDecodable)]
+#[derive(Debug, Clone, Deserialize, Serialize, RustcEncodable, RustcDecodable)]
 pub struct Report {
     pub peers: u32,
     pub has_remote: bool,
@@ -21,9 +20,9 @@ pub struct Report {
 }
 
 
-#[derive(Debug, Clone)]
+#[derive(Serialize, Debug, Clone)]
 pub struct Peer {
-    pub id: Vec<u8>,
+    pub id: Id,
     pub added: u64,
     /// Primary IP is address used to send gossip packets to
     /// It's derived from the address this machine has sent packets from
@@ -43,7 +42,7 @@ pub struct Peer {
 }
 
 impl Peer {
-    pub fn new(id: Vec<u8>) -> Peer {
+    pub fn new(id: Id) -> Peer {
         Peer {
             id: id,
             added: time_ms(),
@@ -94,7 +93,7 @@ impl Peer {
             (&None, &Some(_)) => true,
             (&Some(ref x), &Some(ref y)) if x != y => {
                 warn!("Host {} has hostname {:?} but received {:?} for it. {}",
-                    self.id.to_hex(), x, y,
+                    self.id, x, y,
                     if direct { "Overwriting..." } else { "Ignoring..." });
                 direct
             }
@@ -110,7 +109,7 @@ impl Peer {
             (&None, &Some(_)) => true,
             (&Some(ref x), &Some(ref y)) if x != y => {
                 warn!("Host {} has node name {:?} but received {:?} for it. {}",
-                    self.id.to_hex(), x, y,
+                    self.id, x, y,
                     if direct { "Overwriting..." } else { "Ignoring..." });
                 direct
             }
@@ -221,43 +220,5 @@ impl Peer {
             // not yet responed
             Some((ts, _)) => ts + config.remove_time < now,
         }
-    }
-}
-
-impl ToJson for Peer {
-    fn to_json(&self) -> Json {
-        Json::Object(vec![
-            ("id", self.id[..].to_hex().to_json()),
-            ("known_since", self.added.to_json()),
-            // TODO(tailhook) config is needed!
-            //("is_failing", self.is_failing().to_json()),
-            ("primary_addr", self.primary_addr
-                .map(|x| format!("{}", x)).to_json()),
-            ("addresses", self.addresses.iter()
-                .map(|x| format!("{}", x)).collect::<Vec<_>>().to_json()),
-            ("hostname", self.host.to_json()),
-            ("name", self.name.to_json()),
-            ("report", self.report.as_ref()
-                .map(|&(x, _)| x).to_json()),
-            ("peers", self.report.as_ref()
-                .map(|&(_, ref x)| x.peers).to_json()),
-            ("has_remote", self.report.as_ref()
-                .map(|&(_, ref x)| x.has_remote).to_json()),
-            ("last_report_direct", self.last_report_direct.to_json()),
-
-            ("probe_time", self.last_probe.map(|(x, _)| x).to_json()),
-            ("probe_addr", self.last_probe
-                .map(|(_, y)| y.to_string()).to_json()),
-            ("probes_sent", self.probes_sent.to_json()),
-            ("pings_received", self.pings_received.to_json()),
-            ("pongs_received", self.pongs_received.to_json()),
-            ("roundtrip", self.last_roundtrip.map(|(_, _, v)| v).to_json()),
-            ("random_peer_roundtrip", self.random_peer_roundtrip
-                .map(|(addr, timestamp, rtt)| vec![
-                    addr.to_string().to_json(),
-                    timestamp.to_json(),
-                    rtt.to_json(),
-                    ]).to_json()),
-        ].into_iter().map(|(x, y)| (String::from(x), y)).collect())
     }
 }

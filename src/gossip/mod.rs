@@ -16,10 +16,10 @@ use futures::sync::mpsc::{unbounded as channel, UnboundedReceiver};
 use tk_easyloop;
 use void::Void;
 
-use {HostId};
-use remote::Remote;
+use id::Id;
 use storage::Storage;
 
+pub use self::peer::Peer;
 pub use self::errors::InitError;
 pub use self::public::{Gossip, noop};
 pub use self::info::Info;
@@ -28,7 +28,7 @@ pub use self::proto::{NUM_PEERS, NUM_STALE};
 
 /// Fields are documented in `config.rs`
 pub struct Config {
-    machine_id: HostId,
+    machine_id: Id,
     cluster_name: Arc<String>,
     hostname: Arc<String>,
     name: Arc<String>,
@@ -78,21 +78,20 @@ pub fn init(cfg: &Arc<Config>) -> (Gossip, GossipInit) {
 }
 
 impl GossipInit {
-    pub fn spawn(self, remote: &Remote, storage: &Arc<Storage>)
+    pub fn spawn(self, storage: &Arc<Storage>)
         -> Result<(), InitError>
     {
         let rx = self.receiver
             .map_err(|_| -> Void { panic!("gossip stream canceled") });
         tk_easyloop::spawn(proto::Proto::new(
-                &self.info,
-                &self.config,
-                rx,
-                remote,
-                storage,
-            )?.then(|res| -> Result<(), ()> {
-                error!("FATAL ERROR: Gossip future is exited: {:?}", res);
-                panic!("gossip future is exited");
-            }));
+            &self.info,
+            &self.config,
+            rx,
+            storage,
+        )?.then(|res| -> Result<(), ()> {
+            error!("FATAL ERROR: Gossip future is exited: {:?}", res);
+            panic!("gossip future is exited");
+        }));
         Ok(())
     }
 }

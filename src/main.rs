@@ -1,40 +1,44 @@
 extern crate anymap;
-extern crate abstract_ns;
 extern crate argparse;
 extern crate byteorder;
 extern crate cbor;
 extern crate fern;
+extern crate failure;
 extern crate futures;
 extern crate futures_cpupool;
+extern crate hex;
 extern crate httparse;
+extern crate http_file_headers;
 extern crate humantime;
-extern crate hyper;
 extern crate libc;
 extern crate libcantal;
-extern crate mio;
 extern crate nix;
-extern crate ns_router;
-extern crate ns_std_threaded;
+extern crate ns_env_config;
 extern crate num;
 extern crate quire;
 extern crate rand;
 extern crate regex;
 extern crate rustc_serialize;
 extern crate scan_dir;
-extern crate self_meter;
+extern crate self_meter_http;
+extern crate serde_cbor;
 extern crate time;
 extern crate tk_carbon;
+extern crate tk_bufstream;
 extern crate tk_easyloop;
+extern crate tk_http;
+extern crate tk_listen;
 extern crate tokio_core;
+extern crate tokio_io;
 extern crate unicase;
 extern crate void;
 extern crate websocket;
 extern crate serde;
 extern crate serde_json;
+extern crate slab;
 #[macro_use] extern crate lazy_static;
 #[macro_use] extern crate log;
 #[macro_use] extern crate matches;
-#[macro_use] extern crate mime;
 #[macro_use] extern crate probor;
 #[macro_use] extern crate quick_error;
 #[macro_use] extern crate serde_derive;
@@ -50,40 +54,31 @@ use std::fs::File;
 use std::net::SocketAddr;
 use std::str::FromStr;
 use std::path::PathBuf;
-use std::time::Duration;
-use std::sync::{RwLock, Arc, Mutex};
+use std::sync::{RwLock, Arc};
 use std::process::exit;
-use std::error::Error;
 
+use failure::Error;
 use nix::unistd::getpid;
 use argparse::{ArgumentParser, Store, ParseOption, StoreOption, Parse, Print};
 use argparse::{StoreTrue};
-use rustc_serialize::hex::{ToHex, FromHex};
 use rustc_serialize::json::Json;
+use tk_easyloop::{handle};
 
 use deps::{Dependencies, LockedDeps};
 
-pub type HostId = Vec<u8>;
-
-mod util;
-mod server;
-mod stats;
-mod staticfiles;
-mod scanner;
-mod scan;
-mod storage;
-mod gossip;
-mod http;
-mod websock;
-mod respond;
-mod remote;
-mod error;
-mod deps;
-mod ioutil;
-mod info;
 mod carbon;
 mod configs;
-mod tokioloop;
+mod deps;
+mod frontend;
+mod gossip;
+mod http;
+mod id;
+mod info;
+mod remote;
+mod scan;
+mod scanner;
+mod stats;
+mod storage;
 mod time_util;
 mod watchdog;
 
@@ -98,14 +93,14 @@ fn main() {
     }
 }
 
-fn run() -> Result<(), Box<Error>> {
+fn run() -> Result<(), Error> {
 
     let mut name = None;
     let mut host = "127.0.0.1".to_string();
     let mut port = 22682u16;
     let mut storage_dir = None::<PathBuf>;
     let mut config_dir = PathBuf::from("/etc/cantal");
-    let mut machine_id = None::<String>;
+    let mut machine_id = None::<id::Id>;
     let mut cluster_name = None::<String>;
     let mut scan_interval = 2000;
     let mut bind_localhost = false;
@@ -186,27 +181,23 @@ fn run() -> Result<(), Box<Error>> {
 
     let address = SocketAddr::new(host.parse()?, port);
 
-    let meter = Arc::new(Mutex::new(
-        self_meter::Meter::new(Duration::new(1, 0))
-        .expect("meter created")));
-    meter.lock().unwrap().track_current_thread("main");
+    let meter = self_meter_http::Meter::new();
+    meter.track_current_thread("main");
 
     let configs = Arc::new(configs::read(&config_dir));
 
     let hostname = info::hostname().unwrap();
     let addresses = info::my_addresses(port).unwrap();
     let name = name.unwrap_or(hostname.clone());
-    let machine_id = machine_id
-        .map(|x| x.from_hex().expect("valid machine-id"))
-        .unwrap_or_else(info::machine_id);
+    let machine_id = machine_id.clone()
+            .unwrap_or_else(|| info::machine_id());
 
     let stats = Arc::new(RwLock::new(stats::Stats::new(
         getpid(), name.clone(), hostname.clone(), cluster_name.clone(),
-        machine_id.to_hex(),
+        &machine_id,
         addresses.iter().map(|x| x.to_string()).collect())));
     let mut deps = Dependencies::new();
     deps.insert(stats.clone());
-    deps.insert(meter.clone());
 
     let (gossip, mut gossip_init) = cluster_name.as_ref().map(|cluster| {
         gossip::Config::new()
@@ -221,15 +212,6 @@ fn run() -> Result<(), Box<Error>> {
       .map(|(g, i)| (g, Some(i)))
       .unwrap_or_else(|| (gossip::noop(), None));
     deps.insert(gossip.clone());
-
-    let server_init = try!(
-        server::server_init(&mut deps, &host, port, bind_localhost));
-    let remote = remote::Remote::new(
-        // temporary hack, remote subsystem must return Remote instance
-        deps.get::<mio::Sender<server::Message>>()
-        .expect("remote subsystem already initialized")
-        .clone()
-    );
 
     let storage = Arc::new(storage::Storage::new());
     deps.insert(storage.clone());
@@ -267,7 +249,7 @@ fn run() -> Result<(), Box<Error>> {
         let mymeter = meter.clone();
         thread::spawn(move || {
             let _watchdog = watchdog::ExitOnReturn(81);
-            mymeter.lock().unwrap().track_current_thread("storage");
+            mymeter.track_current_thread("storage");
             storage::storage_loop(mydeps, &path);
         })
     });
@@ -291,14 +273,26 @@ fn run() -> Result<(), Box<Error>> {
     let mymeter = meter.clone();
     let _scan = thread::spawn(move || {
         let _watchdog = watchdog::ExitOnReturn(82);
-        mymeter.lock().unwrap().track_current_thread("scan");
+        mymeter.track_current_thread("scan");
         scanner::scan_loop(mydeps, scan_interval, *backlog_time);
     });
 
-    tokioloop::start(gossip_init.take(), &configs, &stats, &meter,
-        &remote, &storage);
+    tk_easyloop::run_forever(|| -> Result<(), Error> {
+        let ns = ns_env_config::init(&handle())?;
 
-    try!(server::server_loop(server_init, deps));
+        meter.spawn_scanner(&handle());
+
+        if let Some(gossip) = gossip_init.take() {
+            gossip.spawn(&storage)?;
+        }
+
+        carbon::spawn_sinks(&ns, &configs, &stats)?;
+        http::spawn_listener(&ns, &host, port, bind_localhost,
+            &meter, &stats, &gossip)?;
+
+        Ok(())
+    })?;
+
 
     Ok(())
 }

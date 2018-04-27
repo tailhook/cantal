@@ -5,13 +5,13 @@ use std::time::Duration;
 
 use rand::{thread_rng, Rng};
 
-use {HostId};
+use id::Id;
 use gossip::Config;
 use time_util::duration_to_millis;
 
 
 pub struct ConfigBuilder {
-    machine_id: Option<HostId>,
+    machine_id: Option<Id>,
     cluster_name: Option<String>,
     name: Option<String>,
     hostname: Option<String>,
@@ -155,7 +155,7 @@ impl ConfigBuilder {
         self.hostname = Some(name.into());
         self
     }
-    pub fn machine_id(&mut self, machine_id: &HostId) -> &mut Self {
+    pub fn machine_id(&mut self, machine_id: &Id) -> &mut Self {
         self.machine_id = Some(machine_id.clone());
         self
     }

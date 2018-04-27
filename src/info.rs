@@ -2,6 +2,7 @@ use std::io::Read;
 use std::fs::File;
 use std::net::{SocketAddr};
 use std::ptr::{null_mut};
+use std::str::FromStr;
 
 use nix;
 use nix::errno::Errno;
@@ -9,14 +10,13 @@ use nix::unistd::gethostname;
 use nix::sys::socket::{InetAddr, sockaddr_in};
 use libc::{getifaddrs, freeifaddrs};
 use libc::{AF_INET};
-use rustc_serialize::hex::FromHex;
 use rand;
 use rand::Rng;
 
-use {HostId};
+use id::Id;
 
 
-pub fn machine_id() -> HostId {
+pub fn machine_id() -> Id {
     let mut buf = String::with_capacity(33);
     File::open("/etc/machine-id")
     .and_then(|mut f| f.read_to_string(&mut buf))
@@ -25,12 +25,12 @@ pub fn machine_id() -> HostId {
         error!("Wrong length of /etc/machine-id");
         Err(())
     } else {
-        FromHex::from_hex(&buf[..])
+        Id::from_str(&buf[..])
         .map_err(|e| error!("Error decoding /etc/machine-id: {}", e))
     }).unwrap_or_else(|_| {
         let mut res = vec![0u8; 16];
         rand::thread_rng().fill_bytes(&mut res[..]);
-        res
+        Id::new(res)
     })
 }
 

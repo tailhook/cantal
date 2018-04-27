@@ -2,6 +2,7 @@ use std::default::Default;
 
 use libc::pid_t;
 
+use id::Id;
 use super::scan::time_ms;
 use super::scan;
 use history::History;
@@ -10,7 +11,7 @@ use super::storage::StorageStats;
 
 pub struct Stats {
     pub pid: pid_t,
-    pub id_hex: String,
+    pub id: Id,
     pub addresses_str: Vec<String>,
     pub name: String,
     pub hostname: String,
@@ -29,13 +30,13 @@ pub struct Stats {
 
 impl Stats {
     pub fn new(pid: pid_t, name: String, hostname: String,
-        cluster_name: Option<String>, id_hex: String,
+        cluster_name: Option<String>, id: &Id,
         addresses_str: Vec<String>)
         -> Stats
     {
         return Stats {
             pid: pid,
-            id_hex: id_hex,
+            id: id.clone(),
             addresses_str: addresses_str,
             name: name,
             hostname: hostname,

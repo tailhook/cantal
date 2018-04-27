@@ -1,53 +1,36 @@
 use std::io::{self, BufReader, BufRead};
 use std::fs::File;
-use std::net::{SocketAddrV4, Ipv4Addr};
+use std::net::{SocketAddrV4, Ipv4Addr, SocketAddr};
 use std::collections::{HashMap, HashSet};
-use rustc_serialize::{Encoder, Encodable};
 
 
 const MAX_CONNECTION_DETAILS: usize = 1000;
 
-#[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]
-pub struct Addr(pub SocketAddrV4);
 
-
-#[derive(RustcEncodable, Debug)]
+#[derive(Serialize, Debug)]
 pub struct Stats {
     pub by_state: HashMap<State, usize>,
     pub rx_queue: usize,
     pub tx_queue: usize,
 }
 
-#[derive(RustcEncodable, Debug)]
+#[derive(Serialize, Debug)]
 pub struct Passive {
     pub stats: Stats,
     pub listeners: Vec<Socket>,
     pub clients: Option<Vec<Socket>>,
 }
 
-#[derive(RustcEncodable, Debug)]
+#[derive(Serialize, Debug)]
 pub struct Active {
     pub stats: Stats,
     pub connections: Option<Vec<Socket>>,
 }
 
-impl ::std::ops::Deref for Addr {
-    type Target = SocketAddrV4;
-    fn deref(&self) -> &SocketAddrV4 {
-        &self.0
-    }
-}
-
-impl Encodable for Addr {
-    fn encode<S: Encoder>(&self, s: &mut S) -> Result<(), S::Error> {
-        s.emit_str(&format!("{}", self.0))
-    }
-}
-
-#[derive(RustcEncodable, Debug, Clone)]
+#[derive(Serialize, Debug, Clone)]
 pub struct Socket {
-    pub local_address: Addr,
-    pub remote_address: Addr,
+    pub local_address: SocketAddr,
+    pub remote_address: SocketAddr,
     pub state: State,
     pub tx_queue: usize,
     pub rx_queue: usize,
@@ -55,7 +38,7 @@ pub struct Socket {
 }
 
 #[allow(dead_code, non_camel_case_types)]
-#[derive(Clone, Copy, Debug, RustcEncodable, Hash, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Serialize, Hash, PartialEq, Eq)]
 pub enum State {
     UNKNOWN = 0,
     ESTABLISHED,
@@ -71,7 +54,7 @@ pub enum State {
     CLOSING,
 }
 
-#[derive(RustcEncodable, Debug)]
+#[derive(Serialize, Debug)]
 pub struct Connections {
     pub global: Stats,
     pub by_user: HashMap<u32, Stats>,
@@ -191,8 +174,8 @@ fn parse_line(line: &str) -> Socket {
         .and_then(|x| x.parse::<u32>().ok())
         .unwrap_or(0);
     return Socket {
-        local_address: Addr(local),
-        remote_address: Addr(remote),
+        local_address: local.into(),
+        remote_address: remote.into(),
         state: status.into(),
         tx_queue: tx,
         rx_queue: rx,
@@ -221,8 +204,8 @@ fn _read() -> io::Result<Connections> {
     // Sockets that are unknown to be active or passive
     // If we see a duplicate address at either side we know that the
     // addresss is use for active or passive socket for sure.
-    let mut local_unknown = HashMap::<Addr, Socket>::new();
-    let mut remote_unknown = HashMap::<Addr, Socket>::new();
+    let mut local_unknown = HashMap::<SocketAddr, Socket>::new();
+    let mut remote_unknown = HashMap::<SocketAddr, Socket>::new();
     loop {
         line.clear();
         try!(file.read_line(&mut line));

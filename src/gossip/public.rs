@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex};
 
 use futures::sync::mpsc::UnboundedSender;
 
-use HostId;
+use id::Id;
 use gossip::command::Command;
 use gossip::info::Info;
 use gossip::peer::Peer;
@@ -64,12 +64,12 @@ impl Gossip {
         info.peers.values().cloned().collect()
     }
 
-    pub fn get_peer(&self, name: &HostId) -> Option<Arc<Peer>> {
+    pub fn get_peer(&self, name: &Id) -> Option<Arc<Peer>> {
         let info = self.info.lock().expect("gossip is not poisoned");
         info.peers.get(name).map(|x| x.clone())
     }
 
-    pub fn get_peer_ids(&self) -> Vec<HostId> {
+    pub fn get_peer_ids(&self) -> Vec<Id> {
         let info = self.info.lock().expect("gossip is not poisoned");
         info.peers.keys().cloned().collect()
     }
