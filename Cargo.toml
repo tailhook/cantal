@@ -72,6 +72,5 @@ path = "src/main.rs"
 
 [profile.release]
 debug = true
-lto = true
 
 [workspace]
