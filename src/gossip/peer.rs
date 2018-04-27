@@ -172,11 +172,11 @@ impl Peer {
             Some((ts, _)) if ts + max_roundtrip > now => { return true; }
             _ => {}
         }
-        match self.report {
+        match self.last_report_direct {
             // no report received ever
             None => false,
             // last report is recently received
-            Some((ts, _)) if ts + prefail_time > now => true,
+            Some(ts) if ts + prefail_time > now => true,
             _ => false,
         }
     }
