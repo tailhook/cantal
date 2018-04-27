@@ -2,7 +2,6 @@ extern crate anymap;
 extern crate argparse;
 extern crate byteorder;
 extern crate cbor;
-extern crate fern;
 extern crate failure;
 extern crate futures;
 extern crate futures_cpupool;
@@ -30,7 +29,6 @@ extern crate tk_http;
 extern crate tk_listen;
 extern crate tokio_core;
 extern crate tokio_io;
-extern crate unicase;
 extern crate void;
 extern crate serde;
 extern crate serde_json;
@@ -57,7 +55,6 @@ use std::sync::{RwLock, Arc};
 use std::process::exit;
 
 use failure::Error;
-use nix::unistd::getpid;
 use argparse::{ArgumentParser, Store, ParseOption, StoreOption, Parse, Print};
 use argparse::{StoreTrue};
 use rustc_serialize::json::Json;
@@ -104,8 +101,6 @@ fn run() -> Result<(), Error> {
     let mut scan_interval = 2000;
     let mut bind_localhost = false;
     let mut backlog_time = humantime::Duration::from_str("1 hour").unwrap();
-    let mut log_level = env::var("RUST_LOG").ok()
-        .and_then(|x| FromStr::from_str(&x).ok());
     {
         let mut ap = ArgumentParser::new();
         ap.add_option(&["--version"],
@@ -159,23 +154,7 @@ fn run() -> Result<(), Error> {
         ap.refer(&mut config_dir)
             .add_option(&["-c", "--config-dir"], Parse,
                 "A directory with configuration files");
-        ap.refer(&mut log_level)
-            .add_option(&["--log-level"], StoreOption,
-                "Log level");
         ap.parse_args_or_exit();
-    }
-
-    let logger_result = fern::Dispatch::new()
-        .format(|out, message, record| {
-            out.finish(format_args!("[{}][{}] {} {}",
-                time::now().strftime("%Y-%m-%d %H:%M:%S").unwrap(),
-                record.level(), record.location().module_path(), message))
-        })
-        .level(log_level.unwrap_or(log::LogLevel::Warn).to_log_level_filter())
-        .chain(std::io::stderr())
-        .apply();
-    if let Err(e) = logger_result {
-        panic!("Failed to initialize global logger: {}", e);
     }
 
     let address = SocketAddr::new(host.parse()?, port);
@@ -192,7 +171,8 @@ fn run() -> Result<(), Error> {
             .unwrap_or_else(|| info::machine_id());
 
     let stats = Arc::new(RwLock::new(stats::Stats::new(
-        getpid(), name.clone(), hostname.clone(), cluster_name.clone(),
+        unsafe { libc::getpid() },
+        name.clone(), hostname.clone(), cluster_name.clone(),
         &machine_id,
         addresses.iter().map(|x| x.to_string()).collect())));
     let mut deps = Dependencies::new();
