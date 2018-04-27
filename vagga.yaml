@@ -314,19 +314,18 @@ commands:
         --package-version="${version}+${codename}1" \
         --config bulk.yaml --dir dist/pkg --dest-dir dist
 
+  _package-precise: !Command
+    container: precise
+    <<: *package
+
   _package-xenial: !Command
     container: xenial
     <<: *package
 
-  _package-bionic: !Command
-    container: bionic
-    <<: *package
-
-
   packages: !Command
     container: trusty
     description: Build packages and repostories (mostly for CI)
-    prerequisites: [_package-bionic, _package-xenial, _package-trusty,
+    prerequisites: [_package-trusty, _package-precise, _package-xenial,
                     _package-cli]
     accepts_arguments: true
     run: |
@@ -351,9 +350,9 @@ containers:
       NODE_PATH: /usr/lib/node_modules
       HOME: /tmp
 
-  bionic:
+  precise:
     setup:
-    - !Ubuntu bionic
+    - !Ubuntu precise
     - &pkgs !Install [git, make, ca-certificates, gcc, libssl-dev, lsb-release]
     - &rust !TarInstall
       url: "https://static.rust-lang.org/dist/rust-1.25.0-x86_64-unknown-linux-gnu.tar.gz"
