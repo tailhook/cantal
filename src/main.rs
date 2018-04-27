@@ -32,7 +32,6 @@ extern crate tokio_core;
 extern crate tokio_io;
 extern crate unicase;
 extern crate void;
-extern crate websocket;
 extern crate serde;
 extern crate serde_json;
 extern crate slab;
