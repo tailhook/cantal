@@ -23,7 +23,7 @@ pub struct Report {
 #[derive(Serialize, Debug, Clone)]
 pub struct Peer {
     pub id: Id,
-    pub added: u64,
+    pub known_since: u64,
     /// Primary IP is address used to send gossip packets to
     /// It's derived from the address this machine has sent packets from
     pub primary_addr: Option<SocketAddr>,
@@ -45,7 +45,7 @@ impl Peer {
     pub fn new(id: Id) -> Peer {
         Peer {
             id: id,
-            added: time_ms(),
+            known_since: time_ms(),
             primary_addr: None,
             addresses: HashSet::new(),
             hostname: None,
@@ -197,7 +197,7 @@ impl Peer {
         let now = time_ms();
         match self.report {
             // never probed (yet)
-            None => self.added + config.fail_time < now,
+            None => self.known_since + config.fail_time < now,
             // not yet responed
             Some((ts, _)) => ts + config.fail_time < now,
         }
@@ -207,7 +207,7 @@ impl Peer {
         let now = time_ms();
         match self.report {
             // never probed (yet)
-            None => self.added + config.stale_time < now,
+            None => self.known_since + config.stale_time < now,
             Some((ts, _)) => ts + config.stale_time < now,
         }
     }
@@ -216,7 +216,7 @@ impl Peer {
         let now = time_ms();
         match self.report {
             // never probed (yet)
-            None => self.added + config.remove_time < now,
+            None => self.known_since + config.remove_time < now,
             // not yet responed
             Some((ts, _)) => ts + config.remove_time < now,
         }
