@@ -2,7 +2,8 @@ use std::sync::Arc;
 use std::net::SocketAddr;
 use std::collections::HashMap;
 
-use rand::{thread_rng, sample};
+use rand::{thread_rng};
+use rand::seq::sample_iter;
 
 use {HostId};
 use gossip::Config;
@@ -29,8 +30,9 @@ impl Info {
         let other_peers = self.peers.values()
             .filter(|peer| !peer.addresses.contains(&exclude))
             .filter(|peer| !peer.is_failing(config));
-        let friends = sample(&mut rng, other_peers,
-            config.num_friends_in_a_packet);
+        let friends = sample_iter(&mut rng, other_peers,
+            config.num_friends_in_a_packet)
+            .unwrap_or_else(|x| x);
         friends.into_iter().map(|f| FriendInfo {
             id: f.id.clone(),
             my_primary_addr: f.primary_addr.map(|x| format!("{}", x)),

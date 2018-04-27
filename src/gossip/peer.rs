@@ -4,7 +4,8 @@ use std::sync::Arc;
 
 use rustc_serialize::json::{Json, ToJson};
 use rustc_serialize::hex::ToHex;
-use rand::{thread_rng, sample};
+use rand::{thread_rng};
+use rand::seq::sample_iter;
 
 use super::super::scan::time_ms;
 use gossip::Config;
@@ -183,13 +184,13 @@ impl Peer {
     pub fn random_ping_addr(&self) -> Option<SocketAddr> {
         if let Some((_, ref addr)) = self.last_probe {
             // exclude last probe address to facilitate quick scanning
-            let mut list = sample(&mut thread_rng(),
+            let mut list = sample_iter(&mut thread_rng(),
                 self.addresses.iter().filter(|x| *x != addr).cloned(), 1);
-            Some(list.pop().unwrap_or(*addr))
+            Some(list.ok().and_then(|mut x| x.pop()).unwrap_or(*addr))
         } else {
-            let mut list = sample(&mut thread_rng(),
+            let mut list = sample_iter(&mut thread_rng(),
                 self.addresses.iter().cloned(), 1);
-            list.pop()
+            list.ok().and_then(|mut list| list.pop())
         }
     }
 

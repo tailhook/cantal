@@ -3,7 +3,6 @@ use std::io::{BufReader, BufRead};
 use std::fs::{File};
 use std::ffi::{OsStr, OsString};
 use std::str;
-use std::ascii::AsciiExt;
 use std::os::unix::prelude::OsStrExt;
 use std::path::{Path, PathBuf};
 use std::collections::{HashMap};
