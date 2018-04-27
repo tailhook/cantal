@@ -29,7 +29,7 @@ pub struct Peer {
     pub primary_addr: Option<SocketAddr>,
     /// All addresses declared by host, including virtual ones
     pub addresses: HashSet<SocketAddr>,
-    pub host: Option<String>,
+    pub hostname: Option<String>,
     pub name: Option<String>,
     pub last_probe: Option<(u64, SocketAddr)>,
     pub probes_sent: u64,
@@ -48,7 +48,7 @@ impl Peer {
             added: time_ms(),
             primary_addr: None,
             addresses: HashSet::new(),
-            host: None,
+            hostname: None,
             name: None,
             last_probe: None,
             probes_sent: 0,
@@ -89,7 +89,7 @@ impl Peer {
     pub fn apply_hostname(&mut self, hostname: Option<&str>,
         direct: bool)
     {
-        let overwrite = match (&self.host, &hostname) {
+        let overwrite = match (&self.hostname, &hostname) {
             (&None, &Some(_)) => true,
             (&Some(ref x), &Some(ref y)) if x != y => {
                 warn!("Host {} has hostname {:?} but received {:?} for it. {}",
@@ -100,7 +100,7 @@ impl Peer {
             _ => false,
         };
         if overwrite {
-            self.host = hostname.map(|x| x.to_string());
+            self.hostname = hostname.map(|x| x.to_string());
         }
     }
     pub fn apply_node_name(&mut self, name: Option<&str>, direct: bool)

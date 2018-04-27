@@ -37,7 +37,7 @@ impl Info {
             id: f.id.clone(),
             my_primary_addr: f.primary_addr.map(|x| format!("{}", x)),
             addresses: f.addresses.iter().map(|x| format!("{}", x)).collect(),
-            host: f.host.clone(),
+            host: f.hostname.clone(),
             name: f.name.clone(),
             report: f.report.clone(),
             roundtrip: f.last_roundtrip.map(|(_, ts, rtt)| (ts, rtt)),
