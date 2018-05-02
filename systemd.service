@@ -3,7 +3,7 @@ Description=Cantal Monitoring Service
 
 [Service]
 Type=simple
-Environment="RUST_LOG=warn"
+Environment="CANTAL_LOG=warn"
 ExecStart=/usr/bin/cantal-agent --host 127.0.0.1 --port 22682
 Restart=always
 

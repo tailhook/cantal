@@ -2,6 +2,7 @@ extern crate anymap;
 extern crate argparse;
 extern crate byteorder;
 extern crate cbor;
+extern crate env_logger;
 extern crate failure;
 extern crate futures;
 extern crate futures_cpupool;
@@ -79,6 +80,10 @@ mod watchdog;
 
 
 fn main() {
+    env_logger::init_from_env(env_logger::Env::default()
+        .filter_or("CANTAL_LOG", "info")
+        .write_style("CANTAL_LOG_STYLE"));
+
     match run() {
         Ok(()) => {}
         Err(e) => {

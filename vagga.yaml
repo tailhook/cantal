@@ -89,7 +89,7 @@ commands:
       description: Runs cantal (is not very useful run in container)
       container: xenial
       environ:
-        RUST_LOG: info
+        CANTAL_LOG: info
       run:
       - ./cantal-agent
       - --host=0.0.0.0
@@ -101,7 +101,7 @@ commands:
       description: Runs cantal (is not very useful run in container)
       container: xenial
       environ:
-        RUST_LOG: debug
+        CANTAL_LOG: debug
         RUST_BACKTRACE: 1
       run: |
         cp ./target/debug/cantal-agent .
@@ -112,7 +112,7 @@ commands:
     description: Runs cantal with test process submitting data
     container: xenial
     environ:
-      RUST_LOG: debug
+      CANTAL_LOG: debug
     run: |
       ./cantal-agent --host=0.0.0.0 --config-dir=/work/example-configs &
       CANTAL_APPNAME=example CANTAL_PATH=/tmp/cantal python3 py3/example.py
@@ -122,7 +122,7 @@ commands:
     description: Runs cantal and lots of processes
     container: xenial
     environ:
-      RUST_LOG: debug
+      CANTAL_LOG: debug
     run: |
       ./cantal-agent --host=0.0.0.0 --config-dir=/work/example-configs &
       while true; do
@@ -153,61 +153,61 @@ commands:
     children:
       n0: !Command
         container: xenial
-        #environ: {RUST_LOG: debug}
+        #environ: {CANTAL_LOG: debug}
         run: "./cantal-agent --host 0.0.0.0 \
           --cluster-name=local-test \
           --port 22682"
       n1: !Command
         container: xenial
-        #environ: {RUST_LOG: debug}
+        #environ: {CANTAL_LOG: debug}
         run: "./cantal-agent --host 0.0.0.0 \
           --cluster-name=local-test \
           --port 20001"
       n2: !Command
         container: xenial
-        #environ: {RUST_LOG: debug}
+        #environ: {CANTAL_LOG: debug}
         run: "./cantal-agent --host 0.0.0.0 \
           --cluster-name=local-test \
           --port 20002"
       n3: !Command
         container: xenial
-        #environ: {RUST_LOG: debug}
+        #environ: {CANTAL_LOG: debug}
         run: "./cantal-agent --host 0.0.0.0 \
           --cluster-name=local-test \
           --port 20003"
       n4: !Command
         container: xenial
-        #environ: {RUST_LOG: debug}
+        #environ: {CANTAL_LOG: debug}
         run: "./cantal-agent --host 0.0.0.0 \
           --cluster-name=local-test \
           --port 20004"
       n5: !Command
         container: xenial
-        #environ: {RUST_LOG: debug}
+        #environ: {CANTAL_LOG: debug}
         run: "./cantal-agent --host 0.0.0.0 \
           --cluster-name=local-test \
           --port 20005"
       n6: !Command
         container: xenial
-        #environ: {RUST_LOG: debug}
+        #environ: {CANTAL_LOG: debug}
         run: "./cantal-agent --host 0.0.0.0 \
           --cluster-name=local-test \
           --port 20006"
       n7: !Command
         container: xenial
-        #environ: {RUST_LOG: debug}
+        #environ: {CANTAL_LOG: debug}
         run: "./cantal-agent --host 0.0.0.0 \
           --cluster-name=local-test \
           --port 20007"
       n8: !Command
         container: xenial
-        #environ: {RUST_LOG: debug}
+        #environ: {CANTAL_LOG: debug}
         run: "./cantal-agent --host 0.0.0.0 \
           --cluster-name=local-test \
           --port 20008"
       n9: !Command
         container: xenial
-        #environ: {RUST_LOG: debug}
+        #environ: {CANTAL_LOG: debug}
         run: "./cantal-agent --host 0.0.0.0 \
           --cluster-name=local-test \
           --port 20009"
