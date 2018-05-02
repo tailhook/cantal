@@ -21,7 +21,6 @@ extern crate rustc_serialize;
 extern crate scan_dir;
 extern crate self_meter_http;
 extern crate serde_cbor;
-extern crate time;
 extern crate tk_carbon;
 extern crate tk_bufstream;
 extern crate tk_easyloop;
@@ -44,7 +43,6 @@ extern crate cantal_values as cantal;
 extern crate cantal_history as history;
 extern crate cantal_query as query;
 
-use std::env;
 use std::thread;
 use std::io::BufReader;
 use std::fs::File;

@@ -1,20 +1,13 @@
-use std::collections::HashSet;
-use std::fmt;
+#![allow(dead_code)] // temporarily
+
 use std::hash::{Hasher};
-use std::marker::PhantomData;
 use std::net::SocketAddr;
 use std::sync::atomic::{AtomicUsize, AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc};
 
-use futures::{Future, Stream};
-use futures::stream::MapErr;
 use futures::future::{FutureResult, ok};
-use futures::sync::mpsc::{UnboundedReceiver};
 use serde_cbor::de::from_slice;
-use tk_http::websocket::{self, Frame, Loop, ServerCodec};
-use tk_easyloop::{spawn, handle};
-use tk_bufstream::{WriteFramed, ReadFramed};
-use tokio_io::{AsyncRead, AsyncWrite};
+use tk_http::websocket::{self, Frame};
 
 lazy_static! {
     static ref CONNECTION_ID: AtomicUsize = AtomicUsize::new(0);

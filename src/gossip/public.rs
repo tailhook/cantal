@@ -42,6 +42,7 @@ impl Gossip {
         }
     }
     /// Number of peers total and those having "remote" enabled
+    #[allow(dead_code)] // temporarily
     pub fn get_peer_numbers(&self) -> (usize, usize) {
         let info = self.info.lock().expect("gossip is not poisoned");
         let num_remote = info.peers.iter()
@@ -54,6 +55,7 @@ impl Gossip {
         return (info.peers.len(), num_remote);
     }
 
+    #[allow(dead_code)] // temporarily
     pub fn notify_remote(&self, value: bool) {
         let mut info = self.info.lock().expect("gossip is not poisoned");
         info.has_remote = value;
@@ -64,11 +66,13 @@ impl Gossip {
         info.peers.values().cloned().collect()
     }
 
+    #[allow(dead_code)] // temporarily
     pub fn get_peer(&self, name: &Id) -> Option<Arc<Peer>> {
         let info = self.info.lock().expect("gossip is not poisoned");
         info.peers.get(name).map(|x| x.clone())
     }
 
+    #[allow(dead_code)] // temporarily
     pub fn get_peer_ids(&self) -> Vec<Id> {
         let info = self.info.lock().expect("gossip is not poisoned");
         info.peers.keys().cloned().collect()

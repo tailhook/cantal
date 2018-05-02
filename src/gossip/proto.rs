@@ -16,7 +16,6 @@ use tokio_core::net::UdpSocket;
 use tokio_core::reactor::Timeout;
 use void::{Void, unreachable};
 use rustc_serialize::json::Json;
-use rustc_serialize::hex::ToHex;
 
 use gossip::command::Command;
 use gossip::Config;

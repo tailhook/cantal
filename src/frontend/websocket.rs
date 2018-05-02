@@ -4,18 +4,17 @@ use futures::Async;
 use futures::future::{ok};
 use frontend::{Request, Reply};
 use stats::Stats;
-use time;
 use tk_bufstream::{ReadBuf, WriteBuf};
 use tk_http::server;
 use tk_http::Status;
 use tk_http::server::{Encoder, Error, RecvMode};
 use tk_http::server::{WebsocketHandshake};
 use tk_http::websocket::{ServerCodec};
-use tk_easyloop::spawn;
 use tokio_io::{AsyncRead, AsyncWrite};
 
 
 struct WsCodec {
+    #[allow(dead_code)] // temporarily
     ws: WebsocketHandshake,
 }
 
@@ -55,8 +54,8 @@ impl<S: 'static> server::Codec<S> for WsCodec {
         Box::new(ok(e.done()))
     }
     fn hijack(&mut self, write_buf: WriteBuf<S>, read_buf: ReadBuf<S>){
-        let inp = read_buf.framed(ServerCodec);
-        let out = write_buf.framed(ServerCodec);
+        let _inp = read_buf.framed(ServerCodec);
+        let _out = write_buf.framed(ServerCodec);
         unimplemented!();
         /*
         let (cli, fut) = Connection::incoming(

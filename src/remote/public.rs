@@ -1,3 +1,4 @@
+#![allow(dead_code)] // temporarily
 use std::sync::{Arc, Mutex};
 
 use slab::Slab;
