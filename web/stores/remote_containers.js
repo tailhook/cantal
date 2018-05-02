@@ -1,7 +1,6 @@
 import {DATA, ERROR} from '../middleware/request'
 import {METRICS} from '../middleware/remote-query.js'
 import {format_uptime, till_now_ms, from_ms} from '../util/time'
-import {last_beacon} from '../websock'
 
 
 function machine(mach_data) {

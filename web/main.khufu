@@ -1,4 +1,3 @@
-import {last_beacon as beacon, remote_enabled} from './websock'
 import {@router, toggle_remote, go} from './util/routing'
 import {format_uptime, format_diff, till_now_ms, from_ms} from './util/time'
 import {memory, cpu, self_cpu, self_mem} from './stores/status'
@@ -75,8 +74,8 @@ view _local_menu():
     <a.pure-menu-link href="/local/processes">
       link {click} go(event) -> @router
       "Processes"
-      if beacon:
-        ` [${ beacon.processes }]`
+      // if beacon:
+      //   ` [${ beacon.processes }]`
   <li.pure-menu-item.pure-menu-active?(@router.page == 'states')>
     <a.pure-menu-link href="/local/states">
       link {click} go(event) -> @router
@@ -97,8 +96,8 @@ view _local_menu():
     <a.pure-menu-link href="/local/metrics">
       link {click} go(event) -> @router
       "Metrics"
-      if beacon:
-        ` [${ beacon.tip_values } + ${ beacon.fine_values }]`
+      // if beacon:
+      //  ` [${ beacon.tip_values } + ${ beacon.fine_values }]`
   <li.pure-menu-item.pure-menu-active?(@router.page == 'peers')>
     <a.pure-menu-link href="/local/peers">
       link {click} go(event) -> @router
@@ -180,7 +179,7 @@ view main(version):
       <div.pure-menu>
         <div.hanging-button>
           <label>
-            let on = remote_enabled()
+            let on = false // remote_enabled()
             let rtr = @router
             <input.ios-switch.bigswitch.pregreen?(on).blue?(on)
               type="checkbox" value='ok' checked=@router.remote>
@@ -190,21 +189,21 @@ view main(version):
         <a.pure-menu-heading href="/">
           "Cantal"
         <ul.pure-menu-list>
-          if beacon:
-            <li.info>
-              `${ beacon.version } / ${ version }`
-            <li.info>
-              `${ beacon.hostname } / ${ beacon.name } /
-                ${ beacon.cluster_name or "standalone" }`
-            <li.info.offset-bottom>
-              `${ beacon.id }`
+          // if beacon:
+          //   <li.info>
+          //     `${ beacon.version } / ${ version }`
+          //   <li.info>
+          //     `${ beacon.hostname } / ${ beacon.name } /
+          //       ${ beacon.cluster_name or "standalone" }`
+          //   <li.info.offset-bottom>
+          //     `${ beacon.id }`
           if @router.remote:
             _remote_menu()
           else:
             _local_menu()
-          if beacon:
-            <li.offset-top.pure-menu-item>
-              self_status(beacon)
+          // if beacon:
+          //   <li.offset-top.pure-menu-item>
+          //     self_status(beacon)
 
     <div.pure-u-1.pure-u-md-2-3.pure-u-xl-20-24>
       if not(@router.remote):
@@ -229,7 +228,7 @@ view main(version):
         else:
           @router.page
       else:
-        if remote_enabled():
+        if false: //remote_enabled():
           if @router.page == 'peers':
             peers()
           elif @router.page == 'list':

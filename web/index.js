@@ -1,6 +1,5 @@
 import {createStore, applyMiddleware} from 'redux'
 import {attach} from 'khufu-runtime'
-import * as websock from './websock'
 import {} from './graphql'
 
 import {main} from './main.khufu'
@@ -31,19 +30,6 @@ let khufu_instance = attach(document.getElementById('app'), main(VERSION), {
 })
 
 let unsubscribe = router.subscribe(khufu_instance.queue_render)
-
-if(!DEBUG) {
-    websock.start('ws://' + location.host  + '/ws',
-        khufu_instance.queue_render)
-} else {
-    if(location.port != 8080) {
-        websock.start('ws://' + location.host + '/ws',
-            khufu_instance.queue_render)
-    } else {
-        websock.start('ws://' + location.hostname  + ':22682/ws',
-            khufu_instance.queue_render)
-    }
-}
 
 if(module.hot) {
     module.hot.accept()

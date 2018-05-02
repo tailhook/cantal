@@ -1,7 +1,6 @@
 import {DATA, ERROR} from '../middleware/request'
 import {METRICS} from '../middleware/remote-query.js'
 import {format_uptime, till_now_ms, from_ms} from '../util/time'
-import {last_beacon} from '../websock'
 import {cpu_chart, mem_chart} from './status'
 
 function sortname(peer) {
@@ -11,6 +10,7 @@ function sortname(peer) {
 }
 
 export function peer_list(state={}, action) {
+    let last_beacon = false; // TODO
     switch(action.type) {
         case DATA:
             let list = [{
