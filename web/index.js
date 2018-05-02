@@ -1,6 +1,7 @@
 import {createStore, applyMiddleware} from 'redux'
 import {attach} from 'khufu-runtime'
 import * as websock from './websock'
+import {} from './graphql'
 
 import {main} from './main.khufu'
 import {router} from './util/routing'
