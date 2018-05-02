@@ -14,11 +14,12 @@ use stats::Stats;
 use gossip::Gossip;
 
 use frontend;
+use incoming;
 
 
 pub fn spawn_listener(ns: &NsRouter, host: &str, port: u16, localhost: bool,
     meter: &self_meter_http::Meter, stats: &Arc<RwLock<Stats>>,
-    gossip: &Gossip)
+    gossip: &Gossip, incoming: &incoming::Incoming)
     -> Result<(), Error>
 {
     let hcfg = tk_http::server::Config::new()
@@ -35,6 +36,7 @@ pub fn spawn_listener(ns: &NsRouter, host: &str, port: u16, localhost: bool,
     let meter = meter.clone();
     let stats = stats.clone();
     let gossip = gossip.clone();
+    let incoming = incoming.clone();
 
     let mut addr = vec![host];
     if localhost {
@@ -51,6 +53,7 @@ pub fn spawn_listener(ns: &NsRouter, host: &str, port: u16, localhost: bool,
             Proto::new(socket, &hcfg,
                 frontend::Dispatcher {
                     meter, stats, gossip,
+                    incoming: incoming.clone(),
                 },
                 &handle())
             .map_err(move |e| {

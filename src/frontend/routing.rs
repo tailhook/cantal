@@ -19,7 +19,7 @@ pub enum Route {
     Index,
     Static(String),
     NotFound,
-    WebSocket(WebsocketHandshake),
+    GraphqlWs(WebsocketHandshake),
     Status(Format),
     AllProcesses(Format),
     AllSockets(Format),
@@ -101,8 +101,8 @@ pub fn route(head: &Head, ws: Option<WebsocketHandshake>) -> Route {
                 Static(path.to_string())
             }
         }
-        ("ws", _) => match ws {
-            Some(ws) => WebSocket(ws),
+        ("graphql-ws", _) => match ws {
+            Some(ws) => GraphqlWs(ws),
             None => NotFound,
         },
         ("status", "") => Status(fmt(path)),

@@ -21,6 +21,7 @@ use tk_http::server::{Error, Head, EncoderDone};
 use tk_http::{Status as Http};
 use tokio_io::{AsyncRead, AsyncWrite};
 
+use incoming::Incoming;
 use stats::Stats;
 use frontend::routing::{route, Route};
 pub use frontend::quick_reply::{reply, read_json};
@@ -35,6 +36,7 @@ pub struct Dispatcher {
     pub meter: Meter,
     pub stats: Arc<RwLock<Stats>>,
     pub gossip: Gossip,
+    pub incoming: Incoming,
 }
 
 
@@ -63,8 +65,8 @@ impl<S> DispatcherTrait<S> for Dispatcher
             NotFound => {
                 serve_error_page(Http::NotFound)
             }
-            WebSocket(ws) => {
-                Ok(websocket::serve(&self.stats, ws))
+            GraphqlWs(ws) => {
+                Ok(websocket::serve(&self.stats, ws, &self.incoming))
             }
             Status(format) => {
                 Ok(status::serve(&self.meter, &self.stats, format))

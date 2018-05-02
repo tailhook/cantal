@@ -67,6 +67,7 @@ mod frontend;
 mod gossip;
 mod http;
 mod id;
+mod incoming;
 mod info;
 mod remote;
 mod scan;
@@ -254,6 +255,8 @@ fn run() -> Result<(), Error> {
         scanner::scan_loop(mydeps, scan_interval, *backlog_time);
     });
 
+    let incoming = incoming::Incoming::new();
+
     tk_easyloop::run_forever(|| -> Result<(), Error> {
         let ns = ns_env_config::init(&handle())?;
 
@@ -265,7 +268,7 @@ fn run() -> Result<(), Error> {
 
         carbon::spawn_sinks(&ns, &configs, &stats)?;
         http::spawn_listener(&ns, &host, port, bind_localhost,
-            &meter, &stats, &gossip)?;
+            &meter, &stats, &gossip, &incoming)?;
 
         Ok(())
     })?;

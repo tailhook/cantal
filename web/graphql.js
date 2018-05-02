@@ -3,7 +3,7 @@ import { InMemoryCache } from 'apollo-cache-inmemory';
 import { WebSocketLink } from "apollo-link-ws";
 import { SubscriptionClient } from "subscriptions-transport-ws";
 
-const GRAPHQL_ENDPOINT = "ws://"+location.host+"/graphql";
+const GRAPHQL_ENDPOINT = "ws://"+location.host+"/graphql-ws";
 
 const ws_client = new SubscriptionClient(GRAPHQL_ENDPOINT, {
   reconnect: true
