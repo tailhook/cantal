@@ -1,7 +1,15 @@
-use futures::future::{FutureResult, ok};
+use futures::future::{FutureResult, ok, err};
 use tk_http::websocket::{self, Frame};
+use serde_json::from_str;
 
 use incoming::Connection;
+
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(tag="type", content="payload", rename_all="snake_case")]
+pub enum ProtocolElement {
+    ConnectionInit,
+}
 
 
 pub struct Dispatcher {
@@ -18,6 +26,14 @@ impl websocket::Dispatcher for Dispatcher {
             },
             Frame::Text(txt) => {
                 println!("TEXT {:?}", txt);
+                let value: ProtocolElement = match from_str(txt) {
+                    Ok(val) => val,
+                    Err(e) => {
+                        error!("invalid data {:?}: {}", txt, e);
+                        return err(websocket::Error::custom("invalid frame"));
+                    }
+                };
+                println!("Value {:?}", value);
             },
             _ => {
                 error!("Bad frame received: {:?}", frame);
