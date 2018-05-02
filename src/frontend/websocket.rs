@@ -44,6 +44,7 @@ impl<S: 'static + AsyncRead + AsyncWrite> server::Codec<S> for WsCodec {
         e.add_header("Connection", "upgrade").unwrap();
         e.add_header("Upgrade", "websocket").unwrap();
         e.format_header("Sec-Websocket-Accept", &self.ws.accept).unwrap();
+        e.add_header("Sec-Websocket-Protocol", "graphql-ws").unwrap();
         e.done_headers().unwrap();
         Box::new(ok(e.done()))
     }
