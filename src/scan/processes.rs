@@ -72,6 +72,9 @@ fn parse_io(pid: Pid) -> Result<(u64, u64), ()> {
 fn parse_status(pid: Pid) -> Result<(u32, u32, u64), ()> {
     let buf = BufReader::new(try!(File::open(&format!("/proc/{}/status", pid))
         .map_err(|e| debug!("Can't read io file: {}", e))));
+    _parse_status(buf, pid)
+}
+fn _parse_status<R: BufRead>(buf: R, pid: Pid) -> Result<(u32, u32, u64), ()> {
     let mut uid = None;
     let mut gid = None;
     let mut swap = None;
@@ -99,7 +102,7 @@ fn parse_status(pid: Pid) -> Result<(u32, u32, u64), ()> {
                 let maybe_kb = parts.next()
                     .and_then(|x| x.parse().ok());
                 if parts.next() == Some("kB") {
-                    swap = maybe_kb;
+                    swap = maybe_kb.map(|x: u64| x * 1024);
                 } // any other units possible?
             }
             _ => {}
@@ -242,5 +245,111 @@ pub fn write_tip(tip: &mut Tip, processes: &Vec<MinimalProcess>,
         tip.add(key("write_bytes", &pid, cgroup),
             Counter(p.write_bytes));
         // TODO(tailhook) FDSize
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::_parse_status;
+
+    const KTHREAD_DATA: &str = "\
+Name:	kthreadd
+State:	S (sleeping)
+Tgid:	2
+Ngid:	0
+Pid:	2
+PPid:	0
+TracerPid:	0
+Uid:	0	0	0	0
+Gid:	0	0	0	0
+FDSize:	64
+Groups:
+NStgid:	2
+NSpid:	2
+NSpgid:	0
+NSsid:	0
+Threads:	1
+SigQ:	0/30930
+SigPnd:	0000000000000000
+ShdPnd:	0000000000000000
+SigBlk:	0000000000000000
+SigIgn:	ffffffffffffffff
+SigCgt:	0000000000000000
+CapInh:	0000000000000000
+CapPrm:	0000003fffffffff
+CapEff:	0000003fffffffff
+CapBnd:	0000003fffffffff
+CapAmb:	0000000000000000
+Seccomp:	0
+Cpus_allowed:	f
+Cpus_allowed_list:	0-3
+Mems_allowed:	00000000,00000001
+Mems_allowed_list:	0
+voluntary_ctxt_switches:	46253
+nonvoluntary_ctxt_switches:	81
+";
+    const NORMAL_DATA: &str = "\
+Name:	cat
+State:	R (running)
+Tgid:	6283
+Ngid:	0
+Pid:	6283
+PPid:	30904
+TracerPid:	0
+Uid:	1000	1000	1000	1000
+Gid:	100	100	100	100
+FDSize:	64
+Groups:	1 17 20 26 27 100 131 499
+NStgid:	6283
+NSpid:	6283
+NSpgid:	6283
+NSsid:	30904
+VmPeak:	  122276 kB
+VmSize:	  122276 kB
+VmLck:	       0 kB
+VmPin:	       0 kB
+VmHWM:	     472 kB
+VmRSS:	     472 kB
+RssAnon:	      76 kB
+RssFile:	     396 kB
+RssShmem:	       0 kB
+VmData:	     440 kB
+VmStk:	     140 kB
+VmExe:	    1428 kB
+VmLib:	    2032 kB
+VmPTE:	      56 kB
+VmPMD:	      12 kB
+VmSwap:	      17 kB
+HugetlbPages:	       0 kB
+Threads:	1
+SigQ:	0/30930
+SigPnd:	0000000000000000
+ShdPnd:	0000000000000000
+SigBlk:	0000000000000000
+SigIgn:	0000000000000000
+SigCgt:	0000000180000000
+CapInh:	0000000000000000
+CapPrm:	0000000000000000
+CapEff:	0000000000000000
+CapBnd:	0000003fffffffff
+CapAmb:	0000000000000000
+Seccomp:	0
+Cpus_allowed:	f
+Cpus_allowed_list:	0-3
+Mems_allowed:	00000000,00000001
+Mems_allowed_list:	0
+voluntary_ctxt_switches:	0
+nonvoluntary_ctxt_switches:	2
+";
+    #[test]
+    fn parse_normal() {
+        assert_eq!(_parse_status(NORMAL_DATA.as_bytes(), 1),
+                   Ok((1000, 100, 17408)));
+    }
+
+    #[test]
+    fn parse_kthread() {
+        assert_eq!(_parse_status(KTHREAD_DATA.as_bytes(), 1),
+                   Ok((0, 0, 0)));
     }
 }
