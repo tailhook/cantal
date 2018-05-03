@@ -110,8 +110,9 @@ fn parse_status(pid: Pid) -> Result<(u32, u32, u64), ()> {
         .map_err(|_| error!("Can't parse /proc/{}/status", pid)));
     let gid = try!(gid.ok_or(())
         .map_err(|_| error!("Can't parse /proc/{}/status", pid)));
-    let swap = try!(swap.ok_or(())
-        .map_err(|_| error!("Can't parse /proc/{}/status", pid)));
+    // kernel threads do not have swap info, as well as all processes on older
+    // kernels
+    let swap = swap.unwrap_or(0);
     Ok((uid, gid, swap))
 }
 
