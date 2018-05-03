@@ -34,6 +34,7 @@ extern crate serde;
 extern crate serde_json;
 extern crate slab;
 #[macro_use] extern crate lazy_static;
+#[macro_use] extern crate juniper;
 #[macro_use] extern crate log;
 #[macro_use] extern crate matches;
 #[macro_use] extern crate probor;

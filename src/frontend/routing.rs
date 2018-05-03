@@ -20,6 +20,7 @@ pub enum Route {
     Static(String),
     NotFound,
     GraphqlWs(WebsocketHandshake),
+    Graphql(Format),      // POST
     Status(Format),
     AllProcesses(Format),
     AllSockets(Format),
@@ -92,7 +93,7 @@ pub fn route(head: &Head, ws: Option<WebsocketHandshake>) -> Route {
     };
     let route = match path_component(&path[..]) {
         ("", _) => Index,
-        ("css", _) | ("js", _) | ("fonts", _) => {
+        ("css", _) | ("js", _) | ("fonts", _) | ("graphiql", _) => {
             let path = path.trim_left_matches('/');
             if !validate_path(path) {
                 // TODO(tailhook) implement 400
@@ -101,9 +102,9 @@ pub fn route(head: &Head, ws: Option<WebsocketHandshake>) -> Route {
                 Static(path.to_string())
             }
         }
-        ("graphql-ws", _) => match ws {
+        ("graphql", _) => match ws {
             Some(ws) => GraphqlWs(ws),
-            None => NotFound,
+            None => Graphql(fmt(path)),
         },
         ("status", "") => Status(fmt(path)),
         ("all_processes", "") => AllProcesses(fmt(path)),

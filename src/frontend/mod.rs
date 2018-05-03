@@ -2,6 +2,7 @@ mod add_host;
 mod all_metrics;
 mod disk;
 mod error_page;
+mod graphql;
 mod processes;
 mod query;
 mod quick_reply;
@@ -67,6 +68,9 @@ impl<S> DispatcherTrait<S> for Dispatcher
             }
             GraphqlWs(ws) => {
                 Ok(websocket::serve(&self.stats, ws, &self.incoming))
+            }
+            Graphql(format) => {
+                Ok(graphql::serve(&self.stats, format))
             }
             Status(format) => {
                 Ok(status::serve(&self.meter, &self.stats, format))
