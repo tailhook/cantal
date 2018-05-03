@@ -70,7 +70,7 @@ impl<S> DispatcherTrait<S> for Dispatcher
                 Ok(websocket::serve(&self.stats, ws, &self.incoming))
             }
             Graphql(format) => {
-                Ok(graphql::serve(&self.stats, format))
+                Ok(graphql::serve(&self.meter, &self.stats, format))
             }
             Status(format) => {
                 Ok(status::serve(&self.meter, &self.stats, format))
