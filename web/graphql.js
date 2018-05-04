@@ -17,9 +17,9 @@ const client = new ApolloClient({
     cache: new InMemoryCache(),
 });
 
-client.query({
+client.subscribe({
   query: gql`
-        query {
+        subscription {
             status {
                 bootTime,
                 startupTime,
@@ -27,12 +27,9 @@ client.query({
             }
         }
     `,
-      variables: {}
-    }).then(data => {
-        console.log("DATA", data)
-    })
-// }).subscribe({
-//   next (data) {
-//     console.log("Status update", data)
-//   }
-// });
+  variables: {}
+}).subscribe({
+  next (data) {
+    console.log("Status update", data)
+  }
+});

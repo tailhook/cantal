@@ -2,9 +2,13 @@ use juniper::{Value, ExecutionError};
 use futures::future::{FutureResult, ok, err};
 use tk_http::websocket::{self, Frame, Packet};
 use serde_json::{from_str, to_string};
+use graphql_parser::parse_query;
+use graphql_parser::query::OperationDefinition::{Subscription, Query};
+use graphql_parser::query::{Definition, Document, Query as QueryParams};
 
 use incoming::Connection;
 use frontend::graphql;
+
 
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -64,25 +68,7 @@ impl websocket::Dispatcher for Dispatcher {
                             .ok();
                     }
                     InputMessage::Start {id, payload} => {
-                        let result = graphql::ws_response(
-                            &self.graphql, &payload);
-                        let packet = Packet::Text(
-                            to_string(&OutputMessage::Data {
-                                id: id,
-                                payload: match result {
-                                    Ok((data, errors))
-                                    => Output { data, errors },
-                                    Err(e) => {
-                                        info!("Request error {:?}", e);
-                                        unimplemented!();
-                                    }
-                                },
-                            })
-                            .expect("can serialize"));
-                        self.conn.tx.unbounded_send(packet)
-                            .map_err(|e| {
-                                trace!("can't reply with ack: {}", e)
-                            }).ok();
+                        start_query(id, payload, &self.conn, &self.graphql);
                     }
                     InputMessage::Stop {id: _} => {
                         // TODO(tailhook) unsubscribe
@@ -98,5 +84,86 @@ impl websocket::Dispatcher for Dispatcher {
             }
         }
         ok(())
+    }
+}
+
+fn has_subscription(doc: &Document) -> bool {
+    for d in &doc.definitions {
+        match *d {
+            Definition::Operation(Subscription(_)) => {
+                return true;
+            }
+            _ => {}
+        }
+    }
+    return false;
+}
+
+fn subscription_to_query(doc: Document) -> Document {
+    let definitions = doc.definitions.into_iter().map(|def| {
+        match def {
+            Definition::Operation(Subscription(s)) => {
+                Definition::Operation(Query(QueryParams {
+                    position: s.position,
+                    name: s.name,
+                    variable_definitions: s.variable_definitions,
+                    directives: s.directives,
+                    selection_set: s.selection_set,
+                }))
+            }
+            def => def,
+        }
+    }).collect();
+    return Document { definitions }
+}
+
+fn start_query(id: String, payload: graphql::Input,
+    conn: &Connection, context: &graphql::Context)
+{
+    let q = parse_query(&payload.query)
+        .expect("Request is good"); // TODO(tailhook)
+    if has_subscription(&q) {
+        let qq = subscription_to_query(q);
+        let input = graphql::Input {
+            query: qq.to_string(),
+            ..payload
+        };
+        let result = graphql::ws_response(context, &input);
+        let packet = Packet::Text(
+            to_string(&OutputMessage::Data {
+                id: id,
+                payload: match result {
+                    Ok((data, errors))
+                    => Output { data, errors },
+                    Err(e) => {
+                        info!("Request error {:?}", e);
+                        unimplemented!();
+                    }
+                },
+            })
+            .expect("can serialize"));
+        conn.tx.unbounded_send(packet)
+            .map_err(|e| {
+                trace!("can't reply with ack: {}", e)
+            }).ok();
+    } else {
+        let result = graphql::ws_response(context, &payload);
+        let packet = Packet::Text(
+            to_string(&OutputMessage::Data {
+                id: id,
+                payload: match result {
+                    Ok((data, errors))
+                    => Output { data, errors },
+                    Err(e) => {
+                        info!("Request error {:?}", e);
+                        unimplemented!();
+                    }
+                },
+            })
+            .expect("can serialize"));
+        conn.tx.unbounded_send(packet)
+            .map_err(|e| {
+                trace!("can't reply with ack: {}", e)
+            }).ok();
     }
 }

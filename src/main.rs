@@ -6,6 +6,7 @@ extern crate env_logger;
 extern crate failure;
 extern crate futures;
 extern crate futures_cpupool;
+extern crate graphql_parser;
 extern crate hex;
 extern crate httparse;
 extern crate http_file_headers;

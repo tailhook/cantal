@@ -30,11 +30,11 @@ pub struct Mutation;
 
 #[derive(Deserialize, Clone, Debug)]
 pub struct Input {
-    query: String,
+    pub query: String,
     #[serde(default, rename="operationName")]
-    operation_name: Option<String>,
+    pub operation_name: Option<String>,
     #[serde(default)]
-    variables: Option<HashMap<String, InputValue>>,
+    pub variables: Option<HashMap<String, InputValue>>,
 }
 
 
