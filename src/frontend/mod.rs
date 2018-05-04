@@ -2,7 +2,7 @@ mod add_host;
 mod all_metrics;
 mod disk;
 mod error_page;
-mod graphql;
+pub mod graphql;
 mod processes;
 mod query;
 mod quick_reply;
@@ -38,6 +38,7 @@ pub struct Dispatcher {
     pub stats: Arc<RwLock<Stats>>,
     pub gossip: Gossip,
     pub incoming: Incoming,
+    pub graphql: graphql::Context,
 }
 
 
@@ -67,10 +68,10 @@ impl<S> DispatcherTrait<S> for Dispatcher
                 serve_error_page(Http::NotFound)
             }
             GraphqlWs(ws) => {
-                Ok(websocket::serve(&self.stats, ws, &self.incoming))
+                Ok(websocket::serve(ws, &self.incoming, &self.graphql))
             }
             Graphql(format) => {
-                Ok(graphql::serve(&self.meter, &self.stats, format))
+                Ok(graphql::serve(&self.graphql, format))
             }
             Status(format) => {
                 Ok(status::serve(&self.meter, &self.stats, format))

@@ -27,6 +27,7 @@
     "babel-plugin-transform-strict-mode": "6.22.0",
     "cbor-js": "0.1.0",
     "graphql": "0.13.2",
+    "graphql-tag": "2.9.2",
     "khufu": "0.5.2",
     "subscriptions-transport-ws": "0.9.8",
     "webpack": "3.10.0"

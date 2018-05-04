@@ -8,7 +8,7 @@ use stats::Stats;
 use frontend::{Request};
 use frontend::routing::Format;
 use frontend::quick_reply::{reply, respond};
-use frontend::graphql::Context;
+use frontend::graphql::ContextRef;
 
 #[derive(Serialize)]
 pub struct StatusData<'a> {
@@ -21,7 +21,7 @@ pub struct StatusData<'a> {
 }
 
 #[derive(Serialize, GraphQLObject)]
-#[graphql(description="Status data")]
+#[graphql(name="Status", description="Status data")]
 pub struct GData {
     startup_time: f64,
     scan_duration: i32,
@@ -50,7 +50,7 @@ pub fn serve<S: 'static>(meter: &Meter, stats: &Arc<RwLock<Stats>>,
     })
 }
 
-pub fn graph(ctx: &Context) -> Result<GData, FieldError>
+pub fn graph(ctx: &ContextRef) -> Result<GData, FieldError>
 {
     Ok(GData {
         startup_time: ctx.stats.startup_time as f64,

@@ -1,5 +1,3 @@
-use std::sync::{Arc, RwLock};
-
 use futures::{Async, Future};
 use futures::future::{ok};
 use tk_bufstream::{ReadBuf, WriteBuf};
@@ -12,14 +10,14 @@ use tokio_io::{AsyncRead, AsyncWrite};
 use tk_easyloop::spawn;
 
 
-use frontend::{Request, Reply};
+use frontend::{Request, Reply, graphql};
 use incoming::Incoming;
-use stats::Stats;
 
 
 struct WsCodec {
     ws: WebsocketHandshake,
     incoming: Incoming,
+    graphql: graphql::Context,
 }
 
 
@@ -51,7 +49,7 @@ impl<S: 'static + AsyncRead + AsyncWrite> server::Codec<S> for WsCodec {
     fn hijack(&mut self, write_buf: WriteBuf<S>, read_buf: ReadBuf<S>){
         let inp = read_buf.framed(ServerCodec);
         let out = write_buf.framed(ServerCodec);
-        let (token, fut) = self.incoming.connected(out, inp);
+        let (token, fut) = self.incoming.connected(out, inp, &self.graphql);
         spawn(fut
             .map_err(|e| debug!("websocket closed: {}", e))
             .then(move |r| {
@@ -61,14 +59,14 @@ impl<S: 'static + AsyncRead + AsyncWrite> server::Codec<S> for WsCodec {
     }
 }
 
-pub fn serve<S: 'static>(stats: &Arc<RwLock<Stats>>,
-    ws: WebsocketHandshake, incoming: &Incoming)
+pub fn serve<S: 'static>(ws: WebsocketHandshake,
+    incoming: &Incoming, graphql: &graphql::Context)
     -> Request<S>
     where S: AsyncRead + AsyncWrite + 'static,
 {
-    let _stats = stats.clone();
     Box::new(WsCodec {
         ws,
         incoming: incoming.clone(),
+        graphql: graphql.clone(),
     })
 }

@@ -11,6 +11,8 @@ use tk_easyloop::handle;
 use tk_http::websocket::{Loop, ServerCodec, Config, Packet};
 use tokio_io::{AsyncRead, AsyncWrite};
 
+use frontend::graphql;
+
 mod dispatcher;
 
 lazy_static! {
@@ -54,7 +56,8 @@ impl Incoming {
      }
      pub fn connected<S>(&self,
                output: WriteFramed<S, ServerCodec>,
-               input: ReadFramed<S, ServerCodec>)
+               input: ReadFramed<S, ServerCodec>,
+               graphql: &graphql::Context)
         -> (Token, Loop<S,
             MapErr<UnboundedReceiver<Packet>, fn(()) -> &'static str>,
             dispatcher::Dispatcher>)
@@ -66,6 +69,7 @@ impl Incoming {
         let conn = Connection { id, tx };
         let disp = dispatcher::Dispatcher {
             conn: conn.clone(),
+            graphql: graphql.clone(),
         };
         self.0.lock().expect("lock works")
             .connections.insert(conn);

@@ -2,6 +2,7 @@ use std::sync::{Arc, RwLock};
 use std::collections::HashMap;
 
 use juniper::{InputValue, RootNode, FieldError, execute};
+use juniper::{Value, ExecutionError, GraphQLError};
 use self_meter_http::{Meter};
 
 use stats::Stats;
@@ -10,9 +11,16 @@ use frontend::routing::Format;
 use frontend::quick_reply::{read_json, respond};
 use frontend::status;
 
-pub struct Context<'a> {
+
+pub struct ContextRef<'a> {
     pub stats: &'a Stats,
     pub meter: &'a Meter,
+}
+
+#[derive(Clone)]
+pub struct Context {
+    pub stats: Arc<RwLock<Stats>>,
+    pub meter: Meter,
 }
 
 pub type Schema<'a> = RootNode<'a, &'a Query, &'a Mutation>;
@@ -30,24 +38,23 @@ pub struct Input {
 }
 
 
-graphql_object!(<'a> &'a Query: Context<'a> as "Query" |&self| {
+graphql_object!(<'a> &'a Query: ContextRef<'a> as "Query" |&self| {
     field status(&executor) -> Result<status::GData, FieldError> {
         status::graph(executor.context())
     }
 });
 
-graphql_object!(<'a> &'a Mutation: Context<'a> as "Mutation" |&self| {
+graphql_object!(<'a> &'a Mutation: ContextRef<'a> as "Mutation" |&self| {
 });
 
-pub fn serve<S: 'static>(meter: &Meter, stats: &Arc<RwLock<Stats>>,
-    format: Format)
+pub fn serve<S: 'static>(context: &Context, format: Format)
     -> Request<S>
 {
-    let stats = stats.clone();
-    let meter = meter.clone();
+    let stats = context.stats.clone();
+    let meter = context.meter.clone();
     read_json(move |input: Input, e| {
         let stats: &Stats = &*stats.read().expect("stats not poisoned");
-        let context = Context {
+        let context = ContextRef {
             stats,
             meter: &meter,
         };
@@ -62,4 +69,23 @@ pub fn serve<S: 'static>(meter: &Meter, stats: &Arc<RwLock<Stats>>,
 
         Box::new(respond(e, format, result))
     })
+}
+
+pub fn ws_response<'a>(context: &Context, input: &'a Input)
+    -> Result<(Value, Vec<ExecutionError>), GraphQLError<'a>>
+{
+    let stats: &Stats = &*context.stats.read().expect("stats not poisoned");
+    let context = ContextRef {
+        stats,
+        meter: &context.meter,
+    };
+
+    let empty = HashMap::new();
+    let variables = input.variables.as_ref().unwrap_or(&empty);
+
+    execute(&input.query,
+        input.operation_name.as_ref().map(|x| &x[..]),
+        &Schema::new(&Query, &Mutation),
+        &variables,
+        &context)
 }

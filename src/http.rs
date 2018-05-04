@@ -52,7 +52,10 @@ pub fn spawn_listener(ns: &NsRouter, host: &str, port: u16, localhost: bool,
             let gossip = gossip.clone();
             Proto::new(socket, &hcfg,
                 frontend::Dispatcher {
-                    meter, stats, gossip,
+                    gossip,
+                    meter: meter.clone(),
+                    stats: stats.clone(),
+                    graphql: frontend::graphql::Context { meter, stats },
                     incoming: incoming.clone(),
                 },
                 &handle())
