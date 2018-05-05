@@ -9,6 +9,7 @@ use history::History;
 use super::storage::StorageStats;
 
 
+#[derive(Debug)]
 pub struct Stats {
     pub pid: pid_t,
     pub id: Id,

@@ -17,7 +17,7 @@ pub struct ContextRef<'a> {
     pub meter: &'a Meter,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Context {
     pub stats: Arc<RwLock<Stats>>,
     pub meter: Meter,

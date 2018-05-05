@@ -18,7 +18,7 @@ pub struct ReadCache {
     tick: u32,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Debug)]
 pub struct MinimalProcess {
     pub pid: Pid,
     pub ppid: Pid,

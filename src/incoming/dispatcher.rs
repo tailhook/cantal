@@ -3,10 +3,12 @@ use futures::future::{FutureResult, ok, err};
 use tk_http::websocket::{self, Frame, Packet};
 use serde_json::{from_str, to_string};
 use graphql_parser::parse_query;
-use graphql_parser::query::OperationDefinition::{Subscription, Query};
-use graphql_parser::query::{Definition, Document, Query as QueryParams};
+use graphql_parser::query::OperationDefinition::{Subscription};
+use graphql_parser::query::{Definition, Document};
+use graphql_parser::query::{Selection};
 
-use incoming::Connection;
+use incoming::{Connection, Incoming};
+use incoming::{subscription_to_query};
 use frontend::graphql;
 
 
@@ -26,20 +28,20 @@ pub enum InputMessage {
 #[serde(tag="type", rename_all="snake_case")]
 pub enum OutputMessage {
     ConnectionAck,
-    ConnectionKeepAlive,
     Data { id: String, payload: Output },
 }
 
 #[derive(Debug, Serialize)]
 pub struct Output {
-    data: Value,
-    errors: Vec<ExecutionError>,
+    pub data: Value,
+    pub errors: Vec<ExecutionError>,
 }
 
 
 pub struct Dispatcher {
     pub conn: Connection,
     pub graphql: graphql::Context,
+    pub incoming: Incoming,
 }
 
 impl websocket::Dispatcher for Dispatcher {
@@ -63,12 +65,13 @@ impl websocket::Dispatcher for Dispatcher {
                         let packet = Packet::Text(
                             to_string(&OutputMessage::ConnectionAck)
                             .expect("can serialize"));
-                        self.conn.tx.unbounded_send(packet)
+                        self.conn.0.tx.unbounded_send(packet)
                             .map_err(|e| trace!("can't reply with ack: {}", e))
                             .ok();
                     }
                     InputMessage::Start {id, payload} => {
-                        start_query(id, payload, &self.conn, &self.graphql);
+                        start_query(id, payload, &self.conn,
+                            &self.graphql, &self.incoming);
                     }
                     InputMessage::Stop {id: _} => {
                         // TODO(tailhook) unsubscribe
@@ -99,35 +102,38 @@ fn has_subscription(doc: &Document) -> bool {
     return false;
 }
 
-fn subscription_to_query(doc: Document) -> Document {
-    let definitions = doc.definitions.into_iter().map(|def| {
-        match def {
-            Definition::Operation(Subscription(s)) => {
-                Definition::Operation(Query(QueryParams {
-                    position: s.position,
-                    name: s.name,
-                    variable_definitions: s.variable_definitions,
-                    directives: s.directives,
-                    selection_set: s.selection_set,
-                }))
-            }
-            def => def,
-        }
-    }).collect();
-    return Document { definitions }
-}
-
 fn start_query(id: String, payload: graphql::Input,
-    conn: &Connection, context: &graphql::Context)
+    conn: &Connection, context: &graphql::Context, incoming: &Incoming)
 {
     let q = parse_query(&payload.query)
         .expect("Request is good"); // TODO(tailhook)
     if has_subscription(&q) {
-        let qq = subscription_to_query(q);
+        // TODO(tailhook) optimize this deep clone
+        let qq = subscription_to_query(q.clone());
         let input = graphql::Input {
             query: qq.to_string(),
             ..payload
         };
+        for d in &q.definitions {
+            match *d {
+                Definition::Operation(Subscription(ref sub)) => {
+                    for item in &sub.selection_set.items {
+                        match *item {
+                            Selection::Field(ref f) if f.name == "status" => {
+                                incoming.subscribe_status(conn,
+                                    &id, &input);
+                            }
+                            // TODO(tailhook) maybe validate?
+                            // For now invalid fields will error in juniper
+                            // executor.
+                            _ => {}
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+
         let result = graphql::ws_response(context, &input);
         let packet = Packet::Text(
             to_string(&OutputMessage::Data {
@@ -142,7 +148,7 @@ fn start_query(id: String, payload: graphql::Input,
                 },
             })
             .expect("can serialize"));
-        conn.tx.unbounded_send(packet)
+        conn.0.tx.unbounded_send(packet)
             .map_err(|e| {
                 trace!("can't reply with ack: {}", e)
             }).ok();
@@ -161,7 +167,7 @@ fn start_query(id: String, payload: graphql::Input,
                 },
             })
             .expect("can serialize"));
-        conn.tx.unbounded_send(packet)
+        conn.0.tx.unbounded_send(packet)
             .map_err(|e| {
                 trace!("can't reply with ack: {}", e)
             }).ok();

@@ -18,6 +18,8 @@ use cantal::Value;
 use history::VersionInfo;
 use storage::{Storage, MetricBuffer};
 
+use incoming::Incoming;
+
 
 const SNAPSHOT_INTERVAL: u64 = 60000;
 
@@ -25,7 +27,8 @@ fn to_ms(dur: Duration) -> u64 {
     return dur.as_secs() * 1000 + dur.subsec_nanos() as u64 / 1000_000;
 }
 
-pub fn scan_loop(deps: Dependencies, interval: u32, backlog_time: Duration)
+pub fn scan_loop(deps: Dependencies, interval: u32, backlog_time: Duration,
+    incoming: &Incoming)
 {
     let stats: &RwLock<Stats> = &*deps.copy();
     let storage = deps.get::<Arc<Storage>>().map(|x| &*x);
@@ -109,10 +112,7 @@ pub fn scan_loop(deps: Dependencies, interval: u32, backlog_time: Duration)
                 }).map_err(|e| error!("Can't encode history: {}", e)).ok();
             }
         }
-        // TODO(tailhook)
-        // server_msg.send(server::Message::ScanComplete)
-        //     .map_err(|_| error!("Error sending ScanComplete msg"))
-        //     .ok();
+        incoming.trigger_status_change();
 
         unsafe { usleep(((interval as i64 - time_ms() as i64 % interval as i64)*1000) as u32) };
     }

@@ -59,7 +59,7 @@ use failure::Error;
 use argparse::{ArgumentParser, Store, ParseOption, StoreOption, Parse, Print};
 use argparse::{StoreTrue};
 use rustc_serialize::json::Json;
-use tk_easyloop::{handle};
+use tk_easyloop::handle;
 
 use deps::{Dependencies, LockedDeps};
 
@@ -254,15 +254,21 @@ fn run() -> Result<(), Error> {
         .ok();
     }
 
+    let graphql = frontend::graphql::Context {
+        meter: meter.clone(),
+        stats: stats.clone(),
+    };
+    let incoming = incoming::Incoming::new(&graphql);
+
     let mydeps = deps.clone();
     let mymeter = meter.clone();
+    let myinc = incoming.clone();
     let _scan = thread::spawn(move || {
         let _watchdog = watchdog::ExitOnReturn(82);
         mymeter.track_current_thread("scan");
-        scanner::scan_loop(mydeps, scan_interval, *backlog_time);
+        scanner::scan_loop(mydeps, scan_interval, *backlog_time, &myinc);
     });
 
-    let incoming = incoming::Incoming::new();
 
     tk_easyloop::run_forever(|| -> Result<(), Error> {
         let ns = ns_env_config::init(&handle())?;
@@ -275,7 +281,7 @@ fn run() -> Result<(), Error> {
 
         carbon::spawn_sinks(&ns, &configs, &stats)?;
         http::spawn_listener(&ns, &host, port, bind_localhost,
-            &meter, &stats, &gossip, &incoming)?;
+            &meter, &stats, &gossip, &incoming, &graphql)?;
 
         Ok(())
     })?;
