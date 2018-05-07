@@ -130,6 +130,18 @@ impl Incoming {
         self.0.state.lock().expect("lock is not poisoned")
             .status_subscriptions.insert(conn.clone());
      }
+     pub fn unsubscribe_status(&self, conn: &Connection, id: &String)
+     {
+        let unsubscribe_all = {
+            let mut state = self.0.state.lock().expect("lock is not poisoned");
+            state.status_subscriptions.insert(conn.clone());
+            state.status_subscriptions.len() == 0
+        };
+        if unsubscribe_all {
+            conn.0.state.lock().expect("lock is not poisoned")
+                .status_subscriptions.remove(id);
+        }
+     }
      pub fn trigger_status_change(&self) {
         let conns = self.0.state.lock().expect("lock is not poisoned")
             .status_subscriptions.clone();

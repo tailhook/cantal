@@ -73,8 +73,8 @@ impl websocket::Dispatcher for Dispatcher {
                         start_query(id, payload, &self.conn,
                             &self.graphql, &self.incoming);
                     }
-                    InputMessage::Stop {id: _} => {
-                        // TODO(tailhook) unsubscribe
+                    InputMessage::Stop {id} => {
+                        self.incoming.unsubscribe_status(&self.conn, &id);
                     }
                 }
             }

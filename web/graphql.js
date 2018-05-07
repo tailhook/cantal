@@ -17,7 +17,7 @@ const client = new ApolloClient({
     cache: new InMemoryCache(),
 });
 
-client.subscribe({
+let q = client.subscribe({
   query: gql`
         subscription {
             status {
@@ -33,3 +33,5 @@ client.subscribe({
     console.log("Status update", data)
   }
 });
+
+setTimeout(() => q.unsubscribe(), 2000)
