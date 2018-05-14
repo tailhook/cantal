@@ -24,6 +24,8 @@ let q = client.subscribe({
                 bootTime,
                 startupTime,
                 scanDuration,
+                selfReport,
+                threadsReport,
             }
         }
     `,
