@@ -37,6 +37,17 @@ pub struct Input {
     pub variables: Option<HashMap<String, InputValue>>,
 }
 
+#[derive(Debug, Serialize)]
+pub struct Output {
+    pub data: Value,
+    pub errors: Vec<ExecutionError>,
+}
+
+#[derive(Debug, Serialize, GraphQLObject)]
+pub struct Okay {
+    ok: bool,
+}
+
 
 graphql_object!(<'a> &'a Query: ContextRef<'a> as "Query" |&self| {
     field status(&executor) -> Result<status::GData, FieldError> {
@@ -45,6 +56,9 @@ graphql_object!(<'a> &'a Query: ContextRef<'a> as "Query" |&self| {
 });
 
 graphql_object!(<'a> &'a Mutation: ContextRef<'a> as "Mutation" |&self| {
+    field noop(&executor) -> Result<Okay, FieldError> {
+        Ok(Okay { ok: true })
+    }
 });
 
 pub fn serve<S: 'static>(context: &Context, format: Format)
@@ -67,7 +81,14 @@ pub fn serve<S: 'static>(context: &Context, format: Format)
             &variables,
             &context);
 
-        Box::new(respond(e, format, result))
+        match result {
+            Ok((data, errors)) => {
+                Box::new(respond(e, format, Output { data, errors }))
+            }
+            Err(err) => {
+                Box::new(respond(e, format, err))
+            }
+        }
     })
 }
 
