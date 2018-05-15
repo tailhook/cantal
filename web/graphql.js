@@ -17,23 +17,34 @@ const client = new ApolloClient({
     cache: new InMemoryCache(),
 });
 
+export var beacon
+
 let q = client.subscribe({
   query: gql`
         subscription {
-            status {
+            beacon: status {
+                id,
+                version,
+                hostname,
+                name,
+                clusterName,
                 bootTime,
                 startupTime,
                 scanDuration,
+                currentTime,
                 selfReport,
                 threadsReport,
+                tipValues,
+                fineValues,
+                processes,
             }
         }
     `,
   variables: {}
 }).subscribe({
   next (data) {
-    console.log("Status update", data)
+    let time = Date.now()
+    beacon = data.data.beacon
+    beacon.latency = beacon.currentTime - time
   }
 });
-
-setTimeout(() => q.unsubscribe(), 2000)

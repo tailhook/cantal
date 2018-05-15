@@ -1,8 +1,9 @@
 use std::sync::{Arc, RwLock};
 use std::i32;
+use std::time::{SystemTime, UNIX_EPOCH, Duration};
 
 use self_meter_http::{Meter, ThreadReport, ProcessReport};
-use juniper::FieldError;
+use juniper::{FieldError, ID};
 use serde_json;
 
 use storage::StorageStats;
@@ -22,16 +23,56 @@ pub struct StatusData<'a> {
     threads_report: ThreadReport<'a>,
 }
 
-#[derive(GraphQLObject)]
-#[graphql(name="Status", description="Status data")]
-pub struct GData {
-    startup_time: f64,
-    scan_duration: i32,
-    //storage: StorageStats,
-    boot_time: Option<f64>,
-    self_report: GProcessReport,
-    threads_report: GThreadsReport,
+pub struct GData<'a> {
+    ctx: &'a ContextRef<'a>,
 }
+
+graphql_object!(<'a> GData<'a>: () as "Status" |&self| {
+    description: "Status data for cantal itself"
+    field startup_time() -> f64 {
+        self.ctx.stats.startup_time as f64
+    }
+    field current_time() -> f64 {
+        let n = SystemTime::now();
+        return to_ms(n.duration_since(UNIX_EPOCH).expect("valid now")) as f64;
+    }
+    field scan_duration() -> i32 {
+        self.ctx.stats.scan_duration as i32
+    }
+    field boot_time() -> Option<f64> {
+        self.ctx.stats.boot_time.map(|t| t as f64)
+    }
+    field self_report() -> GProcessReport {
+        GProcessReport(self.ctx.meter.clone())
+    }
+    field threads_report() -> GThreadsReport {
+        GThreadsReport(self.ctx.meter.clone())
+    }
+    field processes() -> i32 {
+        self.ctx.stats.processes.len() as i32
+    }
+    field fine_values() -> i32 {
+        self.ctx.stats.history.fine.values.len() as i32
+    }
+    field tip_values() -> i32 {
+        self.ctx.stats.history.tip.values.len() as i32
+    }
+    field id() -> ID {
+        self.ctx.stats.id.to_hex().into()
+    }
+    field hostname() -> &String {
+        &self.ctx.stats.hostname
+    }
+    field name() -> &String {
+        &self.ctx.stats.name
+    }
+    field cluster_name() -> &Option<String> {
+        &self.ctx.stats.cluster_name
+    }
+    field version() -> &'static str {
+        env!("CARGO_PKG_VERSION")
+    }
+});
 
 pub struct GProcessReport(Meter);
 pub struct GThreadsReport(Meter);
@@ -106,14 +147,11 @@ pub fn serve<S: 'static>(meter: &Meter, stats: &Arc<RwLock<Stats>>,
     })
 }
 
-pub fn graph(ctx: &ContextRef) -> Result<GData, FieldError>
+pub fn graph<'a>(ctx: &'a ContextRef<'a>) -> Result<GData<'a>, FieldError>
 {
-    Ok(GData {
-        startup_time: ctx.stats.startup_time as f64,
-        scan_duration: ctx.stats.scan_duration as i32,
-        //storage: ctx.stats.storage,
-        boot_time: ctx.stats.boot_time.map(|x| x as f64),
-        self_report: GProcessReport(ctx.meter.clone()),
-        threads_report: GThreadsReport(ctx.meter.clone()),
-    })
+    Ok(GData { ctx })
+}
+
+fn to_ms(dur: Duration) -> u64 {
+    return dur.as_secs() * 1000 + dur.subsec_nanos() as u64 / 1000_000;
 }

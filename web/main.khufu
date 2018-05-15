@@ -10,6 +10,7 @@ import {sparkline} from './charts/sparkline.khufu'
 import {already_percent_formatter, bytes_formatter} from './util/format'
 import {CPU_YAXIS} from './settings/cpugraph'
 import * as self_meter from './blocks/self_meter.khufu'
+import {beacon} from './graphql'
 
 import {main as enable_remote} from './pages/enable_remote.khufu'
 import {main as status} from './pages/status.khufu'
@@ -74,8 +75,8 @@ view _local_menu():
     <a.pure-menu-link href="/local/processes">
       link {click} go(event) -> @router
       "Processes"
-      // if beacon:
-      //   ` [${ beacon.processes }]`
+      if beacon:
+        ` [${ beacon.processes }]`
   <li.pure-menu-item.pure-menu-active?(@router.page == 'states')>
     <a.pure-menu-link href="/local/states">
       link {click} go(event) -> @router
@@ -96,8 +97,9 @@ view _local_menu():
     <a.pure-menu-link href="/local/metrics">
       link {click} go(event) -> @router
       "Metrics"
-      // if beacon:
-      //  ` [${ beacon.tip_values } + ${ beacon.fine_values }]`
+      if beacon:
+        ` [${ beacon.tipValues } + ${ beacon.fineValues }]`
+
   <li.pure-menu-item.pure-menu-active?(@router.page == 'peers')>
     <a.pure-menu-link href="/local/peers">
       link {click} go(event) -> @router
@@ -146,18 +148,18 @@ view self_status(beacon):
 
   <div.machine-up>
     "up "
-    format_uptime(till_now_ms(from_ms(beacon.boot_time)))
+    format_uptime(till_now_ms(from_ms(beacon.bootTime)))
   <div.cantal-status>
     <span.pointer title="Uptime of the cantal agent itself">
       "up "
-      format_uptime(till_now_ms(from_ms(beacon.startup_time)))
+      format_uptime(till_now_ms(from_ms(beacon.startupTime)))
     " "
     <span.pointer title="Latency of requests to the cantal">
       `${beacon.latency}ms`
     " "
     <span.pointer
         title="Time it takes for cantal to read all stats once">
-      `${beacon.scan_duration}ms`
+      `${beacon.scanDuration}ms`
     " "
     store @status = value | refresher | json('/status.json', 1000)
     store @expand = bool | init(false)
@@ -189,21 +191,21 @@ view main(version):
         <a.pure-menu-heading href="/">
           "Cantal"
         <ul.pure-menu-list>
-          // if beacon:
-          //   <li.info>
-          //     `${ beacon.version } / ${ version }`
-          //   <li.info>
-          //     `${ beacon.hostname } / ${ beacon.name } /
-          //       ${ beacon.cluster_name or "standalone" }`
-          //   <li.info.offset-bottom>
-          //     `${ beacon.id }`
+          if beacon:
+            <li.info>
+              `${ beacon.version } / ${ version }`
+            <li.info>
+              `${ beacon.hostname } / ${ beacon.name } /
+                ${ beacon.clusterName or "standalone" }`
+            <li.info.offset-bottom>
+              `${ beacon.id }`
           if @router.remote:
             _remote_menu()
           else:
             _local_menu()
-          // if beacon:
-          //   <li.offset-top.pure-menu-item>
-          //     self_status(beacon)
+          if beacon:
+            <li.offset-top.pure-menu-item>
+              self_status(beacon)
 
     <div.pure-u-1.pure-u-md-2-3.pure-u-xl-20-24>
       if not(@router.remote):
