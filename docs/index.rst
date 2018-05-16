@@ -16,6 +16,7 @@ Contents:
    config
    api
    mmap
+   changelog
 
 
 Indices and tables
