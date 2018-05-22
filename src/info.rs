@@ -11,7 +11,7 @@ use nix::sys::socket::{InetAddr, sockaddr_in};
 use libc::{getifaddrs, freeifaddrs};
 use libc::{AF_INET};
 use rand;
-use rand::Rng;
+use rand::RngCore;
 
 use id::Id;
 
