@@ -111,7 +111,7 @@ view peer_row(p):
       if p.peers != null:
         `${p.peers}`
         <div.tiny>
-            millis_time(p.report)
+            millis_time(p.report[0])
       else:
         "∅"
     <td.text-muted?(p.num_remote == null)>
@@ -161,7 +161,7 @@ view main():
             <th> "Remote?"
         <tbody>
           for p of @query.peers key p.id:
-            if p.report and till_now_ms(from_ms(p.report)) <= 5*60*1000:
+            if p.report and till_now_ms(from_ms(p.report[0])) <= 5*60*1000:
               peer_row(p)
       <h3> "Old/Inactive/Failing Peers"
       <table.pure-table>
@@ -177,7 +177,7 @@ view main():
             <th> "Remote?"
         <tbody>
           for p of @query.peers key p.id:
-            if not p.report or till_now_ms(from_ms(p.report)) > 5*60*1000:
+            if not p.report or till_now_ms(from_ms(p.report[0])) > 5*60*1000:
               peer_row(p)
 
 
