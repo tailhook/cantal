@@ -2,6 +2,14 @@ Cantal Changes by Version
 =========================
 
 
+.. _changelog-0.6.1:
+
+Cantal 0.6.1
+------------
+
+* Bugfix: fix JS error on /local/peers page
+
+
 .. _changelog-0.6.0:
 
 Cantal 0.6.0
