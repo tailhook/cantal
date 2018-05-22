@@ -5,7 +5,7 @@ description = "The parser of cantal file format"
 license = "MIT"
 keywords = ["monitoring", "statistics"]
 homepage = "http://github.com/tailhook/cantal"
-version = "0.6.0"
+version = "0.6.1"
 authors = ["paul@colomiets.name"]
 
 [dependencies]
