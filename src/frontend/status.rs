@@ -15,6 +15,7 @@ use frontend::graphql::ContextRef;
 
 #[derive(Serialize)]
 pub struct StatusData<'a> {
+    version: &'a str,
     startup_time: u64,
     scan_duration: u32,
     storage: StorageStats,
@@ -136,6 +137,7 @@ pub fn serve<S: 'static>(meter: &Meter, stats: &Arc<RwLock<Stats>>,
         let stats: &Stats = &*stats.read().expect("stats not poisoned");
         Box::new(respond(e, format,
             &StatusData {
+                version: env!("CARGO_PKG_VERSION"),
                 startup_time: stats.startup_time,
                 scan_duration: stats.scan_duration,
                 storage: stats.storage,
