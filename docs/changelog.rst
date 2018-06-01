@@ -2,6 +2,15 @@ Cantal Changes by Version
 =========================
 
 
+.. _changelog-0.6.2:
+
+Cantal 0.6.2
+------------
+
+* Bugfix: larger timeouts for incoming http requests
+* Bugfix: add ``version`` back to ``/status.json``
+
+
 .. _changelog-0.6.1:
 
 Cantal 0.6.1
