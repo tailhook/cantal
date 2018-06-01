@@ -23,15 +23,18 @@ pub fn spawn_listener(ns: &NsRouter, host: &str, port: u16, localhost: bool,
     gossip: &Gossip, incoming: &incoming::Incoming, graphql: &graphql::Context)
     -> Result<(), Error>
 {
+    // Although, there are no big input bodies and all requests are presumed
+    // to be fast and most of them local. If server is slow we still have a
+    // problem of handling "network" timeouts > 1 sec even on localhost.
     let hcfg = tk_http::server::Config::new()
         .inflight_request_limit(2)
         .inflight_request_prealoc(0)
         .first_byte_timeout(Duration::new(10, 0))
         .keep_alive_timeout(Duration::new(600, 0))
-        .headers_timeout(Duration::new(1, 0))             // no big headers
-        .input_body_byte_timeout(Duration::new(1, 0))     // no big bodies
-        .input_body_whole_timeout(Duration::new(2, 0))
-        .output_body_byte_timeout(Duration::new(1, 0))
+        .headers_timeout(Duration::new(6, 0))             // no big headers
+        .input_body_byte_timeout(Duration::new(7, 0))     // no big bodies
+        .input_body_whole_timeout(Duration::new(15, 0))
+        .output_body_byte_timeout(Duration::new(7, 0))
         .output_body_whole_timeout(Duration::new(30, 0))
         .done();
     let meter = meter.clone();
