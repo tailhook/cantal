@@ -1,4 +1,3 @@
-use std::io::BufWriter;
 use std::str::from_utf8;
 
 use futures::Async;
@@ -108,8 +107,27 @@ impl<F, S, V: Decodable> Codec<S> for ReadJsonOld<F, V>
 pub fn respond<D: Serialize, S>(mut e: Encoder<S>, format: Format, data: D)
     -> FutureResult<EncoderDone<S>, Error>
 {
+    let buf = match format {
+        Format::Json => {
+            let mut buf = Vec::with_capacity(16384);
+            to_writer(&mut buf, &data)
+                .expect("data is always serializable");
+            buf
+        }
+        Format::Gron => {
+            unimplemented!();
+            /*
+            json_to_gron(&mut BufWriter::new(&mut e), "json",
+                &to_value(data).expect("data is always convertible"))
+                .expect("data is always serializable");
+            */
+        }
+        Format::Cbor => {
+            unimplemented!();
+        }
+    };
     e.status(Status::Ok);
-    e.add_chunked().unwrap();
+    e.add_length(buf.len() as u64).unwrap();
     let ctype = match format {
         Format::Json => "application/json",
         Format::Gron => "text/x-gron",
@@ -117,23 +135,7 @@ pub fn respond<D: Serialize, S>(mut e: Encoder<S>, format: Format, data: D)
     };
     e.add_header("Content-Type", ctype.as_bytes()).unwrap();
     if e.done_headers().unwrap() {
-        match format {
-            Format::Json => {
-                to_writer(&mut BufWriter::new(&mut e), &data)
-                    .expect("data is always serializable");
-            }
-            Format::Gron => {
-                unimplemented!();
-                /*
-                json_to_gron(&mut BufWriter::new(&mut e), "json",
-                    &to_value(data).expect("data is always convertible"))
-                    .expect("data is always serializable");
-                */
-            }
-            Format::Cbor => {
-                unimplemented!();
-            }
-        };
+        e.write_body(&buf);
     }
     ok(e.done())
 }
