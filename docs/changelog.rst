@@ -2,6 +2,15 @@ Cantal Changes by Version
 =========================
 
 
+.. _changelog-0.6.3:
+
+Cantal 0.6.3
+------------
+
+* Bugfix: add ``num_peers``, ``num_stale`` back to ``/status.json``, same
+  fields added to graphql endpoint
+
+
 .. _changelog-0.6.2:
 
 Cantal 0.6.2

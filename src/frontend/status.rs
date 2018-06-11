@@ -6,12 +6,13 @@ use self_meter_http::{Meter, ThreadReport, ProcessReport};
 use juniper::{FieldError, ID};
 use serde_json;
 
-use storage::StorageStats;
-use stats::Stats;
-use frontend::{Request};
-use frontend::routing::Format;
-use frontend::quick_reply::{reply, respond};
 use frontend::graphql::ContextRef;
+use frontend::quick_reply::{reply, respond};
+use frontend::routing::Format;
+use frontend::{Request};
+use gossip::{NUM_PEERS, NUM_STALE};
+use stats::Stats;
+use storage::StorageStats;
 
 #[derive(Serialize)]
 pub struct StatusData<'a> {
@@ -22,6 +23,8 @@ pub struct StatusData<'a> {
     boot_time: Option<u64>,
     self_report: ProcessReport<'a>,
     threads_report: ThreadReport<'a>,
+    num_peers: i64,
+    num_stale: i64,
 }
 
 pub struct GData<'a> {
@@ -72,6 +75,12 @@ graphql_object!(<'a> GData<'a>: () as "Status" |&self| {
     }
     field version() -> &'static str {
         env!("CARGO_PKG_VERSION")
+    }
+    field num_peers() -> i32 {
+        NUM_PEERS.get() as i32
+    }
+    field num_stale() -> i32 {
+        NUM_STALE.get() as i32
     }
 });
 
@@ -144,6 +153,8 @@ pub fn serve<S: 'static>(meter: &Meter, stats: &Arc<RwLock<Stats>>,
                 boot_time: stats.boot_time,
                 self_report: meter.process_report(),
                 threads_report: meter.thread_report(),
+                num_peers: NUM_PEERS.get(),
+                num_stale: NUM_STALE.get(),
             }
         ))
     })
