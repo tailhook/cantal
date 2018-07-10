@@ -11,7 +11,7 @@ authors = ["paul@colomiets.name"]
 [dependencies]
 byteorder = "1.1.0"
 rustc-serialize = "0.3.22"
-log = "0.3.8"
+log = "0.4.3"
 libc = "0.2.33"
 probor = "0.3.0"
 quick-error = "1.2.1"

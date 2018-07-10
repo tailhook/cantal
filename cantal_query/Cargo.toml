@@ -9,11 +9,12 @@ version = "0.6.3"
 authors = ["paul@colomiets.name"]
 
 [dependencies]
-log = "0.3"
+log = "0.4.3"
 cbor-codec = "0.7.1"
 rustc-serialize = "0.3.22"
+# can't upgrade because probor only supports old serde
 regex = "0.2.1"
-num = "0.1.36"
+num = "0.2.0"
 
 [dependencies.probor]
 version = "0.3.0"

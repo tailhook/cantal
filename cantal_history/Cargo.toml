@@ -9,8 +9,8 @@ version = "0.6.3"
 authors = ["paul@colomiets.name"]
 
 [dependencies]
-log = "0.3"
-num = "0.1.36"
+log = "0.4.3"
+num = "0.2.0"
 rustc-serialize = "0.3.22"
 cbor-codec = "0.7.1"
 probor = "0.3.0"
