@@ -2,13 +2,15 @@ use std::sync::{Arc, RwLock};
 use std::collections::HashMap;
 
 use juniper::{InputValue, RootNode, FieldError, execute};
-use juniper::{Value, ExecutionError, GraphQLError};
+use juniper::{Value, ExecutionError};
 use self_meter_http::{Meter};
+use serde_json::{Value as Json, to_value};
+use tk_http::Status;
 
 use stats::Stats;
 use frontend::{Request};
 use frontend::routing::Format;
-use frontend::quick_reply::{read_json, respond};
+use frontend::quick_reply::{read_json, respond, respond_status};
 use frontend::status;
 
 
@@ -39,8 +41,17 @@ pub struct Input {
 
 #[derive(Debug, Serialize)]
 pub struct Output {
-    pub data: Value,
-    pub errors: Vec<ExecutionError>,
+    #[serde(skip_serializing_if="Option::is_none")]
+    pub data: Option<Value>,
+    #[serde(skip_serializing_if="ErrorWrapper::is_empty")]
+    pub errors: ErrorWrapper,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(untagged)]
+pub enum ErrorWrapper {
+    Execution(Vec<ExecutionError>),
+    Fatal(Json),
 }
 
 #[derive(Debug, Serialize, GraphQLObject)]
@@ -80,21 +91,31 @@ pub fn serve<S: 'static>(context: &Context, format: Format)
             &Schema::new(&Query, &Mutation),
             &variables,
             &context);
-
-        match result {
+        let out = match result {
             Ok((data, errors)) => {
-                Box::new(respond(e, format, Output { data, errors }))
+                Output {
+                    data: Some(data),
+                    errors: ErrorWrapper::Execution(errors),
+                }
             }
-            Err(err) => {
-                Box::new(respond(e, format, err))
+            Err(e) => {
+                Output {
+                    data: None,
+                    errors: ErrorWrapper::Fatal(
+                        to_value(&e).expect("can serialize error")),
+                }
             }
+        };
+
+        if out.data.is_some() {
+            Box::new(respond(e, format, out))
+        } else {
+            Box::new(respond_status(Status::BadRequest, e, format, out))
         }
     })
 }
 
-pub fn ws_response<'a>(context: &Context, input: &'a Input)
-    -> Result<(Value, Vec<ExecutionError>), GraphQLError<'a>>
-{
+pub fn ws_response<'a>(context: &Context, input: &'a Input) -> Output {
     let stats: &Stats = &*context.stats.read().expect("stats not poisoned");
     let context = ContextRef {
         stats,
@@ -104,9 +125,35 @@ pub fn ws_response<'a>(context: &Context, input: &'a Input)
     let empty = HashMap::new();
     let variables = input.variables.as_ref().unwrap_or(&empty);
 
-    execute(&input.query,
+    let result = execute(&input.query,
         input.operation_name.as_ref().map(|x| &x[..]),
         &Schema::new(&Query, &Mutation),
         &variables,
-        &context)
+        &context);
+
+    match result {
+        Ok((data, errors)) => {
+            Output {
+                data: Some(data),
+                errors: ErrorWrapper::Execution(errors),
+            }
+        }
+        Err(e) => {
+            Output {
+                data: None,
+                errors: ErrorWrapper::Fatal(
+                    to_value(&e).expect("can serialize error")),
+            }
+        }
+    }
+}
+
+impl ErrorWrapper {
+    fn is_empty(&self) -> bool {
+        use self::ErrorWrapper::*;
+        match self {
+            Execution(v) => v.is_empty(),
+            Fatal(..) => false,
+        }
+    }
 }

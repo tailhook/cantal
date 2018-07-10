@@ -104,7 +104,14 @@ impl<F, S, V: Decodable> Codec<S> for ReadJsonOld<F, V>
     }
 }
 
-pub fn respond<D: Serialize, S>(mut e: Encoder<S>, format: Format, data: D)
+pub fn respond<D: Serialize, S>(e: Encoder<S>, format: Format, data: D)
+    -> FutureResult<EncoderDone<S>, Error>
+{
+    respond_status(Status::Ok, e, format, data)
+}
+
+pub fn respond_status<D: Serialize, S>(status: Status,
+    mut e: Encoder<S>, format: Format, data: D)
     -> FutureResult<EncoderDone<S>, Error>
 {
     let buf = match format {
@@ -126,7 +133,7 @@ pub fn respond<D: Serialize, S>(mut e: Encoder<S>, format: Format, data: D)
             unimplemented!();
         }
     };
-    e.status(Status::Ok);
+    e.status(status);
     e.add_length(buf.len() as u64).unwrap();
     let ctype = match format {
         Format::Json => "application/json",

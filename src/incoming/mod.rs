@@ -16,7 +16,7 @@ use tokio_io::{AsyncRead, AsyncWrite};
 
 use frontend::graphql;
 use frontend::graphql::{Input, Context};
-use incoming::dispatcher::{OutputMessage, Output};
+use incoming::dispatcher::{OutputMessage};
 
 mod dispatcher;
 
@@ -152,14 +152,7 @@ impl Incoming {
                 let packet = Packet::Text(
                     to_string(&OutputMessage::Data {
                         id: id.clone(),
-                        payload: match result {
-                            Ok((data, errors))
-                            => Output { data, errors },
-                            Err(e) => {
-                                info!("Request error {:?}", e);
-                                unimplemented!();
-                            }
-                        },
+                        payload: result,
                     })
                     .expect("can serialize"));
                 conn.0.tx.unbounded_send(packet)

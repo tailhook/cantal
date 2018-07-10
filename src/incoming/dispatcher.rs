@@ -1,4 +1,3 @@
-use juniper::{Value, ExecutionError};
 use futures::future::{FutureResult, ok, err};
 use tk_http::websocket::{self, Frame, Packet};
 use serde_json::{from_str, to_string};
@@ -24,19 +23,13 @@ pub enum InputMessage {
     Start { payload: graphql::Input, id: String },
     Stop { id: String },
 }
+
 #[derive(Debug, Serialize)]
 #[serde(tag="type", rename_all="snake_case")]
 pub enum OutputMessage {
     ConnectionAck,
-    Data { id: String, payload: Output },
+    Data { id: String, payload: graphql::Output },
 }
-
-#[derive(Debug, Serialize)]
-pub struct Output {
-    pub data: Value,
-    pub errors: Vec<ExecutionError>,
-}
-
 
 pub struct Dispatcher {
     pub conn: Connection,
@@ -102,6 +95,7 @@ fn has_subscription(doc: &Document) -> bool {
     return false;
 }
 
+
 fn start_query(id: String, payload: graphql::Input,
     conn: &Connection, context: &graphql::Context, incoming: &Incoming)
 {
@@ -138,14 +132,7 @@ fn start_query(id: String, payload: graphql::Input,
         let packet = Packet::Text(
             to_string(&OutputMessage::Data {
                 id: id,
-                payload: match result {
-                    Ok((data, errors))
-                    => Output { data, errors },
-                    Err(e) => {
-                        info!("Request error {:?}", e);
-                        unimplemented!();
-                    }
-                },
+                payload: result,
             })
             .expect("can serialize"));
         conn.0.tx.unbounded_send(packet)
@@ -153,19 +140,9 @@ fn start_query(id: String, payload: graphql::Input,
                 trace!("can't reply with ack: {}", e)
             }).ok();
     } else {
-        let result = graphql::ws_response(context, &payload);
+        let payload = graphql::ws_response(context, &payload);
         let packet = Packet::Text(
-            to_string(&OutputMessage::Data {
-                id: id,
-                payload: match result {
-                    Ok((data, errors))
-                    => Output { data, errors },
-                    Err(e) => {
-                        info!("Request error {:?}", e);
-                        unimplemented!();
-                    }
-                },
-            })
+            to_string(&OutputMessage::Data { id, payload })
             .expect("can serialize"));
         conn.0.tx.unbounded_send(packet)
             .map_err(|e| {
