@@ -161,18 +161,17 @@ view self_status(beacon):
         title="Time it takes for cantal to read all stats once">
       `${beacon.scanDuration}ms`
     " "
-    store @status = value | refresher | json('/status.json', 1000)
     store @expand = bool | init(false)
-    if @status:
-      self_meter.small(@status.self_report, @status.threads_report)
+    if beacon:
+      self_meter.small(beacon.selfReport, beacon.threadsReport)
       <button.pure-button.meter-btn>
         link {click} toggle(@expand) -> @expand
         if @expand:
           "▲"
         else:
           "▼"
-    if @expand and @status:
-      self_meter.big(@status.self_report, @status.threads_report)
+    if @expand and beacon:
+      self_meter.big(beacon.selfReport, beacon.threadsReport)
 
 
 view main(version):
