@@ -113,6 +113,7 @@ pub fn scan_loop(deps: Dependencies, interval: u32, backlog_time: Duration,
             }
         }
         incoming.trigger_status_change();
+        incoming.trigger_scan_change();
 
         unsafe { usleep(((interval as i64 - time_ms() as i64 % interval as i64)*1000) as u32) };
     }

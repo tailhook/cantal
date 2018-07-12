@@ -68,6 +68,7 @@ impl websocket::Dispatcher for Dispatcher {
                     }
                     InputMessage::Stop {id} => {
                         self.incoming.unsubscribe_status(&self.conn, &id);
+                        self.incoming.unsubscribe_scan(&self.conn, &id);
                     }
                 }
             }
@@ -115,6 +116,16 @@ fn start_query(id: String, payload: graphql::Input,
                         match *item {
                             Selection::Field(ref f) if f.name == "status" => {
                                 incoming.subscribe_status(conn,
+                                    &id, &input);
+                            }
+                            Selection::Field(ref f) if f.name == "processes" =>
+                            {
+                                incoming.subscribe_scan(conn,
+                                    &id, &input);
+                            }
+                            Selection::Field(ref f) if f.name == "cgroups" =>
+                            {
+                                incoming.subscribe_scan(conn,
                                     &id, &input);
                             }
                             // TODO(tailhook) maybe validate?

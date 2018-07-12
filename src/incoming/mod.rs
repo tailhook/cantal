@@ -45,6 +45,7 @@ struct ConnImpl {
 struct ConnState {
     // request_id -> query
     status_subscriptions: HashMap<String, Input>,
+    scan_subscriptions: HashMap<String, Input>,
 }
 
 #[derive(Debug, Clone)]
@@ -63,6 +64,7 @@ struct IncomingImpl {
 struct IncomingState {
     connections: HashSet<Connection>,
     status_subscriptions: HashSet<Connection>,
+    scan_subscriptions: HashSet<Connection>,
 }
 
 fn closed(():()) -> &'static str {
@@ -76,6 +78,7 @@ impl Incoming {
             state: Mutex::new(IncomingState {
                 connections: HashSet::new(),
                 status_subscriptions: HashSet::new(),
+                scan_subscriptions: HashSet::new(),
             }),
         }))
      }
@@ -104,6 +107,7 @@ impl Incoming {
                     id, tx,
                     state: Mutex::new(ConnState {
                         status_subscriptions: HashMap::new(),
+                        scan_subscriptions: HashMap::new(),
                     }),
                 }
             ));
@@ -134,12 +138,32 @@ impl Incoming {
      {
         let unsubscribe_all = {
             let mut state = self.0.state.lock().expect("lock is not poisoned");
-            state.status_subscriptions.insert(conn.clone());
+            state.status_subscriptions.remove(conn);
             state.status_subscriptions.len() == 0
         };
         if unsubscribe_all {
             conn.0.state.lock().expect("lock is not poisoned")
                 .status_subscriptions.remove(id);
+        }
+     }
+     pub fn subscribe_scan(&self, conn: &Connection,
+        id: &String, input: &Input)
+     {
+        conn.0.state.lock().expect("lock is not poisoned")
+            .scan_subscriptions.insert(id.clone(), input.clone());
+        self.0.state.lock().expect("lock is not poisoned")
+            .scan_subscriptions.insert(conn.clone());
+     }
+     pub fn unsubscribe_scan(&self, conn: &Connection, id: &String)
+     {
+        let unsubscribe_all = {
+            let mut state = self.0.state.lock().expect("lock is not poisoned");
+            state.scan_subscriptions.remove(conn);
+            state.scan_subscriptions.len() == 0
+        };
+        if unsubscribe_all {
+            conn.0.state.lock().expect("lock is not poisoned")
+                .scan_subscriptions.remove(id);
         }
      }
      pub fn trigger_status_change(&self) {
@@ -148,6 +172,26 @@ impl Incoming {
         for conn in conns {
             let clock = conn.0.state.lock().expect("lock is not poisoned");
             for (id, input) in &clock.status_subscriptions {
+                let result = graphql::ws_response(&self.0.context, &input);
+                let packet = Packet::Text(
+                    to_string(&OutputMessage::Data {
+                        id: id.clone(),
+                        payload: result,
+                    })
+                    .expect("can serialize"));
+                conn.0.tx.unbounded_send(packet)
+                    .map_err(|e| {
+                        trace!("can't reply with ack: {}", e)
+                    }).ok();
+            }
+        }
+     }
+     pub fn trigger_scan_change(&self) {
+        let conns = self.0.state.lock().expect("lock is not poisoned")
+            .scan_subscriptions.clone();
+        for conn in conns {
+            let clock = conn.0.state.lock().expect("lock is not poisoned");
+            for (id, input) in &clock.scan_subscriptions {
                 let result = graphql::ws_response(&self.0.context, &input);
                 let packet = Packet::Text(
                     to_string(&OutputMessage::Data {
@@ -175,6 +219,7 @@ impl Drop for Token {
         let mut state = self.holder.0.state.lock().expect("lock works");
         state.connections.remove(&self.key);
         state.status_subscriptions.remove(&self.key);
+        state.scan_subscriptions.remove(&self.key);
     }
 }
 
