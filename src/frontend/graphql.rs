@@ -1,7 +1,8 @@
 use std::sync::{Arc, RwLock};
 use std::collections::HashMap;
+use std::marker::PhantomData;
 
-use juniper::{InputValue, RootNode, FieldError, execute};
+use juniper::{self, InputValue, RootNode, FieldError, execute};
 use juniper::{Value, ExecutionError};
 use self_meter_http::{Meter};
 use serde_json::{Value as Json, to_value};
@@ -11,7 +12,7 @@ use stats::Stats;
 use frontend::{Request};
 use frontend::routing::Format;
 use frontend::quick_reply::{read_json, respond, respond_status};
-use frontend::status;
+use frontend::{status, cgroups};
 
 
 pub struct ContextRef<'a> {
@@ -28,6 +29,7 @@ pub struct Context {
 pub type Schema<'a> = RootNode<'a, &'a Query, &'a Mutation>;
 
 pub struct Query;
+pub struct Local<'a>(PhantomData<&'a ()>);
 pub struct Mutation;
 
 #[derive(Deserialize, Clone, Debug)]
@@ -59,10 +61,18 @@ pub struct Okay {
     ok: bool,
 }
 
+graphql_object!(<'a> Local<'a>: ContextRef<'a> as "Local" |&self| {
+    field cgroups(&executor) -> Vec<cgroups::CGroup> {
+        cgroups::cgroups(executor.context())
+    }
+});
 
 graphql_object!(<'a> &'a Query: ContextRef<'a> as "Query" |&self| {
     field status(&executor) -> Result<status::GData, FieldError> {
         status::graph(executor.context())
+    }
+    field local(&executor) -> Local<'a> {
+        Local(PhantomData)
     }
 });
 
@@ -157,3 +167,5 @@ impl ErrorWrapper {
         }
     }
 }
+
+impl<'a> juniper::Context for ContextRef<'a> {}

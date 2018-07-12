@@ -8,14 +8,17 @@ use std::collections::HashMap;
 use libc;
 
 use cantal::itertools::{NextValue, NextStr};
-use super::Tip;
+use frontend::graphql::ContextRef;
 use history::Key;
 use scan::cgroups::CGroups;
+use super::Tip;
 
 pub type Pid = u32;
 
 pub struct ReadCache {
     tick: u32,
+    boot_time: u64,
+    page_size: usize,
 }
 
 #[derive(Serialize, Debug)]
@@ -31,6 +34,7 @@ pub struct MinimalProcess {
     pub swap: u64,
     pub num_threads: u32,
     pub start_time: u64,
+    pub start_timestamp: u64,
     pub user_time: u32,
     pub system_time: u32,
     pub child_user_time: u32,
@@ -41,10 +45,13 @@ pub struct MinimalProcess {
     pub cgroup: Option<Arc<String>>,
 }
 
-fn page_size() -> usize {
-    // TODO(tailhook) use env::page_size when that's stabilized
-    return 4096;
-}
+graphql_object!(<'a> &'a MinimalProcess: ContextRef<'a> as "MinimalProcess" |&self| {
+    field pid() -> i32 { self.pid as i32 }
+    field ppid() -> i32 { self.pid as i32 }
+    field rss() -> f64 { self.rss as f64 }
+    field swap() -> f64 { self.swap as f64 }
+    field start_timestamp() -> f64 { self.start_timestamp as f64 }
+});
 
 fn parse_io(pid: Pid) -> Result<(u64, u64), ()> {
     let mut buf = String::with_capacity(512);
@@ -156,29 +163,28 @@ fn read_process(cache: &mut ReadCache, cgroup: Option<&Arc<String>>, pid: Pid)
     let (read_bytes, write_bytes) = try!(parse_io(pid));
     let (uid, gid, swap) = try!(parse_status(pid));
 
+    let state = words.next_str()?.chars().next().unwrap_or('-');
+    let ppid = words.next_value()?;
+    let user_time = words.nth_value(9)?;
+    let system_time = words.next_value()?;
+    let child_user_time = words.next_value()?;
+    let child_system_time = words.next_value()?;
+    let num_threads = words.nth_value(2)?;
+    let stime: u64 = words.nth_value(1)?;
+    let start_time = (stime * 1000) / cache.tick as u64;
+    let start_timestamp = cache.boot_time + start_time;
+    let vsize = words.next_value()?;
+    let rss = words.next_value::<u64>()? * cache.page_size as u64;
+
     return Ok(MinimalProcess {
-        pid: pid,
-        uid: uid,
-        gid: gid,
-        name: name,
-        state: try!(words.next_str()).chars().next().unwrap_or('-'),
-        ppid: try!(words.next_value()),
-        user_time: try!(words.nth_value(9)),
-        system_time: try!(words.next_value()),
-        child_user_time: try!(words.next_value()),
-        child_system_time: try!(words.next_value()),
-        num_threads: try!(words.nth_value(2)),
-        start_time: {
-            let stime: u64 = try!(words.nth_value(1));
-            (stime * 1000) / cache.tick as u64 },
-        vsize: try!(words.next_value()),
-        rss: {
-            let rss: u64 = try!(words.next_value());
-            rss * page_size() as u64},
-        swap,
-        cmdline: cmdline,
-        read_bytes: read_bytes,
-        write_bytes: write_bytes,
+        pid, ppid, uid, gid,
+        name, state,
+        user_time, system_time, child_user_time, child_system_time,
+        num_threads,
+        start_time, start_timestamp,
+        vsize, rss, swap,
+        cmdline,
+        read_bytes, write_bytes,
         cgroup: cgroup.map(|x| x.clone()),
     });
 }
@@ -198,12 +204,34 @@ pub fn read(cache: &mut ReadCache, cgroups: &HashMap<Pid, Arc<String>>)
     .unwrap_or(Vec::new())
 }
 
+fn boot_time() -> u64 {
+    let mut f = BufReader::new(File::open("/proc/stat")
+        .expect("/proc/stat must be readable"));
+    let mut line = String::with_capacity(100);
+    loop {
+        line.truncate(0);
+        f.read_line(&mut line)
+            .expect("/proc/stat must be readable");
+        if line.starts_with("btime ") {
+            return FromStr::from_str(line[6..].trim())
+                .expect("boot time must be parseable");
+        }
+        if line.len() == 0 {
+            panic!("btime must be present in /proc/stat");
+        }
+    }
+}
+
 impl ReadCache {
     pub fn new() -> ReadCache {
         ReadCache {
             tick: unsafe {
                 libc::sysconf(libc::_SC_CLK_TCK) as u32
             },
+            page_size: unsafe {
+                libc::sysconf(libc::_SC_PAGE_SIZE) as usize
+            },
+            boot_time: boot_time(),
         }
     }
 }

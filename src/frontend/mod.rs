@@ -8,9 +8,11 @@ mod query;
 mod quick_reply;
 mod routing;
 mod sockets;
-mod status;
 mod peers;
 mod websocket;
+
+mod status;
+mod cgroups;
 
 use std::sync::{Arc, RwLock};
 
