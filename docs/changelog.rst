@@ -2,6 +2,14 @@ Cantal Changes by Version
 =========================
 
 
+.. _changelog-0.6.4:
+
+Cantal 0.6.4
+------------
+
+* Feature: add ``local.cgroups`` graphql endpoint
+
+
 .. _changelog-0.6.3:
 
 Cantal 0.6.3
