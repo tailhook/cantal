@@ -62,8 +62,10 @@ pub struct Okay {
 }
 
 graphql_object!(<'a> Local<'a>: ContextRef<'a> as "Local" |&self| {
-    field cgroups(&executor) -> Vec<cgroups::CGroup> {
-        cgroups::cgroups(executor.context())
+    field cgroups(&executor, filter: Option<cgroups::Filter>)
+        -> Vec<cgroups::CGroup>
+    {
+        cgroups::cgroups(executor.context(), filter)
     }
 });
 
