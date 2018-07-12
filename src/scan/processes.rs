@@ -45,7 +45,7 @@ pub struct MinimalProcess {
     pub cgroup: Option<Arc<String>>,
 }
 
-graphql_object!(<'a> &'a MinimalProcess: ContextRef<'a> as "MinimalProcess" |&self| {
+graphql_object!(<'a> &'a MinimalProcess: ContextRef<'a> as "Process" |&self| {
     field pid() -> i32 { self.pid as i32 }
     field ppid() -> i32 { self.ppid as i32 }
     field num_threads() -> i32 { self.num_threads as i32 }

@@ -12,7 +12,7 @@ use stats::Stats;
 use frontend::{Request};
 use frontend::routing::Format;
 use frontend::quick_reply::{read_json, respond, respond_status};
-use frontend::{status, cgroups};
+use frontend::{status, cgroups, processes};
 
 
 pub struct ContextRef<'a> {
@@ -66,6 +66,11 @@ graphql_object!(<'a> Local<'a>: ContextRef<'a> as "Local" |&self| {
         -> Vec<cgroups::CGroup>
     {
         cgroups::cgroups(executor.context(), filter)
+    }
+    field processes(&executor, filter: Option<processes::Filter>)
+        -> Vec<&processes::Process>
+    {
+        processes::processes(executor.context(), filter)
     }
 });
 

@@ -3,7 +3,6 @@ mod all_metrics;
 mod disk;
 mod error_page;
 pub mod graphql;
-mod processes;
 mod query;
 mod quick_reply;
 mod routing;
@@ -13,6 +12,7 @@ mod websocket;
 
 mod status;
 mod cgroups;
+mod processes;
 
 use std::sync::{Arc, RwLock};
 
