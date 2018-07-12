@@ -192,7 +192,7 @@ fn read_process(cache: &mut ReadCache, cgroup: Option<&Arc<String>>, pid: Pid)
     let num_threads = words.nth_value(2)?;
     let stime: u64 = words.nth_value(1)?;
     let start_time = (stime * 1000) / cache.tick as u64;
-    let start_timestamp = cache.boot_time + start_time;
+    let start_timestamp = cache.boot_time*1000 + start_time;
     let vsize = words.next_value()?;
     let rss = words.next_value::<u64>()? * cache.page_size as u64;
 
