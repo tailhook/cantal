@@ -47,9 +47,29 @@ pub struct MinimalProcess {
 
 graphql_object!(<'a> &'a MinimalProcess: ContextRef<'a> as "MinimalProcess" |&self| {
     field pid() -> i32 { self.pid as i32 }
-    field ppid() -> i32 { self.pid as i32 }
+    field ppid() -> i32 { self.ppid as i32 }
+    field num_threads() -> i32 { self.num_threads as i32 }
     field rss() -> f64 { self.rss as f64 }
+    field vsize() -> f64 { self.vsize as f64 }
+    field uid() -> f64 { self.uid as f64 }
+    field gid() -> f64 { self.gid as f64 }
     field swap() -> f64 { self.swap as f64 }
+    field name() -> &str { &self.name }
+    field read_bytes() -> f64 { self.read_bytes as f64 }
+    field write_bytes() -> f64 { self.write_bytes as f64 }
+    field cpu_time() -> f64 {
+        (self.user_time + self.system_time) as f64
+    }
+    field accum_cpu_time() -> f64 {
+        (self.user_time + self.system_time +
+         self.child_user_time + self.child_system_time) as f64
+    }
+    field command() -> &str {
+        &self.cmdline[..self.cmdline.find('\0').unwrap_or(0)]
+    }
+    field cgroup() -> Option<&str> {
+        self.cgroup.as_ref().map(|x| &x[..])
+    }
     field start_timestamp() -> f64 { self.start_timestamp as f64 }
 });
 
