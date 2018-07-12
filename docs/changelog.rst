@@ -8,6 +8,7 @@ Cantal 0.6.4
 ------------
 
 * Feature: add ``local.cgroups`` graphql endpoint
+* Feature: add ``local.processes`` graphql endpoint
 
 
 .. _changelog-0.6.3:
