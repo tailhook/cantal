@@ -25,7 +25,7 @@ pub fn machine_id() -> Id {
         error!("Wrong length of /etc/machine-id");
         Err(())
     } else {
-        Id::from_str(&buf[..])
+        Id::from_str(&buf.trim()[..])
         .map_err(|e| error!("Error decoding /etc/machine-id: {}", e))
     }).unwrap_or_else(|_| {
         let mut res = vec![0u8; 16];
