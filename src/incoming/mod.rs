@@ -137,13 +137,13 @@ impl Incoming {
      pub fn unsubscribe_status(&self, conn: &Connection, id: &String)
      {
         let unsubscribe_all = {
-            let mut state = self.0.state.lock().expect("lock is not poisoned");
-            state.status_subscriptions.remove(conn);
+            let mut state = conn.0.state.lock().expect("lock is not poisoned");
+            state.status_subscriptions.remove(id);
             state.status_subscriptions.len() == 0
         };
         if unsubscribe_all {
-            conn.0.state.lock().expect("lock is not poisoned")
-                .status_subscriptions.remove(id);
+            let mut state = self.0.state.lock().expect("lock is not poisoned");
+            state.status_subscriptions.remove(conn);
         }
      }
      pub fn subscribe_scan(&self, conn: &Connection,
@@ -157,13 +157,13 @@ impl Incoming {
      pub fn unsubscribe_scan(&self, conn: &Connection, id: &String)
      {
         let unsubscribe_all = {
-            let mut state = self.0.state.lock().expect("lock is not poisoned");
-            state.scan_subscriptions.remove(conn);
+            let mut state = conn.0.state.lock().expect("lock is not poisoned");
+            state.scan_subscriptions.remove(id);
             state.scan_subscriptions.len() == 0
         };
         if unsubscribe_all {
-            conn.0.state.lock().expect("lock is not poisoned")
-                .scan_subscriptions.remove(id);
+            let mut state = self.0.state.lock().expect("lock is not poisoned");
+            state.scan_subscriptions.remove(conn);
         }
      }
      pub fn trigger_status_change(&self) {
