@@ -118,12 +118,7 @@ fn start_query(id: String, payload: graphql::Input,
                                 incoming.subscribe_status(conn,
                                     &id, &input);
                             }
-                            Selection::Field(ref f) if f.name == "processes" =>
-                            {
-                                incoming.subscribe_scan(conn,
-                                    &id, &input);
-                            }
-                            Selection::Field(ref f) if f.name == "cgroups" =>
+                            Selection::Field(ref f) if f.name == "local" =>
                             {
                                 incoming.subscribe_scan(conn,
                                     &id, &input);
