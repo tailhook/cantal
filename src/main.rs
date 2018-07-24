@@ -79,6 +79,7 @@ mod stats;
 mod storage;
 mod time_util;
 mod watchdog;
+mod remote;
 
 
 fn main() {
@@ -260,6 +261,9 @@ fn run() -> Result<(), Error> {
         gossip: gossip.clone(),
     };
 
+    let incoming = incoming::Incoming::new(&graphql);
+    let (remote, remote_init) = remote::init();
+
     let mydeps = deps.clone();
     let mymeter = meter.clone();
     let mygraphtx = graphql_tx.clone();
@@ -272,7 +276,7 @@ fn run() -> Result<(), Error> {
     });
 
 
-    tk_easyloop::run_forever(|| -> Result<(), Error> {
+    tk_easyloop::run_forever(move || -> Result<(), Error> {
         let ns = ns_env_config::init(&handle())?;
 
         meter.spawn_scanner(&handle());
@@ -282,6 +286,7 @@ fn run() -> Result<(), Error> {
         }
         let incoming = incoming::Incoming::new(&graphql);
         graphql_rx.start(&incoming);
+        remote_init.spawn();
 
         carbon::spawn_sinks(&ns, &configs, &stats)?;
         http::spawn_listener(&ns, &host, port, bind_localhost,
