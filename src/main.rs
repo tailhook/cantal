@@ -73,7 +73,6 @@ mod http;
 mod id;
 mod incoming;
 mod info;
-mod remote;
 mod scan;
 mod scanner;
 mod stats;
