@@ -2,6 +2,14 @@ Cantal Changes by Version
 =========================
 
 
+.. _changelog-0.6.5:
+
+Cantal 0.6.5
+------------
+
+* Feature: add ``peers`` graphql field
+
+
 .. _changelog-0.6.4:
 
 Cantal 0.6.4

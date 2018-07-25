@@ -1,11 +1,13 @@
 use std::collections::HashSet;
 use std::net::SocketAddr;
 use std::sync::Arc;
+use std::time::{UNIX_EPOCH, Duration};
 
 use rand::{thread_rng};
 use rand::seq::sample_iter;
 
 use super::super::scan::time_ms;
+use frontend::graphql::{Timestamp};
 use gossip::Config;
 use time_util::duration_to_millis;
 use id::Id;
@@ -40,6 +42,26 @@ pub struct Peer {
     pub report: Option<(u64, Report)>,
     pub last_report_direct: Option<u64>,
 }
+
+graphql_object!(Peer: () as "Peer" |&self| {
+    field id() -> String { self.id.to_string() }
+    field name() -> &Option<String> { &self.name }
+    field hostname() -> &Option<String> { &self.hostname }
+    field primary_addr() -> Option<String> {
+        self.primary_addr.map(|x| x.to_string())
+    }
+    field addresses() -> Vec<String> {
+        self.addresses.iter().map(|x| x.to_string()).collect()
+    }
+    field known_since() -> Timestamp {
+        Timestamp(UNIX_EPOCH + Duration::from_millis(self.known_since))
+    }
+    field last_report_direct() -> Option<Timestamp> {
+        self.last_report_direct.map(|x| {
+            Timestamp(UNIX_EPOCH + Duration::from_millis(x))
+        })
+    }
+});
 
 impl Peer {
     pub fn new(id: Id) -> Peer {

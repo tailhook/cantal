@@ -257,6 +257,7 @@ fn run() -> Result<(), Error> {
     let graphql = frontend::graphql::Context {
         meter: meter.clone(),
         stats: stats.clone(),
+        gossip: gossip.clone(),
     };
     let incoming = incoming::Incoming::new(&graphql);
 

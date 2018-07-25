@@ -13,7 +13,7 @@ use gossip::peer::Peer;
 ///
 /// This structure may represent either working gossip subsystem or a no-op
 /// methods.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Gossip {
     sender: Option<UnboundedSender<Command>>,
     info: Arc<Mutex<Info>>,

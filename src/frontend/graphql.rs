@@ -1,14 +1,18 @@
 use std::sync::{Arc, RwLock};
 use std::collections::HashMap;
 use std::marker::PhantomData;
+use std::time::{SystemTime, UNIX_EPOCH};
 
+use gossip::Gossip;
 use juniper::{self, InputValue, RootNode, FieldError, execute};
 use juniper::{Value, ExecutionError};
 use self_meter_http::{Meter};
 use serde_json::{Value as Json, to_value};
 use tk_http::Status;
 
+use time_util::duration_to_millis;
 use stats::Stats;
+use gossip::Peer;
 use frontend::{Request};
 use frontend::routing::Format;
 use frontend::quick_reply::{read_json, respond, respond_status};
@@ -18,12 +22,14 @@ use frontend::{status, cgroups, processes};
 pub struct ContextRef<'a> {
     pub stats: &'a Stats,
     pub meter: &'a Meter,
+    pub gossip: &'a Gossip,
 }
 
 #[derive(Clone, Debug)]
 pub struct Context {
     pub stats: Arc<RwLock<Stats>>,
     pub meter: Meter,
+    pub gossip: Gossip,
 }
 
 pub type Schema<'a> = RootNode<'a, &'a Query, &'a Mutation>;
@@ -61,6 +67,8 @@ pub struct Okay {
     ok: bool,
 }
 
+pub struct Timestamp(pub SystemTime);
+
 graphql_object!(<'a> Local<'a>: ContextRef<'a> as "Local" |&self| {
     field cgroups(&executor, filter: Option<cgroups::Filter>)
         -> Vec<cgroups::CGroup>
@@ -81,6 +89,9 @@ graphql_object!(<'a> &'a Query: ContextRef<'a> as "Query" |&self| {
     field local(&executor) -> Local<'a> {
         Local(PhantomData)
     }
+    field peers(&executor) -> Vec<Arc<Peer>> {
+        executor.context().gossip.get_peers()
+    }
 });
 
 graphql_object!(<'a> &'a Mutation: ContextRef<'a> as "Mutation" |&self| {
@@ -89,16 +100,30 @@ graphql_object!(<'a> &'a Mutation: ContextRef<'a> as "Mutation" |&self| {
     }
 });
 
+graphql_scalar!(Timestamp {
+    description: "A timestamp transferred as a number of milliseconds"
+
+    resolve(&self) -> Value {
+        Value::float(duration_to_millis(self.0.duration_since(UNIX_EPOCH)
+            .expect("time always in future"))
+            as f64)
+    }
+
+    from_input_value(_v: &InputValue) -> Option<Timestamp> {
+        unimplemented!();
+    }
+});
+
 pub fn serve<S: 'static>(context: &Context, format: Format)
     -> Request<S>
 {
-    let stats = context.stats.clone();
-    let meter = context.meter.clone();
+    let ctx = context.clone();
     read_json(move |input: Input, e| {
-        let stats: &Stats = &*stats.read().expect("stats not poisoned");
+        let stats: &Stats = &*ctx.stats.read().expect("stats not poisoned");
         let context = ContextRef {
             stats,
-            meter: &meter,
+            meter: &ctx.meter,
+            gossip: &ctx.gossip,
         };
 
         let variables = input.variables.unwrap_or_else(HashMap::new);
@@ -137,6 +162,7 @@ pub fn ws_response<'a>(context: &Context, input: &'a Input) -> Output {
     let context = ContextRef {
         stats,
         meter: &context.meter,
+        gossip: &context.gossip,
     };
 
     let empty = HashMap::new();

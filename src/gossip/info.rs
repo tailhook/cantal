@@ -11,6 +11,7 @@ use gossip::peer::Peer;
 use gossip::proto::FriendInfo;
 
 
+#[derive(Debug)]
 pub struct Info {
     pub peers: HashMap<Id, Arc<Peer>>,
     pub has_remote: bool,
