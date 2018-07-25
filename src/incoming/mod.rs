@@ -6,7 +6,7 @@ use std::borrow::Borrow;
 use futures::Stream;
 use futures::stream::MapErr;
 use futures::sync::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
-use graphql_parser::query::OperationDefinition::{Subscription, Query};
+use graphql_parser::query::OperationDefinition as Op;
 use graphql_parser::query::{Definition, Document, Query as QueryParams};
 use serde_json::{to_string};
 use tk_bufstream::{WriteFramed, ReadFramed};
@@ -35,6 +35,13 @@ pub struct Token {
     key: Id,
 }
 
+#[derive(Debug, Eq, PartialEq, Clone, Hash)]
+pub enum Subscription {
+    Status,
+    Peers,
+    Scan,
+}
+
 #[derive(Debug)]
 struct ConnImpl {
     id: Id,
@@ -43,9 +50,8 @@ struct ConnImpl {
 }
 #[derive(Debug)]
 struct ConnState {
-    // request_id -> query
-    status_subscriptions: HashMap<String, Input>,
-    scan_subscriptions: HashMap<String, Input>,
+    // subscription -> request_id -> query
+    subscriptions: HashMap<Subscription, HashMap<String, Input>>,
 }
 
 #[derive(Debug, Clone)]
@@ -63,8 +69,7 @@ struct IncomingImpl {
 #[derive(Debug)]
 struct IncomingState {
     connections: HashSet<Connection>,
-    status_subscriptions: HashSet<Connection>,
-    scan_subscriptions: HashSet<Connection>,
+    subscriptions: HashMap<Subscription, HashSet<Connection>>,
 }
 
 fn closed(():()) -> &'static str {
@@ -77,8 +82,7 @@ impl Incoming {
             context: context.clone(),
             state: Mutex::new(IncomingState {
                 connections: HashSet::new(),
-                status_subscriptions: HashSet::new(),
-                scan_subscriptions: HashSet::new(),
+                subscriptions: HashMap::new(),
             }),
         }))
      }
@@ -106,8 +110,7 @@ impl Incoming {
                 ConnImpl {
                     id, tx,
                     state: Mutex::new(ConnState {
-                        status_subscriptions: HashMap::new(),
-                        scan_subscriptions: HashMap::new(),
+                        subscriptions: HashMap::new(),
                     }),
                 }
             ));
@@ -126,72 +129,41 @@ impl Incoming {
             holder: self.clone(),
         }, fut);
      }
-     pub fn subscribe_status(&self, conn: &Connection,
+     pub fn subscribe(&self, conn: &Connection, subscription: Subscription,
         id: &String, input: &Input)
      {
         conn.0.state.lock().expect("lock is not poisoned")
-            .status_subscriptions.insert(id.clone(), input.clone());
+            .subscriptions.entry(subscription.clone())
+            .or_insert_with(HashMap::new)
+            .insert(id.clone(), input.clone());
         self.0.state.lock().expect("lock is not poisoned")
-            .status_subscriptions.insert(conn.clone());
+            .subscriptions.entry(subscription)
+            .or_insert_with(HashSet::new)
+            .insert(conn.clone());
      }
-     pub fn unsubscribe_status(&self, conn: &Connection, id: &String)
+     pub fn unsubscribe_id(&self, conn: &Connection, id: &String)
      {
-        let unsubscribe_all = {
-            let mut state = conn.0.state.lock().expect("lock is not poisoned");
-            state.status_subscriptions.remove(id);
-            state.status_subscriptions.len() == 0
-        };
-        if unsubscribe_all {
+        if let Some(subscription) = conn.unsubscribe_id(id) {
             let mut state = self.0.state.lock().expect("lock is not poisoned");
-            state.status_subscriptions.remove(conn);
-        }
-     }
-     pub fn subscribe_scan(&self, conn: &Connection,
-        id: &String, input: &Input)
-     {
-        conn.0.state.lock().expect("lock is not poisoned")
-            .scan_subscriptions.insert(id.clone(), input.clone());
-        self.0.state.lock().expect("lock is not poisoned")
-            .scan_subscriptions.insert(conn.clone());
-     }
-     pub fn unsubscribe_scan(&self, conn: &Connection, id: &String)
-     {
-        let unsubscribe_all = {
-            let mut state = conn.0.state.lock().expect("lock is not poisoned");
-            state.scan_subscriptions.remove(id);
-            state.scan_subscriptions.len() == 0
-        };
-        if unsubscribe_all {
-            let mut state = self.0.state.lock().expect("lock is not poisoned");
-            state.scan_subscriptions.remove(conn);
-        }
-     }
-     pub fn trigger_status_change(&self) {
-        let conns = self.0.state.lock().expect("lock is not poisoned")
-            .status_subscriptions.clone();
-        for conn in conns {
-            let clock = conn.0.state.lock().expect("lock is not poisoned");
-            for (id, input) in &clock.status_subscriptions {
-                let result = graphql::ws_response(&self.0.context, &input);
-                let packet = Packet::Text(
-                    to_string(&OutputMessage::Data {
-                        id: id.clone(),
-                        payload: result,
-                    })
-                    .expect("can serialize"));
-                conn.0.tx.unbounded_send(packet)
-                    .map_err(|e| {
-                        trace!("can't reply with ack: {}", e)
-                    }).ok();
+            let remove = state.subscriptions.get_mut(&subscription)
+                .map(|x| {
+                    x.remove(conn);
+                    x.len() == 0
+                }).unwrap_or(false);
+            if remove {
+                state.subscriptions.remove(&subscription);
             }
         }
      }
-     pub fn trigger_scan_change(&self) {
+     pub fn trigger(&self, subscription: &Subscription) {
         let conns = self.0.state.lock().expect("lock is not poisoned")
-            .scan_subscriptions.clone();
+            .subscriptions.get(&subscription)
+            .map(|x| x.clone())
+            .unwrap_or_else(HashSet::new);
         for conn in conns {
             let clock = conn.0.state.lock().expect("lock is not poisoned");
-            for (id, input) in &clock.scan_subscriptions {
+            let items = clock.subscriptions.get(&subscription);
+            for (id, input) in items.iter().flat_map(|x| *x) {
                 let result = graphql::ws_response(&self.0.context, &input);
                 let packet = Packet::Text(
                     to_string(&OutputMessage::Data {
@@ -218,8 +190,10 @@ impl Drop for Token {
     fn drop(&mut self) {
         let mut state = self.holder.0.state.lock().expect("lock works");
         state.connections.remove(&self.key);
-        state.status_subscriptions.remove(&self.key);
-        state.scan_subscriptions.remove(&self.key);
+        state.subscriptions.retain(|_k, v| {
+            v.remove(&self.key);
+            return !v.is_empty();
+        })
     }
 }
 
@@ -236,12 +210,28 @@ impl ::std::hash::Hash for Connection {
     }
 }
 
+impl Connection {
+    fn unsubscribe_id(&self, id: &String) -> Option<Subscription> {
+        let mut state = self.0.state.lock().expect("lock is not poisoned");
+        for (k, v) in &mut state.subscriptions {
+            if v.contains_key(id) {
+                v.remove(id);
+                if v.len() == 0 {
+                    return Some(k.clone());
+                }
+                break;
+            }
+        }
+        return None;
+    }
+}
+
 // TODO(tailhook) move somewhere
 pub fn subscription_to_query(doc: Document) -> Document {
     let definitions = doc.definitions.into_iter().map(|def| {
         match def {
-            Definition::Operation(Subscription(s)) => {
-                Definition::Operation(Query(QueryParams {
+            Definition::Operation(Op::Subscription(s)) => {
+                Definition::Operation(Op::Query(QueryParams {
                     position: s.position,
                     name: s.name,
                     variable_definitions: s.variable_definitions,

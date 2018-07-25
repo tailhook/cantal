@@ -2,11 +2,11 @@ use futures::future::{FutureResult, ok, err};
 use tk_http::websocket::{self, Frame, Packet};
 use serde_json::{from_str, to_string};
 use graphql_parser::parse_query;
-use graphql_parser::query::OperationDefinition::{Subscription};
+use graphql_parser::query::OperationDefinition as Op;
 use graphql_parser::query::{Definition, Document};
 use graphql_parser::query::{Selection};
 
-use incoming::{Connection, Incoming};
+use incoming::{Connection, Incoming, Subscription};
 use incoming::{subscription_to_query};
 use frontend::graphql;
 
@@ -67,8 +67,7 @@ impl websocket::Dispatcher for Dispatcher {
                             &self.graphql, &self.incoming);
                     }
                     InputMessage::Stop {id} => {
-                        self.incoming.unsubscribe_status(&self.conn, &id);
-                        self.incoming.unsubscribe_scan(&self.conn, &id);
+                        self.incoming.unsubscribe_id(&self.conn, &id);
                     }
                 }
             }
@@ -87,7 +86,7 @@ impl websocket::Dispatcher for Dispatcher {
 fn has_subscription(doc: &Document) -> bool {
     for d in &doc.definitions {
         match *d {
-            Definition::Operation(Subscription(_)) => {
+            Definition::Operation(Op::Subscription(_)) => {
                 return true;
             }
             _ => {}
@@ -111,16 +110,21 @@ fn start_query(id: String, payload: graphql::Input,
         };
         for d in &q.definitions {
             match *d {
-                Definition::Operation(Subscription(ref sub)) => {
+                Definition::Operation(Op::Subscription(ref sub)) => {
                     for item in &sub.selection_set.items {
                         match *item {
                             Selection::Field(ref f) if f.name == "status" => {
-                                incoming.subscribe_status(conn,
+                                incoming.subscribe(conn, Subscription::Status,
                                     &id, &input);
                             }
                             Selection::Field(ref f) if f.name == "local" =>
                             {
-                                incoming.subscribe_scan(conn,
+                                incoming.subscribe(conn, Subscription::Scan,
+                                    &id, &input);
+                            }
+                            Selection::Field(ref f) if f.name == "peers" =>
+                            {
+                                incoming.subscribe(conn, Subscription::Peers,
                                     &id, &input);
                             }
                             // TODO(tailhook) maybe validate?
