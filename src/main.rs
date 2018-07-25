@@ -184,6 +184,7 @@ fn run() -> Result<(), Error> {
     let mut deps = Dependencies::new();
     deps.insert(stats.clone());
 
+    let (graphql_tx, graphql_rx) = incoming::channel::new();
     let (gossip, mut gossip_init) = cluster_name.as_ref().map(|cluster| {
         gossip::Config::new()
         .bind(address)
@@ -259,15 +260,13 @@ fn run() -> Result<(), Error> {
         stats: stats.clone(),
         gossip: gossip.clone(),
     };
-    let incoming = incoming::Incoming::new(&graphql);
 
     let mydeps = deps.clone();
     let mymeter = meter.clone();
-    let myinc = incoming.clone();
     let _scan = thread::spawn(move || {
         let _watchdog = watchdog::ExitOnReturn(82);
         mymeter.track_current_thread("scan");
-        scanner::scan_loop(mydeps, scan_interval, *backlog_time, &myinc);
+        scanner::scan_loop(mydeps, scan_interval, *backlog_time, &graphql_tx);
     });
 
 
@@ -279,6 +278,8 @@ fn run() -> Result<(), Error> {
         if let Some(gossip) = gossip_init.take() {
             gossip.spawn(&storage)?;
         }
+        let incoming = incoming::Incoming::new(&graphql);
+        graphql_rx.start(&incoming);
 
         carbon::spawn_sinks(&ns, &configs, &stats)?;
         http::spawn_listener(&ns, &host, port, bind_localhost,

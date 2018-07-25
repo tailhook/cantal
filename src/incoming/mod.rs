@@ -19,6 +19,7 @@ use frontend::graphql::{Input, Context};
 use incoming::dispatcher::{OutputMessage};
 
 mod dispatcher;
+pub mod channel;
 
 lazy_static! {
     static ref WEBSOCK_CONFIG: Arc<Config> = Config::new()

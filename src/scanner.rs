@@ -18,7 +18,7 @@ use cantal::Value;
 use history::VersionInfo;
 use storage::{Storage, MetricBuffer};
 
-use incoming::{Incoming, Subscription};
+use incoming::{channel::Sender as Incoming, Subscription};
 
 
 const SNAPSHOT_INTERVAL: u64 = 60000;
@@ -112,8 +112,7 @@ pub fn scan_loop(deps: Dependencies, interval: u32, backlog_time: Duration,
                 }).map_err(|e| error!("Can't encode history: {}", e)).ok();
             }
         }
-        incoming.trigger(&Subscription::Status);
-        incoming.trigger(&Subscription::Scan);
+        incoming.trigger(Subscription::Scan);
 
         unsafe { usleep(((interval as i64 - time_ms() as i64 % interval as i64)*1000) as u32) };
     }
