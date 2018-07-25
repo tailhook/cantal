@@ -33,7 +33,7 @@ fn insert(triggered: &mut HashSet<Subscription>, s: Subscription) {
     match s {
         Scan => { triggered.insert(Status); }
         Status => {},
-        Peers => { triggered.insert(Status); }
+        Peers => {},
     }
     triggered.insert(s);
 }
@@ -47,6 +47,11 @@ impl Receiver {
             me.into_future()
             .map_err(|((), _stream)| {
                 error!("Subscription sender closed");
+            })
+            .and_then(|data| {
+                timeout(Duration::from_millis(10))
+                .map_err(|_| unreachable!())
+                .map(move |_| data)
             })
             .and_then(move |(item, mut me)| {
                 let first = match item {

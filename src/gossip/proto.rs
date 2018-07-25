@@ -26,6 +26,7 @@ use id::Id as HostId;
 use storage::Storage;
 use time_util::time_ms;
 use libcantal::Integer;
+use incoming::{self, Subscription};
 
 lazy_static! {
     pub static ref NUM_PEERS: Integer = Integer::new();
@@ -62,6 +63,7 @@ pub struct Proto<S> {
     storage: Arc<Storage>,
     input_buf: Vec<u8>,
     output_buf: Vec<u8>,
+    incoming: incoming::channel::Sender,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -104,7 +106,7 @@ pub struct FriendInfo {
 
 impl<S: Stream<Item=Command, Error=Void>> Proto<S> {
     pub fn new(info: &Arc<Mutex<Info>>, config: &Arc<Config>, stream: S,
-        storage: &Arc<Storage>)
+        storage: &Arc<Storage>, incoming: &incoming::channel::Sender)
        -> Result<Proto<S>, InitError>
     {
         let s = UdpSocket::bind(&config.bind, &tk_easyloop::handle())
@@ -123,6 +125,7 @@ impl<S: Stream<Item=Command, Error=Void>> Proto<S> {
             clock: timeout(config.interval),
             input_buf: vec![0; config.max_packet_size],
             output_buf: vec![0; config.max_packet_size],
+            incoming: incoming.clone(),
         })
     }
 }
@@ -369,6 +372,7 @@ impl<S: Stream<Item=Command, Error=Void>> Proto<S> {
         if update {
             self.update_metrics();
         }
+        self.incoming.trigger(Subscription::Peers);
     }
     fn send_gossip(&mut self, addr: SocketAddr) {
         debug!("Sending gossip {}", addr);
