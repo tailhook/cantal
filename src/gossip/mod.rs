@@ -18,6 +18,7 @@ use void::Void;
 
 use id::Id;
 use incoming;
+use remote;
 use storage::Storage;
 
 pub use self::peer::Peer;
@@ -80,7 +81,8 @@ pub fn init(cfg: &Arc<Config>) -> (Gossip, GossipInit) {
 
 impl GossipInit {
     pub fn spawn(self, storage: &Arc<Storage>,
-        incoming: &incoming::channel::Sender)
+        incoming: &incoming::channel::Sender,
+        remote: &remote::Remote)
         -> Result<(), InitError>
     {
         let rx = self.receiver
@@ -91,6 +93,7 @@ impl GossipInit {
             rx,
             storage,
             incoming,
+            remote,
         )?.then(|res| -> Result<(), ()> {
             error!("FATAL ERROR: Gossip future is exited: {:?}", res);
             panic!("gossip future is exited");

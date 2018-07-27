@@ -282,11 +282,11 @@ fn run() -> Result<(), Error> {
         meter.spawn_scanner(&handle());
 
         if let Some(gossip) = gossip_init {
-            gossip.spawn(&storage, &graphql_tx)?;
+            gossip.spawn(&storage, &graphql_tx, &remote)?;
         }
         let incoming = incoming::Incoming::new(&graphql);
         graphql_rx.start(&incoming);
-        remote_init.spawn();
+        remote_init.spawn(&gossip);
 
         carbon::spawn_sinks(&ns, &configs, &stats)?;
         http::spawn_listener(&ns, &host, port, bind_localhost,

@@ -6,16 +6,17 @@ use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 use std::time::{Instant, Duration};
 
-use serde_cbor::from_slice;
-use serde_cbor::ser::to_writer;
 use futures::{Future, Async, Stream};
+use libcantal::Integer;
 use quick_error::ResultExt;
 use rand::{thread_rng, Rng};
+use rustc_serialize::json::Json;
+use serde_cbor::from_slice;
+use serde_cbor::ser::to_writer;
 use tk_easyloop::{self, timeout};
 use tokio_core::net::UdpSocket;
 use tokio_core::reactor::Timeout;
 use void::{Void, unreachable};
-use rustc_serialize::json::Json;
 
 use gossip::command::Command;
 use gossip::Config;
@@ -25,8 +26,8 @@ use gossip::peer::{Report, Peer};
 use id::Id as HostId;
 use storage::Storage;
 use time_util::time_ms;
-use libcantal::Integer;
 use incoming::{self, Subscription};
+use remote;
 
 lazy_static! {
     pub static ref NUM_PEERS: Integer = Integer::new();
@@ -64,6 +65,7 @@ pub struct Proto<S> {
     input_buf: Vec<u8>,
     output_buf: Vec<u8>,
     incoming: incoming::channel::Sender,
+    remote: remote::Remote,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -106,7 +108,8 @@ pub struct FriendInfo {
 
 impl<S: Stream<Item=Command, Error=Void>> Proto<S> {
     pub fn new(info: &Arc<Mutex<Info>>, config: &Arc<Config>, stream: S,
-        storage: &Arc<Storage>, incoming: &incoming::channel::Sender)
+        storage: &Arc<Storage>, incoming: &incoming::channel::Sender,
+        remote: &remote::Remote)
        -> Result<Proto<S>, InitError>
     {
         let s = UdpSocket::bind(&config.bind, &tk_easyloop::handle())
@@ -126,6 +129,7 @@ impl<S: Stream<Item=Command, Error=Void>> Proto<S> {
             input_buf: vec![0; config.max_packet_size],
             output_buf: vec![0; config.max_packet_size],
             incoming: incoming.clone(),
+            remote: remote.clone(),
         })
     }
 }
@@ -371,6 +375,7 @@ impl<S: Stream<Item=Command, Error=Void>> Proto<S> {
         }
         if update {
             self.update_metrics();
+            self.remote.peers_updated();
         }
         self.incoming.trigger(Subscription::Peers);
     }
