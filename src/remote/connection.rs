@@ -1,3 +1,4 @@
+use std::mem;
 use std::net::SocketAddr;
 
 use remote::Shared;
@@ -8,6 +9,8 @@ use tokio::net::{TcpStream, ConnectFuture};
 
 pub enum State {
     Connecting(ConnectFuture),
+    Connected(TcpStream),
+    Void,
 }
 
 pub struct Connection {
@@ -28,12 +31,33 @@ impl Future for Connection {
     type Item = ();
     type Error = ();
     fn poll(&mut self) -> Result<Async<()>, ()> {
-        unimplemented!();
+        use self::State::*;
+        loop {
+            match mem::replace(&mut self.state, Void) {
+                Connecting(mut f) => match f.poll() {
+                    Ok(Async::NotReady) => {
+                        self.state = Connecting(f);
+                        return Ok(Async::NotReady);
+                    }
+                    Ok(Async::Ready(conn)) => {
+                        self.state = Connected(conn);
+                    }
+                    Err(e) => {
+                        error!("Error connecting to {}: {}", self.id, e);
+                        return Err(());
+                    }
+                }
+                Connected(conn) => unimplemented!("connected"),
+                Void => unreachable!("void connection state"),
+            };
+        }
+        Ok(Async::NotReady)
     }
 }
 
 impl Connection {
     pub fn new(id: &Id, addr: SocketAddr, shared: &Shared) -> Connection {
+        info!("Connecting to {} via {}", id, addr);
         Connection {
             id: id.clone(),
             shared: shared.clone(),
