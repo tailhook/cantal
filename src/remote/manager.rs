@@ -186,7 +186,10 @@ impl State {
             self.throttled.remove(drop);
             assert!(!self.active.contains(drop));
         }
-        self.timer.reset(deadline);
+        if !new {
+            self.timer.reset(deadline);
+            self.timer.poll().expect("timer never fails");
+        }
         return new;
     }
 }
