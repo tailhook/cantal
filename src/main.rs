@@ -264,8 +264,6 @@ fn run() -> Result<(), Error> {
         remote: remote.clone(),
     };
 
-    let incoming = incoming::Incoming::new(&graphql);
-
     let mydeps = deps.clone();
     let mymeter = meter.clone();
     let mygraphtx = graphql_tx.clone();
