@@ -25,11 +25,11 @@ pub struct Remote {
     tx: UnboundedSender<Message>,
 }
 
-struct SharedState {
+pub struct SharedState {
     dead_connections: Vec<Id>,
 }
 
-type Shared = Arc<Mutex<SharedState>>;
+pub type Shared = Arc<Mutex<SharedState>>;
 
 pub fn init() -> (Remote, Init) {
     let (tx, rx) = unbounded();

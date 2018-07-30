@@ -31,11 +31,11 @@ impl Future for Connection {
 }
 
 impl Connection {
-    pub fn new(id: &Id, addr: SocketAddr, shared: &Shared) {
+    pub fn new(id: &Id, addr: SocketAddr, shared: &Shared) -> Connection {
         Connection {
             id: id.clone(),
             shared: shared.clone(),
-            state: self.state.clone(),
+            state: unimplemented!(),
         }
     }
 }
