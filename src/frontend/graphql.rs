@@ -10,6 +10,7 @@ use self_meter_http::{Meter};
 use serde_json::{Value as Json, to_value};
 use tk_http::Status;
 
+use remote::Remote;
 use time_util::duration_to_millis;
 use stats::Stats;
 use gossip::Peer;
@@ -23,6 +24,7 @@ pub struct ContextRef<'a> {
     pub stats: &'a Stats,
     pub meter: &'a Meter,
     pub gossip: &'a Gossip,
+    pub remote: &'a Remote,
 }
 
 #[derive(Clone, Debug)]
@@ -30,6 +32,7 @@ pub struct Context {
     pub stats: Arc<RwLock<Stats>>,
     pub meter: Meter,
     pub gossip: Gossip,
+    pub remote: Remote,
 }
 
 pub type Schema<'a> = RootNode<'a, &'a Query, &'a Mutation>;
@@ -124,6 +127,7 @@ pub fn serve<S: 'static>(context: &Context, format: Format)
             stats,
             meter: &ctx.meter,
             gossip: &ctx.gossip,
+            remote: &ctx.remote,
         };
 
         let variables = input.variables.unwrap_or_else(HashMap::new);
@@ -163,6 +167,7 @@ pub fn ws_response<'a>(context: &Context, input: &'a Input) -> Output {
         stats,
         meter: &context.meter,
         gossip: &context.gossip,
+        remote: &context.remote,
     };
 
     let empty = HashMap::new();

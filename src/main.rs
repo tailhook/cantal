@@ -256,14 +256,15 @@ fn run() -> Result<(), Error> {
         .ok();
     }
 
+    let (remote, remote_init) = remote::init();
     let graphql = frontend::graphql::Context {
         meter: meter.clone(),
         stats: stats.clone(),
         gossip: gossip.clone(),
+        remote: remote.clone(),
     };
 
     let incoming = incoming::Incoming::new(&graphql);
-    let (remote, remote_init) = remote::init();
 
     let mydeps = deps.clone();
     let mymeter = meter.clone();

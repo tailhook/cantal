@@ -4,8 +4,10 @@ use remote::Shared;
 use id::Id;
 
 use futures::{Future, Async};
+use tokio::net::{TcpStream, ConnectFuture};
 
 pub enum State {
+    Connecting(ConnectFuture),
 }
 
 pub struct Connection {
@@ -35,7 +37,7 @@ impl Connection {
         Connection {
             id: id.clone(),
             shared: shared.clone(),
-            state: unimplemented!(),
+            state: State::Connecting(TcpStream::connect(&addr)),
         }
     }
 }

@@ -48,4 +48,9 @@ impl Remote {
             .map_err(|_| error!("can't send message to remote subsystem"))
             .ok();
     }
+    pub fn start(&self) {
+        self.tx.unbounded_send(Message::Start)
+            .map_err(|_| error!("can't send message to remote subsystem"))
+            .ok();
+    }
 }

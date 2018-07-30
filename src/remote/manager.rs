@@ -94,9 +94,12 @@ impl Future for Manager {
     fn poll(&mut self) -> Result<Async<()>, ()> {
         self.receive_messages();
         if let Some(ref mut state) = self.state {
-            while state.new_connections(&self.gossip) {
+            loop {
                 state.poll_futures();
                 state.dead_connections();
+                if !state.new_connections(&self.gossip) {
+                    break;
+                }
             }
         }
         Ok(Async::NotReady)

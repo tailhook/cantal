@@ -97,7 +97,8 @@ impl<S> DispatcherTrait<S> for Dispatcher
                 serve_error_page(Http::NotImplemented)
             }
             StartRemote(_) => {  // POST
-                serve_error_page(Http::NotImplemented)
+                self.graphql.remote.start();
+                serve_error_page(Http::NoContent)
             }
             Query(format) => {   // POST
                 Ok(query::serve(&self.stats, format))
