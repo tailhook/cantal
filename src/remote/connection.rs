@@ -77,7 +77,7 @@ impl Future for Connection {
                     Ok(Async::Ready(conn)) => {
                         self.state = Handshake(
                             HandshakeProto::new(conn, SimpleAuthorizer::new(
-                                "cantal.internal", "/")));
+                                "cantal.internal", "/graphql")));
                     }
                     Err(e) => {
                         error!("Error connecting to {}: {}", self.id, e);
