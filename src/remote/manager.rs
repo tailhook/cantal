@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::cmp::min;
 use std::mem;
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::{Arc, MutexGuard, atomic::Ordering};
 use std::time::{Duration, Instant};
 
 use futures::{Future, Stream, Async};
@@ -24,6 +24,7 @@ pub const MAX_TIME: Duration = Duration::from_secs(15);
 pub struct Manager {
     rx: UnboundedReceiver<Message>,
     gossip: Gossip,
+    shared: Shared,
     state: Option<State>,
 }
 
@@ -41,10 +42,14 @@ pub struct State {
 }
 
 impl Manager {
-    pub fn new(rx: UnboundedReceiver<Message>, gossip: &Gossip) -> Manager {
+    pub fn new(rx: UnboundedReceiver<Message>,
+        gossip: &Gossip, shared: &Shared)
+        -> Manager
+    {
         Manager {
             rx,
             gossip: gossip.clone(),
+            shared: shared.clone(),
             state: None,
         }
     }
@@ -63,16 +68,16 @@ impl Manager {
                 Start => {
                     if self.state.is_none() {
                         let mut state = State {
-                            shared: Arc::new(Mutex::new(SharedState {
-                                dead_connections: Vec::new(),
-                            })),
+                            shared: self.shared.clone(),
                             active: HashSet::new(),
                             futures: FuturesUnordered::new(),
                             throttled: HashMap::new(),
                             timer: Delay::new(now()),
                         };
                         state.check_connections(self.gossip.get_peers());
+                        state.shared.started.store(true, Ordering::SeqCst);
                         self.state = Some(state);
+                        self.gossip.notify_remote(true);
                     }
                 }
                 PeersUpdated => {
@@ -108,7 +113,7 @@ impl Future for Manager {
 
 impl State {
     fn shared(&mut self) -> MutexGuard<SharedState> {
-        self.shared.lock()
+        self.shared.state.lock()
             .expect("remote state is not poisoned")
     }
     fn poll_futures(&mut self) {

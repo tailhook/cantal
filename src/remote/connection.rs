@@ -56,7 +56,7 @@ impl Stream for Packetize {
 
 impl Drop for Connection {
     fn drop(&mut self) {
-        let mut state = self.shared.lock()
+        let mut state = self.shared.state.lock()
             .expect("shared object is not poisoned");
         state.dead_connections.push(self.id.clone());
     }

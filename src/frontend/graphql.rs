@@ -17,7 +17,7 @@ use gossip::Peer;
 use frontend::{Request};
 use frontend::routing::Format;
 use frontend::quick_reply::{read_json, respond, respond_status};
-use frontend::{status, cgroups, processes};
+use frontend::{status, cgroups, processes, peers};
 
 
 pub struct ContextRef<'a> {
@@ -92,8 +92,8 @@ graphql_object!(<'a> &'a Query: ContextRef<'a> as "Query" |&self| {
     field local(&executor) -> Local<'a> {
         Local(PhantomData)
     }
-    field peers(&executor) -> Vec<Arc<Peer>> {
-        executor.context().gossip.get_peers()
+    field peers(&executor, filter: Option<peers::Filter>) -> Vec<Arc<Peer>> {
+        peers::get(executor.context(), filter)
     }
 });
 

@@ -17,7 +17,7 @@ const client = new ApolloClient({
     cache: new InMemoryCache(),
 });
 
-export var beacon
+export var beacon = {}
 
 let q = client.subscribe({
   query: gql`
@@ -37,6 +37,7 @@ let q = client.subscribe({
                 tipValues,
                 fineValues,
                 processes,
+                hasRemote,
             }
         }
     `,

@@ -162,7 +162,7 @@ view self_status(beacon):
       `${beacon.scanDuration}ms`
     " "
     store @expand = bool | init(false)
-    if beacon:
+    if beacon.selfReport and beacon.threadsReport:
       self_meter.small(beacon.selfReport, beacon.threadsReport)
       <button.pure-button.meter-btn>
         link {click} toggle(@expand) -> @expand
@@ -180,7 +180,7 @@ view main(version):
       <div.pure-menu>
         <div.hanging-button>
           <label>
-            let on = false // remote_enabled()
+            let on = beacon.hasRemote
             let rtr = @router
             <input.ios-switch.bigswitch.pregreen?(on).blue?(on)
               type="checkbox" value='ok' checked=@router.remote>
@@ -229,7 +229,7 @@ view main(version):
         else:
           @router.page
       else:
-        if false: //remote_enabled():
+        if beacon.hasRemote:
           if @router.page == 'peers':
             peers()
           elif @router.page == 'list':

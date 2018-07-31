@@ -55,7 +55,6 @@ impl Gossip {
         return (info.peers.len(), num_remote);
     }
 
-    #[allow(dead_code)] // temporarily
     pub fn notify_remote(&self, value: bool) {
         let mut info = self.info.lock().expect("gossip is not poisoned");
         info.has_remote = value;

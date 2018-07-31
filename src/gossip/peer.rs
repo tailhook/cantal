@@ -47,6 +47,7 @@ graphql_object!(Peer: () as "Peer" |&self| {
     field id() -> String { self.id.to_string() }
     field name() -> &Option<String> { &self.name }
     field hostname() -> &Option<String> { &self.hostname }
+    field has_remote() -> bool { self.has_remote() }
     field primary_addr() -> Option<String> {
         self.primary_addr.map(|x| x.to_string())
     }
@@ -81,6 +82,9 @@ impl Peer {
             report: None,
             last_report_direct: None,
         }
+    }
+    pub fn has_remote(&self) -> bool {
+        self.report.as_ref().map(|(_, r)| r.has_remote).unwrap_or(false)
     }
 
     pub fn apply_addresses<I:Iterator<Item=SocketAddr>>(&mut self,

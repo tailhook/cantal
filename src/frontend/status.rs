@@ -82,6 +82,9 @@ graphql_object!(<'a> GData<'a>: () as "Status" |&self| {
     field num_stale() -> i32 {
         NUM_STALE.get() as i32
     }
+    field has_remote() -> bool {
+        self.ctx.remote.started()
+    }
 });
 
 pub struct GProcessReport(Meter);
