@@ -233,19 +233,22 @@ view main(router, version):
           users()
         else:
           <h1> "404 Page Not Found"
-          `Unknown page ${ sub.value() }`
-      else:
+          `Unknown page ${ sub.value()[0] }`
+      elif let sub = router.at('remote'):
         if beacon.hasRemote:
-          if @router.page == 'peers':
+          if let sub = sub.at('peers'):
             peers()
-          elif @router.page == 'list':
+          elif let sub = sub.at('list'):
             remote_list()
-          elif @router.page == 'grid':
+          elif let sub = sub.at('grid'):
             remote_grid()
-          elif @router.page == 'containers':
+          elif let sub = sub.at('containers'):
             remote_containers()
           else:
-            @router.page
+            <h1> "404 Page Not Found"
+            `Unknown page ${ sub.value()[0] }`
         else:
           enable_remote()
+      else:
+        status(router)
 
