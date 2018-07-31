@@ -61,11 +61,11 @@ view main():
                     `http://${p.name}:${port}/`
                   ` (${p.primary_addr})`
 
-        <p.right?(@peers.peers.length > 0)>
+        <p.right?(@peers.peers and @peers.peers.length > 0)>
           store @remote = remote
           <button.pure-button>
             link {click} enable_remote() -> @remote
-            if @peers.peers.length > 0:
+            if @peers.peers and @peers.peers.length > 0:
               "Yes, please, enable it on this node anyway"
             else:
               "Enable"

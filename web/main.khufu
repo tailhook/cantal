@@ -1,4 +1,4 @@
-import {@router, toggle_remote, go} from './util/routing'
+import {go} from 'khufu-routing'
 import {format_uptime, format_diff, till_now_ms, from_ms} from './util/time'
 import {memory, cpu, self_cpu, self_mem} from './stores/status'
 import {value, bool, toggle, init} from './stores/simple'
@@ -66,62 +66,62 @@ style:
     margin-left: 8px
 
 
-view _local_menu():
-  <li.pure-menu-item.pure-menu-active?(@router.page == 'status')>
+view _local_menu(router):
+  <li.pure-menu-item.pure-menu-active?(router.at('status'))>
     <a.pure-menu-link href="/local/status">
       link {click} go(event) -> @router
       "Status"
-  <li.pure-menu-item.pure-menu-active?(@router.page == 'processes')>
+  <li.pure-menu-item.pure-menu-active?(router.at('processes'))>
     <a.pure-menu-link href="/local/processes">
       link {click} go(event) -> @router
       "Processes"
       if beacon:
         ` [${ beacon.processes }]`
-  <li.pure-menu-item.pure-menu-active?(@router.page == 'states')>
+  <li.pure-menu-item.pure-menu-active?(router.at('states'))>
     <a.pure-menu-link href="/local/states">
       link {click} go(event) -> @router
       "States"
-  <li.pure-menu-item.pure-menu-active?(@router.page == 'cgroups')>
+  <li.pure-menu-item.pure-menu-active?(router.at('cgroups'))>
     <a.pure-menu-link href="/local/cgroups">
       link {click} go(event) -> @router
       "CGroups"
-  <li.pure-menu-item.pure-menu-active?(@router.page == 'users')>
+  <li.pure-menu-item.pure-menu-active?(router.at('users'))>
     <a.pure-menu-link href="/local/users">
       link {click} go(event) -> @router
       "Users / Network"
-  <li.pure-menu-item.pure-menu-active?(@router.page == 'process_metrics')>
+  <li.pure-menu-item.pure-menu-active?(router.at('process_metrics'))>
     <a.pure-menu-link href="/local/process_metrics">
       link {click} go(event) -> @router
       "Process Metrics"
-  <li.pure-menu-item.pure-menu-active?(@router.page == 'metrics')>
+  <li.pure-menu-item.pure-menu-active?(router.at('metrics'))>
     <a.pure-menu-link href="/local/metrics">
       link {click} go(event) -> @router
       "Metrics"
       if beacon:
         ` [${ beacon.tipValues } + ${ beacon.fineValues }]`
 
-  <li.pure-menu-item.pure-menu-active?(@router.page == 'peers')>
+  <li.pure-menu-item.pure-menu-active?(router.at('peers'))>
     <a.pure-menu-link href="/local/peers">
       link {click} go(event) -> @router
       "Pings"
 
-view _remote_menu():
-  <li.pure-menu-item.pure-menu-active?(@router.page == 'peers')>
+view _remote_menu(router):
+  <li.pure-menu-item.pure-menu-active?(router.at('peers'))>
     <a.pure-menu-link href="/remote/peers">
       link {click} go(event) -> @router
       "Pings"
 
-  <li.pure-menu-item.pure-menu-active?(@router.page == 'list')>
+  <li.pure-menu-item.pure-menu-active?(router.at('list'))>
     <a.pure-menu-link href="/remote/list">
       link {click} go(event) -> @router
       "Peers"
 
-  <li.pure-menu-item.pure-menu-active?(@router.page == 'grid')>
+  <li.pure-menu-item.pure-menu-active?(router.at('grid'))>
     <a.pure-menu-link href="/remote/grid">
       link {click} go(event) -> @router
       "Grid"
 
-  <li.pure-menu-item.pure-menu-active?(@router.page == 'containers')>
+  <li.pure-menu-item.pure-menu-active?(router.at('containers'))>
     <a.pure-menu-link href="/remote/containers">
       link {click} go(event) -> @router
       "Containers"
@@ -174,7 +174,7 @@ view self_status(beacon):
       self_meter.big(beacon.selfReport, beacon.threadsReport)
 
 
-view main(version):
+view main(router, version):
   <div.pure-g>
     <div.pure-u-1.pure-u-md-1-3.pure-u-xl-4-24>
       <div.pure-menu>
@@ -182,9 +182,12 @@ view main(version):
           <label>
             let on = beacon.hasRemote
             let rtr = @router
+            let at_remote = not not router.at('remote')
             <input.ios-switch.bigswitch.pregreen?(on).blue?(on)
-              type="checkbox" value='ok' checked=@router.remote>
-              link {click} toggle_remote(rtr) -> @router
+              type="checkbox" value='ok' checked=at_remote>
+              link {click} go(
+                router.rel(at_remote ? '/local' : '/remote')
+              ) -> @router
             <div>
               <div>
         <a.pure-menu-heading href="/">
@@ -198,36 +201,39 @@ view main(version):
                 ${ beacon.clusterName or "standalone" }`
             <li.info.offset-bottom>
               `${ beacon.id }`
-          if @router.remote:
-            _remote_menu()
+          if let sub = router.at('remote'):
+            _remote_menu(sub)
+          elif let sub = router.at('local'):
+            _local_menu(sub)
           else:
-            _local_menu()
+            _local_menu(router)
           if beacon:
             <li.offset-top.pure-menu-item>
               self_status(beacon)
 
     <div.pure-u-1.pure-u-md-2-3.pure-u-xl-20-24>
-      if not(@router.remote):
-        if @router.page == 'status':
-          status()
-        elif @router.page == 'processes':
-          processes()
-        elif @router.page == 'states':
+      if let sub = router.at('local'):
+        if let sub = sub.at('status'):
+          status(sub)
+        elif let sub = sub.at('processes'):
+          processes(sub)
+        elif let sub = sub.at('states'):
           states()
-        elif @router.page == 'process_metrics':
+        elif let sub = sub.at('process_metrics'):
           process_metrics()
-        elif @router.page == 'cgroups':
+        elif let sub = sub.at('cgroups'):
           cgroups()
-        elif @router.page == 'metrics':
+        elif let sub = sub.at('metrics'):
           metrics()
-        elif @router.page == 'peers':
+        elif let sub = sub.at('peers'):
           peers()
-        elif @router.page == 'tmp-sockets':
+        elif let sub = sub.at('tmp-sockets'):
           tmp_sockets()
-        elif @router.page == 'users':
+        elif let sub = sub.at('users'):
           users()
         else:
-          @router.page
+          <h1> "404 Page Not Found"
+          `Unknown page ${ sub.value() }`
       else:
         if beacon.hasRemote:
           if @router.page == 'peers':

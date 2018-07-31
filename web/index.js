@@ -1,12 +1,17 @@
 import {createStore, applyMiddleware} from 'redux'
 import {attach} from 'khufu-runtime'
+import {Router} from 'khufu-routing'
 import {} from './graphql'
 
 import {main} from './main.khufu'
-import {router} from './util/routing'
 
-let khufu_instance = attach(document.getElementById('app'), main(VERSION), {
+let router = new Router(window);
+let app_el = document.getElementById('app');
+let khufu_instance = attach(app_el, main(router, VERSION), {
     store(reducer, middleware, state) {
+        if(typeof reducer != 'function') {
+            return reducer
+        }
         let mid = middleware.filter(x => typeof x === 'function')
         if(DEBUG) {
             let logger = require('redux-logger')
