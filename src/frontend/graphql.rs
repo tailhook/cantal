@@ -10,7 +10,7 @@ use self_meter_http::{Meter};
 use serde_json::{Value as Json, to_value};
 use tk_http::Status;
 
-use remote::Remote;
+use remote::Remote as RemoteSys;
 use time_util::duration_to_millis;
 use stats::Stats;
 use gossip::Peer;
@@ -18,13 +18,14 @@ use frontend::{Request};
 use frontend::routing::Format;
 use frontend::quick_reply::{read_json, respond, respond_status};
 use frontend::{status, cgroups, processes, peers};
+use frontend::last_values;
 
 
 pub struct ContextRef<'a> {
     pub stats: &'a Stats,
     pub meter: &'a Meter,
     pub gossip: &'a Gossip,
-    pub remote: &'a Remote,
+    pub remote: &'a RemoteSys,
 }
 
 #[derive(Clone, Debug)]
@@ -32,13 +33,14 @@ pub struct Context {
     pub stats: Arc<RwLock<Stats>>,
     pub meter: Meter,
     pub gossip: Gossip,
-    pub remote: Remote,
+    pub remote: RemoteSys,
 }
 
 pub type Schema<'a> = RootNode<'a, &'a Query, &'a Mutation>;
 
 pub struct Query;
 pub struct Local<'a>(PhantomData<&'a ()>);
+pub struct Remote<'a>(PhantomData<&'a ()>);
 pub struct Mutation;
 
 #[derive(Deserialize, Clone, Debug)]
@@ -85,12 +87,23 @@ graphql_object!(<'a> Local<'a>: ContextRef<'a> as "Local" |&self| {
     }
 });
 
+graphql_object!(<'a> Remote<'a>: ContextRef<'a> as "Remote" |&self| {
+    field last_values(&executor, filter: last_values::Filter)
+        -> Vec<last_values::Metric>
+    {
+        last_values::query(executor.context(), filter)
+    }
+});
+
 graphql_object!(<'a> &'a Query: ContextRef<'a> as "Query" |&self| {
     field status(&executor) -> Result<status::GData, FieldError> {
         status::graph(executor.context())
     }
     field local(&executor) -> Local<'a> {
         Local(PhantomData)
+    }
+    field remote(&executor) -> Remote<'a> {
+        Remote(PhantomData)
     }
     field peers(&executor, filter: Option<peers::Filter>) -> Vec<Arc<Peer>> {
         peers::get(executor.context(), filter)

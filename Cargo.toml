@@ -57,6 +57,7 @@ libcantal = "0.3.2"
 #juniper = { version="0.9.2", default-features=false }
 juniper = { git="https://github.com/graphql-rust/juniper", rev="56f71e9" }
 graphql-parser = "0.2.0"
+maybe_macro = "1.0.0"
 
 [dependencies.probor]
 version = "0.3.1"

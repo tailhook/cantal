@@ -42,6 +42,19 @@ impl<'a, A, B> ExactSizeIterator for Merge<'a, A, B>
     }
 }
 
+pub struct Pairs<'a> (Decoder<Cursor<&'a [u8]>>, usize);
+
+impl<'a> Iterator for Pairs<'a> {
+    type Item = (String, String);
+    fn next(&mut self) -> Option<(String, String)> {
+        if self.1 > 0 {
+            self.1 -= 1;
+            Some((self.0.text().unwrap(), self.0.text().unwrap()))
+        } else {
+            None
+        }
+    }
+}
 
 impl Key {
     /// Size of key in bytes, for debugging
@@ -134,6 +147,16 @@ impl Key {
                 }
             }
             return None;
+        })
+    }
+
+    pub fn as_pairs(&self) -> Pairs {
+        self.0.as_ref().map(|b| {
+            let mut d = Decoder::new(Config::default(), Cursor::new(&b[..]));
+            let num = d.object().unwrap();
+            Pairs(d, num)
+        }).unwrap_or_else(|| {
+            Pairs(Decoder::new(Config::default(), Cursor::new(b"")), 0)
         })
     }
 
