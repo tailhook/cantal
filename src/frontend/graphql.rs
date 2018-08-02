@@ -1,7 +1,7 @@
 use std::sync::{Arc, RwLock};
 use std::collections::HashMap;
 use std::marker::PhantomData;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{SystemTime, Duration, UNIX_EPOCH};
 
 use gossip::Gossip;
 use juniper::{self, InputValue, RootNode, FieldError, execute};
@@ -72,6 +72,7 @@ pub struct Okay {
     ok: bool,
 }
 
+#[derive(Debug, Clone, Copy)]
 pub struct Timestamp(pub SystemTime);
 
 graphql_object!(<'a> Local<'a>: ContextRef<'a> as "Local" |&self| {
@@ -84,6 +85,11 @@ graphql_object!(<'a> Local<'a>: ContextRef<'a> as "Local" |&self| {
         -> Vec<&processes::Process>
     {
         processes::processes(executor.context(), filter)
+    }
+    field last_values(&executor, filter: last_values::Filter)
+        -> Vec<last_values::Metric>
+    {
+        last_values::query(executor.context(), filter)
     }
 });
 
@@ -115,6 +121,14 @@ graphql_object!(<'a> &'a Mutation: ContextRef<'a> as "Mutation" |&self| {
         Ok(Okay { ok: true })
     }
 });
+
+impl Timestamp {
+    // This is a temporary method, because historically we've
+    // used milliseconds in a lot of places
+    pub fn from_ms(ms: u64) -> Timestamp {
+        Timestamp(UNIX_EPOCH + Duration::from_millis(ms))
+    }
+}
 
 graphql_scalar!(Timestamp {
     description: "A timestamp transferred as a number of milliseconds"

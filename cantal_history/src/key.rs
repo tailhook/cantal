@@ -62,7 +62,7 @@ impl Key {
         size_of_val(self) + self.0.as_ref().map(|x| x.len()).unwrap_or(0)
     }
     /// Note: caller must ensure that order is Okay
-    fn from_iter<'x, I>(pairs: I) -> Key
+    pub fn unsafe_from_iter<'x, I>(pairs: I) -> Key
         where I :Iterator<Item=(&'x str, &'x str)>+ExactSizeIterator
     {
         if pairs.len() == 0 {
@@ -89,7 +89,7 @@ impl Key {
             let mut errors = 0;
             let num = btree.len() + pairs.len() -
                 pairs.iter().filter(|&&(x, _)| btree.contains_key(x)).count();
-            let res = Key::from_iter(Merge(num,
+            let res = Key::unsafe_from_iter(Merge(num,
                 pairs.iter().cloned().peekable(),
                 btree.iter().map(|(ref k, v)| {
                     match v {
@@ -119,13 +119,13 @@ impl Key {
     pub fn pairs(pairs: &[(&str, &str)]) -> Key {
         debug_assert!(pairs.iter().zip(pairs.iter().skip(1))
             .all(|(&(a, _), &(b, _))| a < b));
-        Key::from_iter(pairs.iter().cloned())
+        Key::unsafe_from_iter(pairs.iter().cloned())
     }
     pub fn from_pair(key: &str, val: &str) -> Key {
-        Key::from_iter([(key, val)].iter().cloned())
+        Key::unsafe_from_iter([(key, val)].iter().cloned())
     }
     pub fn metric(metric: &str) -> Key {
-        Key::from_iter([("metric", metric)].iter().cloned())
+        Key::unsafe_from_iter([("metric", metric)].iter().cloned())
     }
 
     pub fn as_bytes<'x>(&'x self) -> &'x [u8] {

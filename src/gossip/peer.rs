@@ -55,7 +55,7 @@ graphql_object!(Peer: () as "Peer" |&self| {
         self.addresses.iter().map(|x| x.to_string()).collect()
     }
     field known_since() -> Timestamp {
-        Timestamp(UNIX_EPOCH + Duration::from_millis(self.known_since))
+        Timestamp::from_ms(self.known_since)
     }
     field last_report_direct() -> Option<Timestamp> {
         self.last_report_direct.map(|x| {

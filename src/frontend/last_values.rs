@@ -1,18 +1,30 @@
 use std::i32;
-use juniper::Value;
+use std::collections::BTreeMap;
 
-use frontend::graphql::ContextRef;
+use juniper::{InputValue};
+use juniper::{Selection, Value, Executor};
+use juniper::{Registry, GraphQLType, FromInputValue, ToInputValue};
+use juniper::meta::MetaType;
+
+use frontend::graphql::{ContextRef, Timestamp};
 use history;
+use cantal::Value as TipValue;
 
 #[derive(GraphQLInputObject, Debug, Clone)]
 #[graphql(name="LastValuesFilter",
           description="Filter for last of value metric")]
 pub struct Filter {
-    exact_key: Option<Key>,
+    exact_key: Option<Vec<Pair>>,
 }
 
 #[derive(Debug, Clone)]
 pub struct Key(history::Key);
+
+#[derive(GraphQLInputObject, Debug, Clone)]
+pub struct Pair {
+    key: String,
+    value: String,
+}
 
 #[derive(Debug, Clone)]
 pub enum Metric {
@@ -43,6 +55,7 @@ pub struct FloatMetric {
 #[derive(Debug, Clone)]
 pub struct StateMetric {
     key: Key,
+    timestamp: Timestamp,
     value: String,
 }
 
@@ -77,19 +90,34 @@ graphql_object!(FloatMetric: () |&self| {
 
 graphql_object!(StateMetric: () |&self| {
     field key() -> &Key { &self.key }
+    field timestamp() -> &Timestamp { &self.timestamp }
     field value() -> &String { &self.value }
 });
 
 graphql_scalar!(Key {
-    description: "A metric key (dict of string: string)"
+    description: "A metric key"
 
     resolve(&self) -> Value {
         Value::object(self.0.as_pairs()
             .map(|(k, v)| (k, v.into())).collect())
     }
-
-    from_input_value(_v: &InputValue) -> Option<Key> {
-        unimplemented!();
+    from_input_value(v: &InputValue) -> Option<Key> {
+        // pairs must be sorted
+        let mut pairs = BTreeMap::new();
+        match v {
+            InputValue::Object(obj) => {
+                for (key, value) in obj {
+                    match value.item {
+                        InputValue::String(ref value) => {
+                            pairs.insert(&key.item[..], &value[..]);
+                        }
+                        _ => return None,
+                    }
+                }
+            }
+            _ => return None,
+        }
+        return Some(Key(history::Key::unsafe_from_iter(pairs.into_iter())))
     }
 });
 
@@ -116,5 +144,39 @@ graphql_interface!(Metric: () |&self| {
 pub fn query<'x>(ctx: &ContextRef<'x>, filter: Filter)
     -> Vec<Metric>
 {
-    unimplemented!();
+    if let Some(ref key) = filter.exact_key {
+
+        // pairs must be sorted
+        let mut pairs = BTreeMap::new();
+        for item in key {
+            pairs.insert(&item.key[..], &item.value[..]);
+        }
+        let key = history::Key::unsafe_from_iter(pairs.into_iter());
+
+        let metric = ctx.stats.history.tip.values.get(&key).map(|(_, met)| {
+            match met {
+                TipValue::Counter(v) => Metric::Counter(CounterMetric {
+                    key: Key(key),
+                    value: *v,
+                }),
+                TipValue::Integer(v) => Metric::Integer(IntegerMetric {
+                    key: Key(key),
+                    value: *v,
+                }),
+                TipValue::Float(v) => Metric::Float(FloatMetric {
+                    key: Key(key),
+                    value: *v,
+                }),
+                TipValue::State(v) => Metric::State(StateMetric {
+                    key: Key(key),
+                    timestamp: Timestamp::from_ms(v.0),
+                    value: v.1.clone(),
+                }),
+            }
+        });
+        // Option<Metric> to 1 element or 0 element vector
+        metric.into_iter().collect()
+    } else {
+        Vec::new()
+    }
 }
