@@ -8,6 +8,7 @@ extern crate libc;
 #[macro_use] extern crate probor;
 extern crate byteorder;
 
+use std::collections::HashSet;
 use std::io::{Cursor, BufReader};
 use std::io::{Read, BufRead, Seek};
 use std::io::SeekFrom::{Current};
@@ -16,6 +17,7 @@ use std::fs::File;
 use std::rc::Rc;
 use std::path::Path;
 use std::convert::From;
+use std::os::unix::fs::MetadataExt;
 use rustc_serialize::json;
 use rustc_serialize::json::{Json};
 use byteorder::{NativeEndian, ReadBytesExt};
@@ -58,34 +60,38 @@ pub enum Type {
     Unknown(u16),
 }
 
+#[derive(Debug, PartialEq, Eq, Hash)]
+pub struct FileId {
+    pub dev: u64,
+    pub ino: u64,
+}
+
 quick_error! {
     #[derive(Debug)]
     pub enum MetadataError {
         Io(err: IoError) {
             from()
-            description(err.description())
             display("Error reading metadata: {}", err)
             cause(err)
         }
         // TODO(tailhook) add line numbers
         Json(err: json::ParserError) {
             from()
-            description(err.description())
             display("Error parsing metadata json: {}", err)
             cause(err)
         }
         ParseError(desc: &'static str) {
             from()
-            description(desc)
             display("Error parsing metadata: {}", desc)
         }
         BadLength(len: usize) {
-            description("Bad length of a field")
             display("Bad length of a field")
         }
         UnexpectedEOF {
-            description("Unexpected end of file")
             display("Unexpected end of file")
+        }
+        Duplicate {
+            display("Duplicate values file")
         }
     }
 }
@@ -101,6 +107,15 @@ pub struct Descriptor {
 pub struct Metadata {
     items: Vec<Rc<Descriptor>>,
     stat: util::Stat,
+}
+
+impl<'a> From<&'a ::std::fs::Metadata> for FileId {
+    fn from(m: &::std::fs::Metadata) -> FileId {
+        FileId {
+            dev: (*m).dev(),
+            ino: (*m).ino(),
+        }
+    }
 }
 
 impl Value {
@@ -188,15 +203,20 @@ impl Metadata {
             stat: stat,
         });
     }
-    pub fn read_data(&self, path: &Path)
+    pub fn read_data(&self, path: &Path, visited: &mut HashSet<FileId>)
         -> Result<Vec<(Rc<Descriptor>, Value)>, MetadataError>
     {
         //  We should read as fast as possible to have more precise results
         //  So we buffer whole file
         // TODO(tailhook) calculate the size of the file when reading metadata
-        let mut buf = Vec::with_capacity(4096);
-        try!(File::open(path)
-            .and_then(|mut f| f.read_to_end(&mut buf)));
+        let mut f = File::open(path)?;
+        let ref meta = f.metadata()?;
+        let file_id = meta.into();
+        if !visited.insert(file_id) {
+            return Err(MetadataError::Duplicate);
+        }
+        let mut buf = Vec::with_capacity(meta.len() as usize + 1);
+        f.read_to_end(&mut buf)?;
 
         let mut stream = Cursor::new(buf);
         let mut res = vec!();

@@ -1,13 +1,13 @@
 use std::rc::Rc;
-use std::io::{BufReader, BufRead};
+use std::io::{self, BufReader, BufRead};
 use std::fs::{File};
 use std::ffi::{OsStr, OsString};
 use std::str;
 use std::os::unix::prelude::OsStrExt;
 use std::path::{Path, PathBuf};
-use std::collections::{HashMap};
+use std::collections::{HashMap, HashSet};
 
-use cantal::{Metadata, Value, Descriptor};
+use cantal::{Metadata, Value, Descriptor, FileId, MetadataError};
 use rustc_serialize::json::Json;
 
 use super::Tip;
@@ -18,6 +18,7 @@ use scan::cgroups::CGroups;
 
 pub struct ReadCache {
     metadata: HashMap<PathBuf, Metadata>,
+    visited: HashSet<FileId>,
 }
 
 fn get_env_vars(pid: u32) -> (Option<String>, Option<PathBuf>) {
@@ -77,12 +78,13 @@ fn add_suffix<P: AsRef<Path>, E: AsRef<OsStr>>(path: P, ext: E) -> PathBuf
     result.with_file_name(name)
 }
 
-fn read_values(cache: &ReadCache, path: &PathBuf)
+fn read_values(cache: &mut ReadCache, path: &PathBuf)
     -> (Option<Vec<(Rc<Descriptor>, Value)>>, Option<Metadata>)
 {
     let mpath = add_suffix(path, ".meta");
     if let Some(meta) = cache.metadata.get(path) {
-        let data = meta.read_data(&add_suffix(path, ".values"));
+        let data = meta.read_data(&add_suffix(path, ".values"),
+                                  &mut cache.visited);
         if let Err(ref e) = data {
             debug!("Error reading {:?}: {}", mpath, e);
         }
@@ -92,18 +94,28 @@ fn read_values(cache: &ReadCache, path: &PathBuf)
         }
     }
     for _ in 0..1 {
-        let mres = Metadata::read(&mpath);
-        if let Ok(meta) = mres {
-            debug!("Read new metadata {:?}", path);
-            let data = meta.read_data(&add_suffix(path, ".values"));
-            if !meta.still_fresh(&mpath) {
-                continue;
+        match Metadata::read(&mpath) {
+            Ok(meta) =>  {
+                debug!("Read new metadata {:?}", path);
+                let data = meta.read_data(&add_suffix(path, ".values"),
+                                          &mut cache.visited);
+                if let Err(ref e) = data {
+                    debug!("Error reading {:?}: {}", mpath, e);
+                }
+                if !meta.still_fresh(&mpath) {
+                    continue;
+                }
+                return (data.ok(), Some(meta));
             }
-            return (data.ok(), Some(meta));
-        } else {
-            let err = mres.err().unwrap();
-            info!("Error reading metadata {:?}: {}", mpath, err);
-            return (None, None);
+            Err(MetadataError::Io(ref e))
+            if e.kind() == io::ErrorKind::NotFound
+            => {
+                return (None, None);
+            }
+            Err(err) => {
+                info!("Error reading metadata {:?}: {}", mpath, err);
+                return (None, None);
+            }
         }
     }
     warn!("Constantly changing metadata {:?}", mpath);
@@ -154,12 +166,15 @@ pub fn read(tip: &mut Tip, cache: &mut ReadCache, processes: &[MinimalProcess],
             }
         }
     }
+    cache.visited.shrink_to_fit();
+    cache.visited.clear();
 }
 
 impl ReadCache {
     pub fn new() -> ReadCache {
         ReadCache {
             metadata: HashMap::new(),
+            visited: HashSet::new(),
         }
     }
 }

@@ -2,6 +2,15 @@ Cantal Changes by Version
 =========================
 
 
+.. _changelog-0.6.6:
+
+Cantal 0.6.6
+------------
+
+* Bugfix: when a ``CANTAL_PATH`` referring to a same file is encountered in
+  multiple processes we no longer duplicate metrics
+
+
 .. _changelog-0.6.5:
 
 Cantal 0.6.5
