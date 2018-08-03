@@ -44,7 +44,10 @@ pub fn scan_loop(deps: Dependencies, interval: Duration,
         let boot_time = machine::read(&mut tip);
 
         let cgroups = cgroups::read();
-        let processes = processes::read(&mut process_cache, &cgroups);
+        let mut processes = processes::read(&mut process_cache, &cgroups);
+        // This is needed for values::read to attribute metrics revering to
+        // the values file consistently to the same process
+        processes.sort_unstable_by_key(|p| p.pid);
         let connections = connections::read();
         processes::write_tip(&mut tip, &processes, &cgroups);
         values::read(&mut tip, &mut values_cache, &processes, &cgroups);
