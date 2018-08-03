@@ -62,7 +62,7 @@ impl Key {
             // TODO(tailhook) optimize numbers
             e.text(&v).unwrap();
         }
-        Key(Some(e.into_writer().into_boxed_slice()))
+        Key(Some(e.into_writer().into()))
     }
     /// Creates a key json object with additional pairs added
     ///
@@ -174,7 +174,7 @@ mod serde {
             } else {
                 try!(validate_key(&value[..]).map_err(|e|
                     DecodeError::WrongValue(e)));
-                Ok(Some(Key(Some(value.into_boxed_slice()))))
+                Ok(Some(Key(Some(value.into()))))
             }
         }
     }
@@ -217,13 +217,6 @@ mod std_trait {
             }
             try!(write!(f, "}}"));
             Ok(())
-        }
-    }
-
-    impl Clone for Key {
-        fn clone(&self) -> Key {
-            // Unfortunately Box<[u8]> doesn't support Clone
-            Key(self.0.as_ref().map(|x| x.to_vec().into_boxed_slice()))
         }
     }
 }

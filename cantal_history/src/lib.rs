@@ -17,6 +17,8 @@ mod merge;
 mod serde;
 mod tstamp;
 
+use std::sync::Arc;
+
 pub use backlog::{Backlog, Value};
 pub use tip::Tip;
 pub use merge::{ChunkSet, ValueSet};
@@ -46,8 +48,8 @@ probor_struct_encoder_decoder!(History {
 
 ///
 /// This contains CBOR-encoded key-value pairs
-#[derive(Hash, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Key(Option<Box<[u8]>>);
+#[derive(Hash, PartialEq, Eq, PartialOrd, Ord, Clone)]
+pub struct Key(Option<Arc<[u8]>>);
 
 impl History {
     pub fn new() -> History {
