@@ -1,6 +1,5 @@
-use std::ptr;
 use std::collections::HashMap;
-use libc;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use history::Key;
 use cantal::Value;
@@ -12,18 +11,12 @@ pub mod values;
 pub mod cgroups;
 pub mod connections;
 
-// TODO(tailhook) use some time/date crate
-
-extern {
-    fn gettimeofday(tp: *mut libc::timeval, tzp: *mut libc::c_void)
-        -> libc::c_int;
-}
 
 pub fn time_ms() -> u64 {
-    let mut tv = libc::timeval { tv_sec: 0, tv_usec: 0 };
-    unsafe { gettimeofday(&mut tv, ptr::null_mut()) };
-    return (tv.tv_sec as u64)*1000 +  (tv.tv_usec as u64) / 1000;
+    let dur = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
+    return dur.as_secs() * 1000 + dur.subsec_millis() as u64;
 }
+
 
 pub struct Tip {
     pub map: HashMap<Key, Value>,
