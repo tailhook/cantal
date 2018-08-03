@@ -2,6 +2,16 @@ Cantal Changes by Version
 =========================
 
 
+.. _changelog-0.6.7:
+
+Cantal 0.6.7
+------------
+
+* Bugfix: previously cantal could crash when time jumps backwards. Currently,
+  it waits (in metrics scanner code) if delta is < 10 sec and crashes with
+  clear log message for large time jumps.
+
+
 .. _changelog-0.6.6:
 
 Cantal 0.6.6

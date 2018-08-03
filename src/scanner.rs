@@ -1,6 +1,6 @@
 use std::cmp::min;
 use std::sync::{Arc, RwLock};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use std::thread::sleep;
 
 use probor::{Encoder, Encodable};
@@ -33,12 +33,24 @@ pub fn scan_loop(deps: Dependencies, interval: Duration,
     let stats: &RwLock<Stats> = &*deps.copy();
     let storage = deps.get::<Arc<Storage>>().map(|x| &*x);
     let mut last_store = time_ms();
+    let mut last_scan = time_ms() - to_ms(interval);
     let mut last_hourly = last_store / 3_600_000;
     let mut process_cache = processes::ReadCache::new();
     let mut values_cache = values::ReadCache::new();
     let mut last_buffer_size = 16 << 10;
     loop {
         let start = time_ms();
+        if start < last_scan {
+            let diff = start.saturating_sub(last_scan);
+            if diff < 10000 {
+                sleep(Duration::from_millis(diff) + interval);
+                continue;
+            } else {
+                error!("Time offset is too large in the past: {}ms", diff);
+                panic!("Time offset is too large in the past: {}ms", diff);
+            }
+        }
+        let start_instant = Instant::now();
         let mut tip = Tip::new();
 
         let boot_time = machine::read(&mut tip);
@@ -52,7 +64,7 @@ pub fn scan_loop(deps: Dependencies, interval: Duration,
         processes::write_tip(&mut tip, &processes, &cgroups);
         values::read(&mut tip, &mut values_cache, &processes, &cgroups);
 
-        let scan_duration = (time_ms() - start) as u32;
+        let scan_duration = to_ms(start_instant.elapsed()) as u32;
 
         if let Ok(ref mut stats) = stats.write() {
             stats.scan_duration = scan_duration;
@@ -71,7 +83,7 @@ pub fn scan_loop(deps: Dependencies, interval: Duration,
             stats.processes = processes;
             stats.connections = connections;
 
-            if start - last_store > SNAPSHOT_INTERVAL {
+            if start.saturating_sub(last_store) > SNAPSHOT_INTERVAL {
                 last_store = start;
 
                 // Don't store tip values older than a minute
@@ -115,6 +127,7 @@ pub fn scan_loop(deps: Dependencies, interval: Duration,
                 }).map_err(|e| error!("Can't encode history: {}", e)).ok();
             }
         }
+        last_scan = start;
         incoming.trigger(Subscription::Scan);
 
         sleep(interval);
