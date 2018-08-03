@@ -2,9 +2,7 @@ use std::i32;
 use std::collections::BTreeMap;
 
 use juniper::{InputValue};
-use juniper::{Selection, Value, Executor};
-use juniper::{Registry, GraphQLType, FromInputValue, ToInputValue};
-use juniper::meta::MetaType;
+use juniper::{Value};
 
 use frontend::graphql::{ContextRef, Timestamp};
 use history;
