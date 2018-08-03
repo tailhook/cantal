@@ -1,6 +1,7 @@
 extern crate argparse;
 extern crate cantal_values;
 
+use std::collections::HashSet;
 use std::fmt::Display;
 use std::path::{Path, PathBuf};
 use std::io::{stderr, Write, Read, BufRead, BufReader};
@@ -18,7 +19,7 @@ use cantal_values::Metadata;
 
 fn read_file<D: Display>(prefix: D, path: &Path) -> Result<(), Box<Error>> {
     let meta = try!(Metadata::read(&path.with_extension("meta")));
-    let data = try!(meta.read_data(&path));
+    let data = try!(meta.read_data(&path, &mut HashSet::new()));
     for &(ref descr, ref item) in data.iter() {
         println!("{}: {} {:?}", prefix, descr.textname, item);
     }
