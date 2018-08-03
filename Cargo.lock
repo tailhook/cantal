@@ -125,15 +125,15 @@ dependencies = [
 
 [[package]]
 name = "cantal"
-version = "0.6.5"
+version = "0.6.6"
 dependencies = [
  "abstract-ns 0.4.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "anymap 0.12.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "argparse 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "byteorder 1.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
- "cantal_history 0.6.5",
- "cantal_query 0.6.5",
- "cantal_values 0.6.5",
+ "cantal_history 0.6.6",
+ "cantal_query 0.6.6",
+ "cantal_values 0.6.6",
  "cbor 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "env_logger 0.5.10 (registry+https://github.com/rust-lang/crates.io-index)",
  "failure 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -181,10 +181,10 @@ dependencies = [
 
 [[package]]
 name = "cantal_history"
-version = "0.6.5"
+version = "0.6.6"
 dependencies = [
  "byteorder 1.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
- "cantal_values 0.6.5",
+ "cantal_values 0.6.6",
  "cbor-codec 0.7.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "num 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -194,10 +194,10 @@ dependencies = [
 
 [[package]]
 name = "cantal_query"
-version = "0.6.5"
+version = "0.6.6"
 dependencies = [
- "cantal_history 0.6.5",
- "cantal_values 0.6.5",
+ "cantal_history 0.6.6",
+ "cantal_values 0.6.6",
  "cbor-codec 0.7.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "num 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -208,7 +208,7 @@ dependencies = [
 
 [[package]]
 name = "cantal_values"
-version = "0.6.5"
+version = "0.6.6"
 dependencies = [
  "argparse 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "byteorder 1.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
