@@ -58,6 +58,7 @@ pub struct StateMetric {
 }
 
 graphql_object!(IntegerMetric: () |&self| {
+    interfaces: [&Metric],
     field key() -> &Key { &self.key }
     field as_small_int() -> Option<i32> {
         if self.value <= i32::MAX as i64 && self.value >= i32::MIN as i64 {
@@ -70,6 +71,7 @@ graphql_object!(IntegerMetric: () |&self| {
 });
 
 graphql_object!(CounterMetric: () |&self| {
+    interfaces: [&Metric],
     field key() -> &Key { &self.key }
     field as_small_int() -> Option<i32> {
         if self.value <= i32::MAX as u64 {
@@ -82,11 +84,13 @@ graphql_object!(CounterMetric: () |&self| {
 });
 
 graphql_object!(FloatMetric: () |&self| {
+    interfaces: [&Metric],
     field key() -> &Key { &self.key }
     field value() -> f64 { self.value }
 });
 
 graphql_object!(StateMetric: () |&self| {
+    interfaces: [&Metric],
     field key() -> &Key { &self.key }
     field timestamp() -> &Timestamp { &self.timestamp }
     field value() -> &String { &self.value }
@@ -151,27 +155,34 @@ pub fn query<'x>(ctx: &ContextRef<'x>, filter: Filter)
         }
         let key = history::Key::unsafe_from_iter(pairs.into_iter());
 
-        let metric = ctx.stats.history.tip.values.get(&key).map(|(_, met)| {
-            match met {
-                TipValue::Counter(v) => Metric::Counter(CounterMetric {
-                    key: Key(key),
-                    value: *v,
-                }),
-                TipValue::Integer(v) => Metric::Integer(IntegerMetric {
-                    key: Key(key),
-                    value: *v,
-                }),
-                TipValue::Float(v) => Metric::Float(FloatMetric {
-                    key: Key(key),
-                    value: *v,
-                }),
-                TipValue::State(v) => Metric::State(StateMetric {
-                    key: Key(key),
-                    timestamp: Timestamp::from_ms(v.0),
-                    value: v.1.clone(),
-                }),
-            }
-        });
+        let metric =
+            ctx.stats.history.tip.values.get(&key)
+                .map(|(_, met)| met.clone())
+            .or_else(|| ctx.stats.history.fine.values.get(&key)
+                        .and_then(|hist| {
+                            hist.tip_or_none(ctx.stats.history.fine.age)
+                        }))
+            .map(|met| {
+                match met {
+                    TipValue::Counter(v) => Metric::Counter(CounterMetric {
+                        key: Key(key),
+                        value: v,
+                    }),
+                    TipValue::Integer(v) => Metric::Integer(IntegerMetric {
+                        key: Key(key),
+                        value: v,
+                    }),
+                    TipValue::Float(v) => Metric::Float(FloatMetric {
+                        key: Key(key),
+                        value: v,
+                    }),
+                    TipValue::State(v) => Metric::State(StateMetric {
+                        key: Key(key),
+                        timestamp: Timestamp::from_ms(v.0),
+                        value: v.1,
+                    }),
+                }
+            });
         // Option<Metric> to 1 element or 0 element vector
         metric.into_iter().collect()
     } else {
