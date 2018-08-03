@@ -1,8 +1,8 @@
 use std::cmp::min;
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
+use std::thread::sleep;
 
-use libc::usleep;
 use probor::{Encoder, Encodable};
 
 use super::stats::Stats;
@@ -27,8 +27,8 @@ fn to_ms(dur: Duration) -> u64 {
     return dur.as_secs() * 1000 + dur.subsec_nanos() as u64 / 1000_000;
 }
 
-pub fn scan_loop(deps: Dependencies, interval: u32, backlog_time: Duration,
-    incoming: &Incoming)
+pub fn scan_loop(deps: Dependencies, interval: Duration,
+    backlog_time: Duration, incoming: &Incoming)
 {
     let stats: &RwLock<Stats> = &*deps.copy();
     let storage = deps.get::<Arc<Storage>>().map(|x| &*x);
@@ -114,6 +114,6 @@ pub fn scan_loop(deps: Dependencies, interval: u32, backlog_time: Duration,
         }
         incoming.trigger(Subscription::Scan);
 
-        unsafe { usleep(((interval as i64 - time_ms() as i64 % interval as i64)*1000) as u32) };
+        sleep(interval);
     }
 }

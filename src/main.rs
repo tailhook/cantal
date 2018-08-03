@@ -54,6 +54,7 @@ use std::str::FromStr;
 use std::path::PathBuf;
 use std::sync::{RwLock, Arc};
 use std::process::exit;
+use std::time::Duration;
 
 use failure::Error;
 use argparse::{ArgumentParser, Store, ParseOption, StoreOption, Parse, Print};
@@ -267,7 +268,9 @@ fn run() -> Result<(), Error> {
     let _scan = thread::spawn(move || {
         let _watchdog = watchdog::ExitOnReturn(82);
         mymeter.track_current_thread("scan");
-        scanner::scan_loop(mydeps, scan_interval, *backlog_time, &mygraphtx);
+        scanner::scan_loop(mydeps,
+            Duration::from_millis(scan_interval),
+            *backlog_time, &mygraphtx);
     });
 
 
