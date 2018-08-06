@@ -53,7 +53,7 @@ use std::net::SocketAddr;
 use std::str::FromStr;
 use std::path::PathBuf;
 use std::sync::{RwLock, Arc};
-use std::process::exit;
+use std::process::{self, exit};
 use std::time::Duration;
 
 use failure::Error;
@@ -178,7 +178,7 @@ fn run() -> Result<(), Error> {
             .unwrap_or_else(|| info::machine_id());
 
     let stats = Arc::new(RwLock::new(stats::Stats::new(
-        unsafe { libc::getpid() },
+        process::id(),
         name.clone(), hostname.clone(), cluster_name.clone(),
         &machine_id,
         addresses.iter().map(|x| x.to_string()).collect())));
