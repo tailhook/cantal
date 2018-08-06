@@ -178,7 +178,6 @@ fn run() -> Result<(), Error> {
             .unwrap_or_else(|| info::machine_id());
 
     let stats = Arc::new(RwLock::new(stats::Stats::new(
-        process::id(),
         name.clone(), hostname.clone(), cluster_name.clone(),
         &machine_id,
         addresses.iter().map(|x| x.to_string()).collect())));

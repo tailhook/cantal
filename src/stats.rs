@@ -9,7 +9,6 @@ use super::storage::StorageStats;
 
 #[derive(Debug)]
 pub struct Stats {
-    pub pid: u32,
     pub id: Id,
     pub addresses_str: Vec<String>,
     pub name: String,
@@ -28,13 +27,12 @@ pub struct Stats {
 }
 
 impl Stats {
-    pub fn new(pid: u32, name: String, hostname: String,
+    pub fn new(name: String, hostname: String,
         cluster_name: Option<String>, id: &Id,
         addresses_str: Vec<String>)
         -> Stats
     {
         return Stats {
-            pid: pid,
             id: id.clone(),
             addresses_str: addresses_str,
             name: name,
