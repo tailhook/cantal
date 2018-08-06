@@ -53,7 +53,7 @@ use std::net::SocketAddr;
 use std::str::FromStr;
 use std::path::PathBuf;
 use std::sync::{RwLock, Arc};
-use std::process::{self, exit};
+use std::process::{exit};
 use std::time::Duration;
 
 use failure::Error;
