@@ -5,7 +5,7 @@ description = "The query language and processor for cantal statistics"
 license = "MIT"
 keywords = ["monitoring", "statistics"]
 homepage = "http://github.com/tailhook/cantal"
-version = "0.6.6"
+version = "0.6.7"
 authors = ["paul@colomiets.name"]
 
 [dependencies]
