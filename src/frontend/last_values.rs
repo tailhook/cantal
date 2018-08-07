@@ -6,7 +6,10 @@ use juniper::{Value};
 
 use frontend::graphql::{ContextRef, Timestamp};
 use history;
+use remote::Hostname;
 use cantal::Value as TipValue;
+
+use self::RemoteMetric as RM;
 
 #[derive(GraphQLInputObject, Debug, Clone)]
 #[graphql(name="LastValuesFilter",
@@ -33,6 +36,14 @@ pub enum Metric {
 }
 
 #[derive(Debug, Clone)]
+pub enum RemoteMetric {
+    Integer(RemoteIntegerMetric),
+    Counter(RemoteCounterMetric),
+    Float(RemoteFloatMetric),
+    State(RemoteStateMetric),
+}
+
+#[derive(Debug, Clone)]
 pub struct IntegerMetric {
     key: Key,
     value: i64,
@@ -55,6 +66,51 @@ pub struct StateMetric {
     key: Key,
     timestamp: Timestamp,
     value: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct RemoteIntegerMetric {
+    hostname: Hostname,
+    key: Key,
+    value: i64,
+}
+
+#[derive(Debug, Clone)]
+pub struct RemoteCounterMetric {
+    hostname: Hostname,
+    key: Key,
+    value: u64,
+}
+
+#[derive(Debug, Clone)]
+pub struct RemoteFloatMetric {
+    hostname: Hostname,
+    key: Key,
+    value: f64,
+}
+
+#[derive(Debug, Clone)]
+pub struct RemoteStateMetric {
+    hostname: Hostname,
+    key: Key,
+    timestamp: Timestamp,
+    value: String,
+}
+
+impl RemoteMetric {
+    fn from_local(m: Metric, hostname: Hostname) -> RemoteMetric {
+        use self::Metric as M;
+        match m {
+            M::Integer(IntegerMetric { key, value })
+            => RM::Integer(RemoteIntegerMetric { key, value, hostname }),
+            M::Counter(CounterMetric { key, value })
+            => RM::Counter(RemoteCounterMetric { key, value, hostname }),
+            M::Float(FloatMetric { key, value })
+            => RM::Float(RemoteFloatMetric { key, value, hostname }),
+            M::State(StateMetric { key, timestamp, value })
+            => RM::State(RemoteStateMetric { key, timestamp, value, hostname }),
+        }
+    }
 }
 
 graphql_object!(IntegerMetric: () |&self| {
@@ -123,6 +179,49 @@ graphql_scalar!(Key {
     }
 });
 
+graphql_object!(RemoteIntegerMetric: () |&self| {
+    interfaces: [&Metric, &RemoteMetric],
+    field hostname() -> &Hostname { &self.hostname }
+    field key() -> &Key { &self.key }
+    field as_small_int() -> Option<i32> {
+        if self.value <= i32::MAX as i64 && self.value >= i32::MIN as i64 {
+            Some(self.value as i32)
+        } else {
+            None
+        }
+    }
+    field as_float() -> f64 { self.value as f64 }
+});
+
+graphql_object!(RemoteCounterMetric: () |&self| {
+    interfaces: [&Metric, &RemoteMetric],
+    field hostname() -> &Hostname { &self.hostname }
+    field key() -> &Key { &self.key }
+    field as_small_int() -> Option<i32> {
+        if self.value <= i32::MAX as u64 {
+            Some(self.value as i32)
+        } else {
+            None
+        }
+    }
+    field as_float() -> f64 { self.value as f64 }
+});
+
+graphql_object!(RemoteFloatMetric: () |&self| {
+    interfaces: [&Metric, &RemoteMetric],
+    field hostname() -> &Hostname { &self.hostname }
+    field key() -> &Key { &self.key }
+    field value() -> f64 { self.value }
+});
+
+graphql_object!(RemoteStateMetric: () |&self| {
+    interfaces: [&Metric, &RemoteMetric],
+    field hostname() -> &Hostname { &self.hostname }
+    field key() -> &Key { &self.key }
+    field timestamp() -> &Timestamp { &self.timestamp }
+    field value() -> &String { &self.value }
+});
+
 graphql_interface!(Metric: () |&self| {
     field key() -> &Key {
         use self::Metric::*;
@@ -140,6 +239,37 @@ graphql_interface!(Metric: () |&self| {
         &CounterMetric => maybe!(m if let Metric::Counter(ref m) = *self),
         &FloatMetric => maybe!(m if let Metric::Float(ref m) = *self),
         &StateMetric => maybe!(m if let Metric::State(ref m) = *self),
+    }
+});
+
+graphql_interface!(RemoteMetric: () |&self| {
+    field key() -> &Key {
+        use self::RemoteMetric::*;
+        match *self {
+            | Integer(RemoteIntegerMetric { ref key, .. })
+            | Counter(RemoteCounterMetric { ref key, .. })
+            | Float(RemoteFloatMetric { ref key, .. })
+            | State(RemoteStateMetric { ref key, .. })
+            => key,
+        }
+    }
+
+    field hostname() -> &Hostname {
+        use self::RemoteMetric::*;
+        match *self {
+            | Integer(RemoteIntegerMetric { ref hostname, .. })
+            | Counter(RemoteCounterMetric { ref hostname, .. })
+            | Float(RemoteFloatMetric { ref hostname, .. })
+            | State(RemoteStateMetric { ref hostname, .. })
+            => hostname,
+        }
+    }
+
+    instance_resolvers: |_| {
+        &RemoteIntegerMetric => maybe!(m if let RM::Integer(ref m) = *self),
+        &RemoteCounterMetric => maybe!(m if let RM::Counter(ref m) = *self),
+        &RemoteFloatMetric => maybe!(m if let RM::Float(ref m) = *self),
+        &RemoteStateMetric => maybe!(m if let RM::State(ref m) = *self),
     }
 });
 
@@ -188,4 +318,14 @@ pub fn query<'x>(ctx: &ContextRef<'x>, filter: Filter)
     } else {
         Vec::new()
     }
+}
+
+pub fn query_remote<'x>(ctx: &ContextRef<'x>, filter: Filter)
+    -> Vec<RemoteMetric>
+{
+    // Always add metrics of itself
+    query(ctx, filter)
+    .into_iter()
+    .map(|m| RemoteMetric::from_local(m, ctx.hostname.clone()))
+    .collect()
 }

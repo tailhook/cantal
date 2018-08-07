@@ -10,7 +10,7 @@ use self_meter_http::{Meter};
 use serde_json::{Value as Json, to_value};
 use tk_http::Status;
 
-use remote::Remote as RemoteSys;
+use remote::{Remote as RemoteSys, Hostname};
 use time_util::duration_to_millis;
 use stats::Stats;
 use gossip::Peer;
@@ -22,6 +22,7 @@ use frontend::last_values;
 
 
 pub struct ContextRef<'a> {
+    pub hostname: &'a Hostname,
     pub stats: &'a Stats,
     pub meter: &'a Meter,
     pub gossip: &'a Gossip,
@@ -30,6 +31,7 @@ pub struct ContextRef<'a> {
 
 #[derive(Clone, Debug)]
 pub struct Context {
+    pub hostname: Hostname,
     pub stats: Arc<RwLock<Stats>>,
     pub meter: Meter,
     pub gossip: Gossip,
@@ -95,9 +97,9 @@ graphql_object!(<'a> Local<'a>: ContextRef<'a> as "Local" |&self| {
 
 graphql_object!(<'a> Remote<'a>: ContextRef<'a> as "Remote" |&self| {
     field last_values(&executor, filter: last_values::Filter)
-        -> Vec<last_values::Metric>
+        -> Vec<last_values::RemoteMetric>
     {
-        last_values::query(executor.context(), filter)
+        last_values::query_remote(executor.context(), filter)
     }
 });
 
@@ -152,6 +154,7 @@ pub fn serve<S: 'static>(context: &Context, format: Format)
         let stats: &Stats = &*ctx.stats.read().expect("stats not poisoned");
         let context = ContextRef {
             stats,
+            hostname: &ctx.hostname,
             meter: &ctx.meter,
             gossip: &ctx.gossip,
             remote: &ctx.remote,
@@ -192,6 +195,7 @@ pub fn ws_response<'a>(context: &Context, input: &'a Input) -> Output {
     let stats: &Stats = &*context.stats.read().expect("stats not poisoned");
     let context = ContextRef {
         stats,
+        hostname: &context.hostname,
         meter: &context.meter,
         gossip: &context.gossip,
         remote: &context.remote,

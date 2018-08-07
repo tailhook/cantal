@@ -7,8 +7,11 @@ use tk_easyloop::spawn;
 use id::Id;
 use gossip::Gossip;
 
-mod manager;
 mod connection;
+mod hostname;
+mod manager;
+
+pub use self::hostname::Hostname;
 
 #[derive(Debug)]
 pub enum Message {

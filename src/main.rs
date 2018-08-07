@@ -64,6 +64,7 @@ use argparse::{StoreTrue};
 use rustc_serialize::json::Json;
 use tk_easyloop::handle;
 
+use remote::Hostname;
 use deps::{Dependencies, LockedDeps};
 
 mod carbon;
@@ -259,6 +260,7 @@ fn run() -> Result<(), Error> {
 
     let (remote, remote_init) = remote::init();
     let graphql = frontend::graphql::Context {
+        hostname: Hostname::from(&hostname),
         meter: meter.clone(),
         stats: stats.clone(),
         gossip: gossip.clone(),
