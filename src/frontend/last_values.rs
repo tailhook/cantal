@@ -323,9 +323,13 @@ pub fn query<'x>(ctx: &ContextRef<'x>, filter: Filter)
 pub fn query_remote<'x>(ctx: &ContextRef<'x>, filter: Filter)
     -> Vec<RemoteMetric>
 {
+    let mut response = ctx.remote.query_remote(&filter);
+
     // Always add metrics of itself
-    query(ctx, filter)
-    .into_iter()
-    .map(|m| RemoteMetric::from_local(m, ctx.hostname.clone()))
-    .collect()
+    response.extend(
+        query(ctx, filter)
+        .into_iter()
+        .map(|m| RemoteMetric::from_local(m, ctx.hostname.clone())));
+
+    return response;
 }

@@ -6,6 +6,7 @@ use tk_easyloop::spawn;
 
 use id::Id;
 use gossip::Gossip;
+use frontend::last_values::{RemoteMetric, Filter};
 
 mod connection;
 mod hostname;
@@ -74,5 +75,10 @@ impl Remote {
     }
     pub fn started(&self) -> bool {
         self.shared.started.load(Ordering::SeqCst)
+    }
+    pub fn query_remote<'x>(&self, filter: &Filter)
+        -> Vec<RemoteMetric>
+    {
+        Vec::new()
     }
 }

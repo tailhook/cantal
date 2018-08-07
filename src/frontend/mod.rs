@@ -13,7 +13,7 @@ mod websocket;
 mod status;
 mod cgroups;
 mod processes;
-mod last_values;
+pub mod last_values;
 
 use std::sync::{Arc, RwLock};
 
