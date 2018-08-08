@@ -18,7 +18,7 @@ use cantal::Value;
 use history::VersionInfo;
 use storage::{Storage, MetricBuffer};
 
-use incoming::{channel::Sender as Incoming, Subscription};
+use incoming::{Incoming, Subscription};
 
 
 const SNAPSHOT_INTERVAL: u64 = 60000;

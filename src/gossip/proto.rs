@@ -26,7 +26,7 @@ use gossip::peer::{Report, Peer};
 use id::Id as HostId;
 use storage::Storage;
 use time_util::time_ms;
-use incoming::{self, Subscription};
+use incoming::{Incoming, Subscription};
 use remote;
 
 lazy_static! {
@@ -64,7 +64,7 @@ pub struct Proto<S> {
     storage: Arc<Storage>,
     input_buf: Vec<u8>,
     output_buf: Vec<u8>,
-    incoming: incoming::channel::Sender,
+    incoming: Incoming,
     remote: remote::Remote,
 }
 
@@ -108,7 +108,7 @@ pub struct FriendInfo {
 
 impl<S: Stream<Item=Command, Error=Void>> Proto<S> {
     pub fn new(info: &Arc<Mutex<Info>>, config: &Arc<Config>, stream: S,
-        storage: &Arc<Storage>, incoming: &incoming::channel::Sender,
+        storage: &Arc<Storage>, incoming: &Incoming,
         remote: &remote::Remote)
        -> Result<Proto<S>, InitError>
     {

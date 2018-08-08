@@ -8,18 +8,16 @@ use futures::stream::MapErr;
 use futures::sync::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
 use graphql_parser::query::OperationDefinition as Op;
 use graphql_parser::query::{Definition, Document, Query as QueryParams};
-use serde_json::{to_string};
 use tk_bufstream::{WriteFramed, ReadFramed};
 use tk_easyloop::handle;
 use tk_http::websocket::{Loop, ServerCodec, Config, Packet};
 use tokio_io::{AsyncRead, AsyncWrite};
 
 use frontend::graphql;
-use frontend::graphql::{Input, Context};
-use incoming::dispatcher::{OutputMessage};
+use frontend::graphql::Input;
 
 mod dispatcher;
-pub mod channel;
+mod channel;
 
 lazy_static! {
     static ref WEBSOCK_CONFIG: Arc<Config> = Config::new()
@@ -62,8 +60,14 @@ pub struct Connection(Arc<ConnImpl>);
 pub struct Incoming(Arc<IncomingImpl>);
 
 #[derive(Debug)]
+pub struct Init {
+    internal: Arc<IncomingImpl>,
+    channel: channel::Receiver,
+}
+
+#[derive(Debug)]
 struct IncomingImpl {
-    context: Context,
+    channel: channel::Sender,
     state: Mutex<IncomingState>,
 }
 
@@ -78,14 +82,16 @@ fn closed(():()) -> &'static str {
 }
 
 impl Incoming {
-     pub fn new(context: &graphql::Context) -> Incoming {
-        Incoming(Arc::new(IncomingImpl {
-            context: context.clone(),
+     pub fn new() -> (Incoming, Init) {
+        let (tx, rx) = channel::new();
+        let internal = Arc::new(IncomingImpl {
+            channel: tx,
             state: Mutex::new(IncomingState {
                 connections: HashSet::new(),
                 subscriptions: HashMap::new(),
             }),
-        }))
+        });
+        return (Incoming(internal.clone()), Init { internal, channel: rx });
      }
      pub fn connected<S>(&self,
                output: WriteFramed<S, ServerCodec>,
@@ -156,28 +162,10 @@ impl Incoming {
             }
         }
      }
-     pub fn trigger(&self, subscription: &Subscription) {
-        let conns = self.0.state.lock().expect("lock is not poisoned")
-            .subscriptions.get(&subscription)
-            .map(|x| x.clone())
-            .unwrap_or_else(HashSet::new);
-        for conn in conns {
-            let clock = conn.0.state.lock().expect("lock is not poisoned");
-            let items = clock.subscriptions.get(&subscription);
-            for (id, input) in items.iter().flat_map(|x| *x) {
-                let result = graphql::ws_response(&self.0.context, &input);
-                let packet = Packet::Text(
-                    to_string(&OutputMessage::Data {
-                        id: id.clone(),
-                        payload: result,
-                    })
-                    .expect("can serialize"));
-                conn.0.tx.unbounded_send(packet)
-                    .map_err(|e| {
-                        trace!("can't reply with ack: {}", e)
-                    }).ok();
-            }
-        }
+     pub fn trigger(&self, subscription: Subscription) {
+         self.0.channel.0.unbounded_send(subscription)
+             .map_err(|e| error!("Can't trigger subscription: {}", e))
+             .ok();
      }
 }
 
@@ -244,4 +232,10 @@ pub fn subscription_to_query(doc: Document) -> Document {
         }
     }).collect();
     return Document { definitions }
+}
+
+impl Init {
+    pub fn spawn(self, ctx: &graphql::Context) {
+        self.channel.start(&self.internal, ctx);
+    }
 }

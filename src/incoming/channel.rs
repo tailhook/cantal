@@ -1,16 +1,21 @@
 use std::collections::HashSet;
 use std::time::Duration;
+use std::sync::Arc;
 
 use futures::{Stream, Async, Future};
 use futures::sync::mpsc;
 use futures::future::{loop_fn, Loop};
-
 use tk_easyloop::{spawn, timeout};
-use incoming::{Subscription, Incoming};
+use tk_http::websocket::Packet;
+use serde_json::{to_string};
+
+use frontend::graphql;
+use incoming::{Subscription, IncomingImpl};
+use incoming::dispatcher::{OutputMessage};
 
 
 #[derive(Clone, Debug)]
-pub struct Sender(mpsc::UnboundedSender<Subscription>);
+pub struct Sender(pub(in incoming) mpsc::UnboundedSender<Subscription>);
 
 #[derive(Debug)]
 pub struct Receiver(mpsc::UnboundedReceiver<Subscription>);
@@ -18,14 +23,6 @@ pub struct Receiver(mpsc::UnboundedReceiver<Subscription>);
 pub fn new() -> (Sender, Receiver) {
     let (tx, rx) = mpsc::unbounded();
     return (Sender(tx), Receiver(rx));
-}
-
-impl Sender {
-    pub fn trigger(&self, subscription: Subscription) {
-        self.0.unbounded_send(subscription)
-            .map_err(|e| error!("Can't trigger subscription: {}", e))
-            .ok();
-    }
 }
 
 fn insert(triggered: &mut HashSet<Subscription>, s: Subscription) {
@@ -39,11 +36,14 @@ fn insert(triggered: &mut HashSet<Subscription>, s: Subscription) {
 }
 
 impl Receiver {
-    pub fn start(self, inc: &Incoming) {
+    pub(in incoming) fn start(self,
+        inc: &Arc<IncomingImpl>, ctx: &graphql::Context)
+    {
         let inc = inc.clone();
+        let ctx = ctx.clone();
         let Receiver(me) = self;
         let me = me.fuse();
-        spawn(loop_fn((inc, me), move |(inc, me)| {
+        spawn(loop_fn((inc, ctx, me), move |(inc, ctx, me)| {
             me.into_future()
             .map_err(|((), _stream)| {
                 error!("Subscription sender closed");
@@ -71,9 +71,9 @@ impl Receiver {
                     }
                 }
                 for item in buf {
-                    inc.trigger(&item);
+                    dispatch(&item, &inc, &ctx);
                 }
-                Ok(Loop::Continue((inc, me)))
+                Ok(Loop::Continue((inc, ctx, me)))
             })
             .and_then(|data| {
                 timeout(Duration::from_millis(100))
@@ -81,5 +81,31 @@ impl Receiver {
                 .map(move |_| data)
             })
         }))
+    }
+}
+
+fn dispatch(subscription: &Subscription,
+    inc: &IncomingImpl, ctx: &graphql::Context)
+{
+    let conns = inc.state.lock().expect("lock is not poisoned")
+        .subscriptions.get(&subscription)
+        .map(|x| x.clone())
+        .unwrap_or_else(HashSet::new);
+    for conn in conns {
+        let clock = conn.0.state.lock().expect("lock is not poisoned");
+        let items = clock.subscriptions.get(&subscription);
+        for (id, input) in items.iter().flat_map(|x| *x) {
+            let result = graphql::ws_response(ctx, &input);
+            let packet = Packet::Text(
+                to_string(&OutputMessage::Data {
+                    id: id.clone(),
+                    payload: result,
+                })
+                .expect("can serialize"));
+            conn.0.tx.unbounded_send(packet)
+                .map_err(|e| {
+                    trace!("can't reply with ack: {}", e)
+                }).ok();
+        }
     }
 }

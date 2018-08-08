@@ -17,7 +17,7 @@ use tk_easyloop;
 use void::Void;
 
 use id::Id;
-use incoming;
+use incoming::Incoming;
 use remote;
 use storage::Storage;
 
@@ -81,8 +81,7 @@ pub fn init(cfg: &Arc<Config>) -> (Gossip, GossipInit) {
 
 impl GossipInit {
     pub fn spawn(self, storage: &Arc<Storage>,
-        incoming: &incoming::channel::Sender,
-        remote: &remote::Remote)
+        incoming: &Incoming, remote: &remote::Remote)
         -> Result<(), InitError>
     {
         let rx = self.receiver

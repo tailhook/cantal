@@ -187,7 +187,7 @@ fn run() -> Result<(), Error> {
     let mut deps = Dependencies::new();
     deps.insert(stats.clone());
 
-    let (graphql_tx, graphql_rx) = incoming::channel::new();
+    let (incoming, graphql_init) = incoming::Incoming::new();
     let (gossip, gossip_init) = cluster_name.as_ref().map(|cluster| {
         gossip::Config::new()
         .bind(address)
@@ -265,17 +265,18 @@ fn run() -> Result<(), Error> {
         stats: stats.clone(),
         gossip: gossip.clone(),
         remote: remote.clone(),
+        incoming: incoming.clone(),
     };
 
     let mydeps = deps.clone();
     let mymeter = meter.clone();
-    let mygraphtx = graphql_tx.clone();
+    let myincoming = incoming.clone();
     let _scan = thread::spawn(move || {
         let _watchdog = watchdog::ExitOnReturn(82);
         mymeter.track_current_thread("scan");
         scanner::scan_loop(mydeps,
             Duration::from_millis(scan_interval),
-            *backlog_time, &mygraphtx);
+            *backlog_time, &myincoming);
     });
 
 
@@ -285,10 +286,9 @@ fn run() -> Result<(), Error> {
         meter.spawn_scanner(&handle());
 
         if let Some(gossip) = gossip_init {
-            gossip.spawn(&storage, &graphql_tx, &remote)?;
+            gossip.spawn(&storage, &incoming, &remote)?;
         }
-        let incoming = incoming::Incoming::new(&graphql);
-        graphql_rx.start(&incoming);
+        graphql_init.spawn(&graphql);
         remote_init.spawn(&gossip);
 
         carbon::spawn_sinks(&ns, &configs, &stats)?;

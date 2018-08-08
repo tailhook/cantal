@@ -14,6 +14,7 @@ use remote::{Remote as RemoteSys, Hostname};
 use time_util::duration_to_millis;
 use stats::Stats;
 use gossip::Peer;
+use incoming::Incoming;
 use frontend::{Request};
 use frontend::routing::Format;
 use frontend::quick_reply::{read_json, respond, respond_status};
@@ -36,6 +37,7 @@ pub struct Context {
     pub meter: Meter,
     pub gossip: Gossip,
     pub remote: RemoteSys,
+    pub incoming: Incoming,
 }
 
 pub type Schema<'a> = RootNode<'a, &'a Query, &'a Mutation>;
