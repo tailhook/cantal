@@ -13,8 +13,8 @@ use tk_easyloop::handle;
 use tk_http::websocket::{Loop, ServerCodec, Config, Packet};
 use tokio_io::{AsyncRead, AsyncWrite};
 
-use frontend::graphql;
-use frontend::graphql::Input;
+use frontend::graphql::{self, Input};
+use frontend::last_values;
 
 mod dispatcher;
 mod channel;
@@ -82,91 +82,99 @@ fn closed(():()) -> &'static str {
 }
 
 impl Incoming {
-     pub fn new() -> (Incoming, Init) {
-        let (tx, rx) = channel::new();
-        let internal = Arc::new(IncomingImpl {
-            channel: tx,
-            state: Mutex::new(IncomingState {
-                connections: HashSet::new(),
-                subscriptions: HashMap::new(),
-            }),
-        });
-        return (Incoming(internal.clone()), Init { internal, channel: rx });
-     }
-     pub fn connected<S>(&self,
-               output: WriteFramed<S, ServerCodec>,
-               input: ReadFramed<S, ServerCodec>,
-               graphql: &graphql::Context)
-        -> (Token, Loop<S,
-            MapErr<UnboundedReceiver<Packet>, fn(()) -> &'static str>,
-            dispatcher::Dispatcher>)
-        where S: AsyncRead + AsyncWrite,
-     {
-        let (tx, rx) = unbounded();
-        let rx = rx.map_err(closed as fn(()) -> &'static str);
-        let conn = {
-            let mut lock = self.0.state.lock().expect("lock is not poisoned");
-            let ref mut conns = lock.connections;
-            let id = loop {
-                let id = Id(CONNECTION_ID.fetch_add(1, Ordering::Relaxed));
-                if !conns.contains(&id) {
-                    break id;
-                }
-            };
-            let conn = Connection(Arc::new(
-                ConnImpl {
-                    id, tx,
-                    state: Mutex::new(ConnState {
-                        subscriptions: HashMap::new(),
-                    }),
-                }
-            ));
-            conns.insert(conn.clone());
-            conn
-        };
-        let disp = dispatcher::Dispatcher {
-            conn: conn.clone(),
-            graphql: graphql.clone(),
-            incoming: self.clone(),
-        };
-        let fut = Loop::server(output, input, rx, disp,
-            &*WEBSOCK_CONFIG, &handle());
-        return (Token {
-            key: conn.0.id,
-            holder: self.clone(),
-        }, fut);
-     }
-     pub fn subscribe(&self, conn: &Connection, subscription: Subscription,
-        id: &String, input: &Input)
-     {
-        conn.0.state.lock().expect("lock is not poisoned")
-            .subscriptions.entry(subscription.clone())
-            .or_insert_with(HashMap::new)
-            .insert(id.clone(), input.clone());
-        self.0.state.lock().expect("lock is not poisoned")
-            .subscriptions.entry(subscription)
-            .or_insert_with(HashSet::new)
-            .insert(conn.clone());
-     }
-     pub fn unsubscribe_id(&self, conn: &Connection, id: &String)
-     {
-        if let Some(subscription) = conn.unsubscribe_id(id) {
-            let mut state = self.0.state.lock().expect("lock is not poisoned");
-            let remove = state.subscriptions.get_mut(&subscription)
-                .map(|x| {
-                    x.remove(conn);
-                    x.len() == 0
-                }).unwrap_or(false);
-            if remove {
-                state.subscriptions.remove(&subscription);
-            }
-        }
-     }
-     pub fn trigger(&self, subscription: Subscription) {
-         self.0.channel.0.unbounded_send(subscription)
-             .map_err(|e| error!("Can't trigger subscription: {}", e))
-             .ok();
-     }
+    pub fn new() -> (Incoming, Init) {
+       let (tx, rx) = channel::new();
+       let internal = Arc::new(IncomingImpl {
+           channel: tx,
+           state: Mutex::new(IncomingState {
+               connections: HashSet::new(),
+               subscriptions: HashMap::new(),
+           }),
+       });
+       return (Incoming(internal.clone()), Init { internal, channel: rx });
+    }
+    pub fn connected<S>(&self,
+              output: WriteFramed<S, ServerCodec>,
+              input: ReadFramed<S, ServerCodec>,
+              graphql: &graphql::Context)
+       -> (Token, Loop<S,
+           MapErr<UnboundedReceiver<Packet>, fn(()) -> &'static str>,
+           dispatcher::Dispatcher>)
+       where S: AsyncRead + AsyncWrite,
+    {
+       let (tx, rx) = unbounded();
+       let rx = rx.map_err(closed as fn(()) -> &'static str);
+       let conn = {
+           let mut lock = self.0.state.lock().expect("lock is not poisoned");
+           let ref mut conns = lock.connections;
+           let id = loop {
+               let id = Id(CONNECTION_ID.fetch_add(1, Ordering::Relaxed));
+               if !conns.contains(&id) {
+                   break id;
+               }
+           };
+           let conn = Connection(Arc::new(
+               ConnImpl {
+                   id, tx,
+                   state: Mutex::new(ConnState {
+                       subscriptions: HashMap::new(),
+                   }),
+               }
+           ));
+           conns.insert(conn.clone());
+           conn
+       };
+       let disp = dispatcher::Dispatcher {
+           conn: conn.clone(),
+           graphql: graphql.clone(),
+           incoming: self.clone(),
+       };
+       let fut = Loop::server(output, input, rx, disp,
+           &*WEBSOCK_CONFIG, &handle());
+       return (Token {
+           key: conn.0.id,
+           holder: self.clone(),
+       }, fut);
+    }
+    pub fn subscribe(&self, conn: &Connection, subscription: Subscription,
+       id: &String, input: &Input)
+    {
+       conn.0.state.lock().expect("lock is not poisoned")
+           .subscriptions.entry(subscription.clone())
+           .or_insert_with(HashMap::new)
+           .insert(id.clone(), input.clone());
+       self.0.state.lock().expect("lock is not poisoned")
+           .subscriptions.entry(subscription)
+           .or_insert_with(HashSet::new)
+           .insert(conn.clone());
+    }
+    pub fn unsubscribe_id(&self, conn: &Connection, id: &String)
+    {
+       if let Some(subscription) = conn.unsubscribe_id(id) {
+           let mut state = self.0.state.lock().expect("lock is not poisoned");
+           let remove = state.subscriptions.get_mut(&subscription)
+               .map(|x| {
+                   x.remove(conn);
+                   x.len() == 0
+               }).unwrap_or(false);
+           if remove {
+               state.subscriptions.remove(&subscription);
+           }
+       }
+    }
+    pub fn trigger(&self, subscription: Subscription) {
+        self.0.channel.0.unbounded_send(subscription)
+            .map_err(|e| error!("Can't trigger subscription: {}", e))
+            .ok();
+    }
+    pub fn track_last_values(&self, conn: &Connection,
+       id: i32, filter: last_values::Filter)
+    {
+        unimplemented!();
+    }
+    pub fn untrack_last_values(&self, conn: &Connection, id: i32) {
+        unimplemented!();
+    }
 }
 
 impl Borrow<Id> for Connection {

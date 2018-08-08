@@ -10,11 +10,11 @@ use self_meter_http::{Meter};
 use serde_json::{Value as Json, to_value};
 use tk_http::Status;
 
+use incoming::{Incoming, Connection};
 use remote::{Remote as RemoteSys, Hostname};
 use time_util::duration_to_millis;
 use stats::Stats;
 use gossip::Peer;
-use incoming::Incoming;
 use frontend::{Request};
 use frontend::routing::Format;
 use frontend::quick_reply::{read_json, respond, respond_status};
@@ -28,6 +28,8 @@ pub struct ContextRef<'a> {
     pub meter: &'a Meter,
     pub gossip: &'a Gossip,
     pub remote: &'a RemoteSys,
+    pub incoming: &'a Incoming,
+    pub connection: Option<&'a Connection>,
 }
 
 #[derive(Clone, Debug)]
@@ -45,6 +47,7 @@ pub type Schema<'a> = RootNode<'a, &'a Query, &'a Mutation>;
 pub struct Query;
 pub struct Local<'a>(PhantomData<&'a ()>);
 pub struct Remote<'a>(PhantomData<&'a ()>);
+pub struct Internal<'a>(PhantomData<&'a ()>);
 pub struct Mutation;
 
 #[derive(Deserialize, Clone, Debug)]
@@ -115,14 +118,43 @@ graphql_object!(<'a> &'a Query: ContextRef<'a> as "Query" |&self| {
     field remote(&executor) -> Remote<'a> {
         Remote(PhantomData)
     }
+    field _internal(&executor) -> Internal<'a> {
+        Internal(PhantomData)
+    }
     field peers(&executor, filter: Option<peers::Filter>) -> Vec<Arc<Peer>> {
         peers::get(executor.context(), filter)
     }
 });
 
+graphql_object!(<'a> Internal<'a>: ContextRef<'a> as "Internal" |&self| {
+    field metrics(&executor)
+        -> Vec<last_values::RemoteMetric>
+    {
+        // always empty on initial query, metrics will be pushed later on
+        Vec::new()
+    }
+});
+
 graphql_object!(<'a> &'a Mutation: ContextRef<'a> as "Mutation" |&self| {
-    field noop(&executor) -> Result<Okay, FieldError> {
-        Ok(Okay { ok: true })
+    field _internal_track_last_values(&executor,
+        id: i32, filter: last_values::Filter)
+        -> Result<Okay, FieldError>
+    {
+        if let Some(conn) = executor.context().connection {
+            executor.context().incoming.track_last_values(conn, id, filter);
+            Ok(Okay { ok: true })
+        } else {
+            Err("_internal_* mutations only work on websockets".into())
+        }
+    }
+    field _internal_untrack_last_values(&executor, id: i32)
+        -> Result<Okay, FieldError> {
+        if let Some(conn) = executor.context().connection {
+            executor.context().incoming.untrack_last_values(conn, id);
+            Ok(Okay { ok: true })
+        } else {
+            Err("_internal_* mutations only work on websockets".into())
+        }
     }
 });
 
@@ -160,6 +192,8 @@ pub fn serve<S: 'static>(context: &Context, format: Format)
             meter: &ctx.meter,
             gossip: &ctx.gossip,
             remote: &ctx.remote,
+            incoming: &ctx.incoming,
+            connection: None,
         };
 
         let variables = input.variables.unwrap_or_else(HashMap::new);
@@ -193,7 +227,10 @@ pub fn serve<S: 'static>(context: &Context, format: Format)
     })
 }
 
-pub fn ws_response<'a>(context: &Context, input: &'a Input) -> Output {
+pub fn ws_response<'a>(context: &Context,
+    connection: Option<&Connection>, input: &'a Input)
+    -> Output
+{
     let stats: &Stats = &*context.stats.read().expect("stats not poisoned");
     let context = ContextRef {
         stats,
@@ -201,6 +238,8 @@ pub fn ws_response<'a>(context: &Context, input: &'a Input) -> Output {
         meter: &context.meter,
         gossip: &context.gossip,
         remote: &context.remote,
+        incoming: &context.incoming,
+        connection,
     };
 
     let empty = HashMap::new();

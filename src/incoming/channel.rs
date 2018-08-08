@@ -95,7 +95,7 @@ fn dispatch(subscription: &Subscription,
         let clock = conn.0.state.lock().expect("lock is not poisoned");
         let items = clock.subscriptions.get(&subscription);
         for (id, input) in items.iter().flat_map(|x| *x) {
-            let result = graphql::ws_response(ctx, &input);
+            let result = graphql::ws_response(ctx, None, &input);
             let packet = Packet::Text(
                 to_string(&OutputMessage::Data {
                     id: id.clone(),

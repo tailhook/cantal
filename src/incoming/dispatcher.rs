@@ -138,7 +138,7 @@ fn start_query(id: String, payload: graphql::Input,
             }
         }
 
-        let result = graphql::ws_response(context, &input);
+        let result = graphql::ws_response(context, Some(conn), &input);
         let packet = Packet::Text(
             to_string(&OutputMessage::Data {
                 id: id,
@@ -150,7 +150,7 @@ fn start_query(id: String, payload: graphql::Input,
                 trace!("can't reply with ack: {}", e)
             }).ok();
     } else {
-        let payload = graphql::ws_response(context, &payload);
+        let payload = graphql::ws_response(context, Some(conn), &payload);
         let packet = Packet::Text(
             to_string(&OutputMessage::Data { id, payload })
             .expect("can serialize"));
