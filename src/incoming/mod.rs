@@ -1,5 +1,5 @@
 use std::collections::{HashSet, HashMap};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::borrow::Borrow;
 
@@ -14,10 +14,10 @@ use tk_http::websocket::{Loop, ServerCodec, Config, Packet};
 use tokio_io::{AsyncRead, AsyncWrite};
 
 use frontend::graphql::{self, Input};
-use frontend::last_values;
 
 mod dispatcher;
 mod channel;
+pub mod tracking;
 
 lazy_static! {
     static ref WEBSOCK_CONFIG: Arc<Config> = Config::new()
@@ -51,6 +51,7 @@ struct ConnImpl {
 struct ConnState {
     // subscription -> request_id -> query
     subscriptions: HashMap<Subscription, HashMap<String, Input>>,
+    tracking: tracking::Tracking,
 }
 
 #[derive(Debug, Clone)]
@@ -118,6 +119,7 @@ impl Incoming {
                    id, tx,
                    state: Mutex::new(ConnState {
                        subscriptions: HashMap::new(),
+                       tracking: tracking::Tracking::new(),
                    }),
                }
            ));
@@ -139,7 +141,7 @@ impl Incoming {
     pub fn subscribe(&self, conn: &Connection, subscription: Subscription,
        id: &String, input: &Input)
     {
-       conn.0.state.lock().expect("lock is not poisoned")
+       conn.state()
            .subscriptions.entry(subscription.clone())
            .or_insert_with(HashMap::new)
            .insert(id.clone(), input.clone());
@@ -168,8 +170,9 @@ impl Incoming {
             .ok();
     }
     pub fn track_last_values(&self, conn: &Connection,
-       id: i32, filter: last_values::Filter)
+       id: i32, filter: tracking::Filter)
     {
+        //conn.state().tracking.
         unimplemented!();
     }
     pub fn untrack_last_values(&self, conn: &Connection, id: i32) {
@@ -209,7 +212,7 @@ impl ::std::hash::Hash for Connection {
 
 impl Connection {
     fn unsubscribe_id(&self, id: &String) -> Option<Subscription> {
-        let mut state = self.0.state.lock().expect("lock is not poisoned");
+        let mut state = self.state();
         for (k, v) in &mut state.subscriptions {
             if v.contains_key(id) {
                 v.remove(id);
@@ -220,6 +223,9 @@ impl Connection {
             }
         }
         return None;
+    }
+    fn state(&self) -> MutexGuard<ConnState> {
+        self.0.state.lock().expect("connection lock")
     }
 }
 

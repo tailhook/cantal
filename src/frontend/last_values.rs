@@ -8,6 +8,7 @@ use frontend::graphql::{ContextRef, Timestamp};
 use history;
 use remote::Hostname;
 use cantal::Value as TipValue;
+use incoming::tracking;
 
 use self::RemoteMetric as RM;
 
@@ -16,6 +17,13 @@ use self::RemoteMetric as RM;
           description="Filter for last of value metric")]
 pub struct Filter {
     exact_key: Option<Vec<Pair>>,
+}
+
+#[derive(GraphQLInputObject, Debug, Clone)]
+#[graphql(name="InternalLastValuesFilter",
+          description="Filter for last of value metric (for internal API)")]
+pub struct InternalFilter {
+    exact_key: Vec<Pair>,
 }
 
 #[derive(Debug, Clone)]
@@ -332,4 +340,17 @@ pub fn query_remote<'x>(ctx: &ContextRef<'x>, filter: Filter)
         .map(|m| RemoteMetric::from_local(m, ctx.hostname.clone())));
 
     return response;
+}
+
+impl Into<tracking::Filter> for InternalFilter {
+    fn into(self) -> tracking::Filter {
+        let mut pairs = BTreeMap::new();
+        for item in &self.exact_key {
+            pairs.insert(&item.key[..], &item.value[..]);
+        }
+        let key = history::Key::unsafe_from_iter(pairs.into_iter());
+        return tracking::Filter {
+            exact_key: key,
+        }
+    }
 }

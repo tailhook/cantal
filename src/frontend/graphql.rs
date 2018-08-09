@@ -137,11 +137,12 @@ graphql_object!(<'a> Internal<'a>: ContextRef<'a> as "Internal" |&self| {
 
 graphql_object!(<'a> &'a Mutation: ContextRef<'a> as "Mutation" |&self| {
     field _internal_track_last_values(&executor,
-        id: i32, filter: last_values::Filter)
+        id: i32, filter: last_values::InternalFilter)
         -> Result<Okay, FieldError>
     {
         if let Some(conn) = executor.context().connection {
-            executor.context().incoming.track_last_values(conn, id, filter);
+            executor.context().incoming
+                .track_last_values(conn, id,filter.into());
             Ok(Okay { ok: true })
         } else {
             Err("_internal_* mutations only work on websockets".into())
