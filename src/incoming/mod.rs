@@ -228,7 +228,11 @@ impl Drop for Token {
         state.subscriptions.retain(|_k, v| {
             v.remove(&self.key);
             return !v.is_empty();
-        })
+        });
+        state.tracking.keys.retain(|_k, v| {
+            v.remove(&self.key);
+            return !v.is_empty();
+        });
     }
 }
 
