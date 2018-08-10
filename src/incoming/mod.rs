@@ -51,7 +51,7 @@ struct ConnImpl {
 struct ConnState {
     // subscription -> request_id -> query
     subscriptions: HashMap<Subscription, HashMap<String, Input>>,
-    tracking: tracking::Tracking,
+    tracking: tracking::Conn,
 }
 
 #[derive(Debug, Clone)]
@@ -76,6 +76,7 @@ struct IncomingImpl {
 struct IncomingState {
     connections: HashSet<Connection>,
     subscriptions: HashMap<Subscription, HashSet<Connection>>,
+    tracking: tracking::Global,
 }
 
 fn closed(():()) -> &'static str {
@@ -90,6 +91,7 @@ impl Incoming {
            state: Mutex::new(IncomingState {
                connections: HashSet::new(),
                subscriptions: HashMap::new(),
+               tracking: tracking::Global::new(),
            }),
        });
        return (Incoming(internal.clone()), Init { internal, channel: rx });
@@ -119,7 +121,7 @@ impl Incoming {
                    id, tx,
                    state: Mutex::new(ConnState {
                        subscriptions: HashMap::new(),
-                       tracking: tracking::Tracking::new(),
+                       tracking: tracking::Conn::new(),
                    }),
                }
            ));
@@ -138,6 +140,9 @@ impl Incoming {
            holder: self.clone(),
        }, fut);
     }
+    fn state(&self) -> MutexGuard<IncomingState> {
+       self.0.state.lock().expect("lock is not poisoned")
+    }
     pub fn subscribe(&self, conn: &Connection, subscription: Subscription,
        id: &String, input: &Input)
     {
@@ -145,7 +150,7 @@ impl Incoming {
            .subscriptions.entry(subscription.clone())
            .or_insert_with(HashMap::new)
            .insert(id.clone(), input.clone());
-       self.0.state.lock().expect("lock is not poisoned")
+       self.state()
            .subscriptions.entry(subscription)
            .or_insert_with(HashSet::new)
            .insert(conn.clone());
@@ -153,7 +158,7 @@ impl Incoming {
     pub fn unsubscribe_id(&self, conn: &Connection, id: &String)
     {
        if let Some(subscription) = conn.unsubscribe_id(id) {
-           let mut state = self.0.state.lock().expect("lock is not poisoned");
+           let mut state = self.state();
            let remove = state.subscriptions.get_mut(&subscription)
                .map(|x| {
                    x.remove(conn);
@@ -172,11 +177,41 @@ impl Incoming {
     pub fn track_last_values(&self, conn: &Connection,
        id: i32, filter: tracking::Filter)
     {
-        //conn.state().tracking.
-        unimplemented!();
+        let key = self.state().tracking.track_key(&filter.exact_key, conn);
+        let del_filter = {
+            let mut state = conn.state();
+            let mut old_filter = state.tracking.filters.remove(&id);
+            let del_filter = old_filter.and_then(|filter| {
+                if state.tracking.filters.values().any(|v| *v == filter) {
+                    None
+                } else {
+                    Some(filter)
+                }
+            });
+            state.tracking.filters.insert(id,
+                // Interning key in filter
+                tracking::Filter { exact_key: key });
+            del_filter
+        };
+        if let Some(filter) = del_filter {
+            self.state().tracking.untrack_key(&filter.exact_key, conn);
+        }
     }
     pub fn untrack_last_values(&self, conn: &Connection, id: i32) {
-        unimplemented!();
+        let del_filter = {
+            let mut state = conn.state();
+            let mut old_filter = state.tracking.filters.remove(&id);
+            old_filter.and_then(|filter| {
+                if state.tracking.filters.values().any(|v| *v == filter) {
+                    None
+                } else {
+                    Some(filter)
+                }
+            })
+        };
+        if let Some(filter) = del_filter {
+            self.state().tracking.untrack_key(&filter.exact_key, conn);
+        }
     }
 }
 
