@@ -128,10 +128,16 @@ graphql_object!(<'a> &'a Query: ContextRef<'a> as "Query" |&self| {
 
 graphql_object!(<'a> Internal<'a>: ContextRef<'a> as "Internal" |&self| {
     field metrics(&executor)
-        -> Vec<last_values::RemoteMetric>
+        -> Vec<last_values::Metric>
     {
-        // always empty on initial query, metrics will be pushed later on
-        Vec::new()
+        let ctx = executor.context();
+        if let Some(conn) = ctx.connection {
+            ctx.incoming.get_metrics_for(conn, ctx.stats)
+        } else {
+            // this is only for websockets
+            // TODO(tailhook) maybe error?
+            Vec::new()
+        }
     }
 });
 

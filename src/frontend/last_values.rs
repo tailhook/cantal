@@ -9,6 +9,7 @@ use history;
 use remote::Hostname;
 use cantal::Value as TipValue;
 use incoming::tracking;
+use stats::Stats;
 
 use self::RemoteMetric as RM;
 
@@ -284,62 +285,82 @@ graphql_interface!(RemoteMetric: () |&self| {
 pub fn query<'x>(ctx: &ContextRef<'x>, filter: Filter)
     -> Vec<Metric>
 {
-    if let Some(ref key) = filter.exact_key {
-
-        // pairs must be sorted
-        let mut pairs = BTreeMap::new();
-        for item in key {
-            pairs.insert(&item.key[..], &item.value[..]);
-        }
-        let key = history::Key::unsafe_from_iter(pairs.into_iter());
-
-        let metric =
-            ctx.stats.history.tip.values.get(&key)
-                .map(|(_, met)| met.clone())
-            .or_else(|| ctx.stats.history.fine.values.get(&key)
-                        .and_then(|hist| {
-                            hist.tip_or_none(ctx.stats.history.fine.age)
-                        }))
-            .map(|met| {
-                match met {
-                    TipValue::Counter(v) => Metric::Counter(CounterMetric {
-                        key: Key(key),
-                        value: v,
-                    }),
-                    TipValue::Integer(v) => Metric::Integer(IntegerMetric {
-                        key: Key(key),
-                        value: v,
-                    }),
-                    TipValue::Float(v) => Metric::Float(FloatMetric {
-                        key: Key(key),
-                        value: v,
-                    }),
-                    TipValue::State(v) => Metric::State(StateMetric {
-                        key: Key(key),
-                        timestamp: Timestamp::from_ms(v.0),
-                        value: v.1,
-                    }),
-                }
-            });
-        // Option<Metric> to 1 element or 0 element vector
-        metric.into_iter().collect()
+    let  Filter { exact_key } = filter;
+    if let Some(key) = exact_key {
+        get_metrics(ctx.stats, &key.into())
     } else {
         Vec::new()
     }
 }
 
+pub fn get_metrics(stats: &Stats, filter: &tracking::Filter)
+    -> Vec<Metric>
+{
+    let ref key = filter.exact_key;
+
+    let metric =
+        stats.history.tip.values.get(&key)
+            .map(|(_, met)| met.clone())
+        .or_else(|| stats.history.fine.values.get(&key)
+                    .and_then(|hist| {
+                        hist.tip_or_none(stats.history.fine.age)
+                    }))
+        .map(|met| {
+            match met {
+                TipValue::Counter(v) => Metric::Counter(CounterMetric {
+                    key: Key(key.clone()),
+                    value: v,
+                }),
+                TipValue::Integer(v) => Metric::Integer(IntegerMetric {
+                    key: Key(key.clone()),
+                    value: v,
+                }),
+                TipValue::Float(v) => Metric::Float(FloatMetric {
+                    key: Key(key.clone()),
+                    value: v,
+                }),
+                TipValue::State(v) => Metric::State(StateMetric {
+                    key: Key(key.clone()),
+                    timestamp: Timestamp::from_ms(v.0),
+                    value: v.1,
+                }),
+            }
+        });
+    // Option<Metric> to 1 element or 0 element vector
+    metric.into_iter().collect()
+}
+
 pub fn query_remote<'x>(ctx: &ContextRef<'x>, filter: Filter)
     -> Vec<RemoteMetric>
 {
-    let mut response = ctx.remote.query_remote(&filter);
+    let  Filter { exact_key } = filter;
+    if let Some(key) = exact_key {
+        let filter = key.into();
+        let mut response = ctx.remote.query_remote(&filter);
 
-    // Always add metrics of itself
-    response.extend(
-        query(ctx, filter)
-        .into_iter()
-        .map(|m| RemoteMetric::from_local(m, ctx.hostname.clone())));
+        // Always add metrics of itself
+        response.extend(
+            get_metrics(ctx.stats, &filter)
+            .into_iter()
+            .map(|m| RemoteMetric::from_local(m, ctx.hostname.clone())));
 
-    return response;
+        return response;
+    } else {
+        Vec::new()
+    }
+}
+
+impl From<Vec<Pair>> for tracking::Filter {
+    fn from(v: Vec<Pair>) -> tracking::Filter {
+        let mut pairs = BTreeMap::new();
+        for item in &v {
+            pairs.insert(&item.key[..], &item.value[..]);
+        }
+        let key = history::Key::unsafe_from_iter(pairs.into_iter());
+        return tracking::Filter {
+            exact_key: key,
+        }
+    }
 }
 
 impl Into<tracking::Filter> for InternalFilter {

@@ -24,6 +24,7 @@ impl Conn {
 
 #[derive(Debug)]
 pub struct Global {
+    // TODO(tailhook) remove me, not needed for now
     pub keys: HashMap<Key, HashSet<Connection>>,
 }
 
@@ -45,7 +46,7 @@ impl Global {
         return key;
     }
     pub fn untrack_key(&mut self, key: &Key, connection: &Connection) {
-        let mut delete_key = if let Some(conns) = self.keys.get_mut(key) {
+        let delete_key = if let Some(conns) = self.keys.get_mut(key) {
             conns.remove(connection);
             conns.len() == 0
         } else {

@@ -127,6 +127,13 @@ fn start_query(id: String, payload: graphql::Input,
                                 incoming.subscribe(conn, Subscription::Peers,
                                     &id, &input);
                             }
+                            Selection::Field(ref f) if f.name == "_internal" =>
+                            {
+                                // TODO(tailhook) also check
+                                // that it's "metrics"
+                                incoming.subscribe(conn, Subscription::Scan,
+                                    &id, &input);
+                            }
                             // TODO(tailhook) maybe validate?
                             // For now invalid fields will error in juniper
                             // executor.

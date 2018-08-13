@@ -13,7 +13,9 @@ use tk_easyloop::handle;
 use tk_http::websocket::{Loop, ServerCodec, Config, Packet};
 use tokio_io::{AsyncRead, AsyncWrite};
 
+use stats::Stats;
 use frontend::graphql::{self, Input};
+use frontend::last_values;
 
 mod dispatcher;
 mod channel;
@@ -212,6 +214,16 @@ impl Incoming {
         if let Some(filter) = del_filter {
             self.state().tracking.untrack_key(&filter.exact_key, conn);
         }
+    }
+    pub fn get_metrics_for(&self, conn: &Connection, stats: &Stats)
+        -> Vec<last_values::Metric>
+    {
+        let mut res = Vec::new();
+        // TODO(tailhook) note: filter might be not unique
+        for (_, flt) in &conn.state().tracking.filters {
+            res.extend(last_values::get_metrics(stats, flt));
+        }
+        return res;
     }
 }
 
