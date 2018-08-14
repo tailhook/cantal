@@ -1,6 +1,7 @@
 import {uptime} from '../util/process.js'
 import {DATA, ERROR} from '../middleware/request'
 
+
 function build_tree(data) {
     var toplevel = [];
     var by_id = {};
@@ -21,7 +22,6 @@ function build_tree(data) {
     }
     return {
         all: data.all,
-        uptime_base: data.boot_time,
         toplevel,
         tree,
     }

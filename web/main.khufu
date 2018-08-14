@@ -148,7 +148,7 @@ view self_status(beacon):
 
   <div.machine-up>
     "up "
-    format_uptime(till_now_ms(from_ms(beacon.bootTime)))
+    format_uptime(till_now_ms(from_ms(beacon.bootTime*1000)))
   <div.cantal-status>
     <span.pointer title="Uptime of the cantal agent itself">
       "up "
