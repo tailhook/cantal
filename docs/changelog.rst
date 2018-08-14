@@ -2,6 +2,14 @@ Cantal Changes by Version
 =========================
 
 
+.. _changelog-0.6.8:
+
+Cantal 0.6.8
+------------
+
+* Bugfix: machine uptime and process' uptimes were broken in UI
+
+
 .. _changelog-0.6.7:
 
 Cantal 0.6.7
