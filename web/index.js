@@ -1,6 +1,6 @@
 import {createStore, applyMiddleware} from 'redux'
 import {attach} from 'khufu-runtime'
-import {} from './graphql'
+import * as graphql from './graphql'
 
 import {main} from './main.khufu'
 import {router} from './util/routing'
@@ -29,6 +29,7 @@ let khufu_instance = attach(document.getElementById('app'), main(VERSION), {
     }
 })
 
+graphql.start(khufu_instance.queue_render)
 let unsubscribe = router.subscribe(khufu_instance.queue_render)
 
 if(module.hot) {

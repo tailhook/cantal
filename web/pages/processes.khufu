@@ -2,6 +2,7 @@ import {refresher, json} from '../middleware/request'
 import {processes} from '../stores/processes'
 import {bool, toggle, disable, init} from '../stores/simple'
 import {icon} from '../util/icon.khufu'
+import {uptime} from '../util/process.js'
 
 style:
   .title
@@ -63,7 +64,7 @@ view _process_row(process, all, level):
       <div.name>
         `${process.name}`
       <div.uptime>
-        `${process.uptime}`
+        `${uptime(process)}`
       <div.mem>
         `${(process.rss / 1048576).toFixed(1)}`
       <div.cgroup>

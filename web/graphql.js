@@ -19,32 +19,35 @@ const client = new ApolloClient({
 
 export var beacon
 
-let q = client.subscribe({
-  query: gql`
-        subscription {
-            beacon: status {
-                id,
-                version,
-                hostname,
-                name,
-                clusterName,
-                bootTime,
-                startupTime,
-                scanDuration,
-                currentTime,
-                selfReport,
-                threadsReport,
-                tipValues,
-                fineValues,
-                processes,
+export function start(render) {
+    let q = client.subscribe({
+      query: gql`
+            subscription {
+                beacon: status {
+                    id,
+                    version,
+                    hostname,
+                    name,
+                    clusterName,
+                    bootTime,
+                    startupTime,
+                    scanDuration,
+                    currentTime,
+                    selfReport,
+                    threadsReport,
+                    tipValues,
+                    fineValues,
+                    processes,
+                }
             }
-        }
-    `,
-  variables: {}
-}).subscribe({
-  next (data) {
-    let time = Date.now()
-    beacon = data.data.beacon
-    beacon.latency = beacon.currentTime - time
-  }
-});
+        `,
+      variables: {}
+    }).subscribe({
+      next (data) {
+        let time = Date.now()
+        beacon = data.data.beacon
+        beacon.latency = beacon.currentTime - time
+        render()
+      }
+    });
+}
