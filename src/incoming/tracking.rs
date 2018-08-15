@@ -4,7 +4,7 @@ use history::Key;
 use incoming::Connection;
 
 
-#[derive(Debug, PartialEq, Eq, Hash)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct Filter {
     pub exact_key: Key,
 }

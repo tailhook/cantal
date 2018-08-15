@@ -4,7 +4,7 @@ use std::borrow::Borrow;
 use juniper::{Value};
 
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct Hostname(Arc<str>);
 
 impl Borrow<str> for Hostname {

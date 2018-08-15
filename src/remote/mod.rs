@@ -1,4 +1,4 @@
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard};
 use std::sync::atomic::{Ordering, AtomicBool};
 
 use futures::sync::mpsc::{unbounded, UnboundedSender, UnboundedReceiver};
@@ -7,11 +7,11 @@ use tk_easyloop::spawn;
 use id::Id;
 use gossip::Gossip;
 use frontend::last_values::{RemoteMetric};
-use incoming::tracking;
 
 mod connection;
 mod hostname;
 mod manager;
+mod tracking;
 
 pub use self::hostname::Hostname;
 
@@ -36,6 +36,7 @@ pub struct Remote {
 #[derive(Debug)]
 pub struct SharedState {
     dead_connections: Vec<Id>,
+    tracking: tracking::Tracking,
 }
 
 #[derive(Debug)]
@@ -52,6 +53,7 @@ pub fn init() -> (Remote, Init) {
         started: AtomicBool::new(false),
         state: Mutex::new(SharedState {
             dead_connections: Vec::new(),
+            tracking: tracking::Tracking::new(),
         }),
     });
     return (Remote { tx, shared: shared.clone() }, Init { rx, shared });
@@ -77,10 +79,14 @@ impl Remote {
     pub fn started(&self) -> bool {
         self.shared.started.load(Ordering::SeqCst)
     }
-    pub fn query_remote<'x>(&self, _filter: &tracking::Filter)
+    pub fn state(&self) -> MutexGuard<SharedState> {
+        self.shared.state.lock().expect("remote shared state is fine")
+    }
+    pub fn query_remote<'x>(&self, filter: &tracking::Filter)
         -> Vec<RemoteMetric>
     {
-        // TODO(tailhook) implement
-        Vec::new()
+        let ref mut trk = self.state().tracking;
+        trk.add_timed_filter(filter);
+        trk.get_values(filter)
     }
 }

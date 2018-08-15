@@ -107,7 +107,7 @@ pub struct RemoteStateMetric {
 }
 
 impl RemoteMetric {
-    fn from_local(m: Metric, hostname: Hostname) -> RemoteMetric {
+    pub fn from_local(m: Metric, hostname: Hostname) -> RemoteMetric {
         use self::Metric as M;
         match m {
             M::Integer(IntegerMetric { key, value })
@@ -293,6 +293,30 @@ pub fn query<'x>(ctx: &ContextRef<'x>, filter: Filter)
     }
 }
 
+impl<'a> From<(&'a history::Key, &'a TipValue)> for Metric {
+    fn from((key, met): (&history::Key, &TipValue)) -> Metric {
+        match met {
+            TipValue::Counter(v) => Metric::Counter(CounterMetric {
+                key: Key(key.clone()),
+                value: *v,
+            }),
+            TipValue::Integer(v) => Metric::Integer(IntegerMetric {
+                key: Key(key.clone()),
+                value: *v,
+            }),
+            TipValue::Float(v) => Metric::Float(FloatMetric {
+                key: Key(key.clone()),
+                value: *v,
+            }),
+            TipValue::State(v) => Metric::State(StateMetric {
+                key: Key(key.clone()),
+                timestamp: Timestamp::from_ms(v.0),
+                value: v.1.clone(),
+            }),
+        }
+    }
+}
+
 pub fn get_metrics(stats: &Stats, filter: &tracking::Filter)
     -> Vec<Metric>
 {
@@ -306,25 +330,7 @@ pub fn get_metrics(stats: &Stats, filter: &tracking::Filter)
                         hist.tip_or_none(stats.history.fine.age)
                     }))
         .map(|met| {
-            match met {
-                TipValue::Counter(v) => Metric::Counter(CounterMetric {
-                    key: Key(key.clone()),
-                    value: v,
-                }),
-                TipValue::Integer(v) => Metric::Integer(IntegerMetric {
-                    key: Key(key.clone()),
-                    value: v,
-                }),
-                TipValue::Float(v) => Metric::Float(FloatMetric {
-                    key: Key(key.clone()),
-                    value: v,
-                }),
-                TipValue::State(v) => Metric::State(StateMetric {
-                    key: Key(key.clone()),
-                    timestamp: Timestamp::from_ms(v.0),
-                    value: v.1,
-                }),
-            }
+            (key, &met).into()
         });
     // Option<Metric> to 1 element or 0 element vector
     metric.into_iter().collect()
