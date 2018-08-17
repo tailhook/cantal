@@ -2,7 +2,7 @@ use std::sync::Arc;
 use std::mem;
 use std::net::SocketAddr;
 
-use remote::Shared;
+use remote::{Shared, Hostname};
 use id::Id;
 
 use futures::{Future, Async, Stream};
@@ -20,8 +20,8 @@ lazy_static! {
 
 
 pub enum State {
-    Connecting(ConnectFuture),
-    Handshake(HandshakeProto<TcpStream, SimpleAuthorizer>),
+    Connecting(ConnectFuture, Dispatcher),
+    Handshake(HandshakeProto<TcpStream, SimpleAuthorizer>, Dispatcher),
     Active(Loop<TcpStream, Packetize, Dispatcher>),
     Void,
 }
@@ -33,6 +33,8 @@ pub struct Connection {
 }
 
 pub struct Dispatcher {
+    hostname: Hostname,
+    shared: Shared,
 }
 
 pub struct Packetize;
@@ -69,29 +71,30 @@ impl Future for Connection {
         use self::State::*;
         loop {
             match mem::replace(&mut self.state, Void) {
-                Connecting(mut f) => match f.poll() {
+                Connecting(mut f, d) => match f.poll() {
                     Ok(Async::NotReady) => {
-                        self.state = Connecting(f);
+                        self.state = Connecting(f, d);
                         return Ok(Async::NotReady);
                     }
                     Ok(Async::Ready(conn)) => {
                         self.state = Handshake(
                             HandshakeProto::new(conn, SimpleAuthorizer::new(
-                                "cantal.internal", "/graphql")));
+                                "cantal.internal", "/graphql")),
+                            d);
                     }
                     Err(e) => {
                         error!("Error connecting to {}: {}", self.id, e);
                         return Err(());
                     }
                 }
-                Handshake(mut f) => match f.poll() {
+                Handshake(mut f, d) => match f.poll() {
                     Ok(Async::NotReady) => {
-                        self.state = Handshake(f);
+                        self.state = Handshake(f, d);
                         return Ok(Async::NotReady);
                     }
                     Ok(Async::Ready((out, inp, ()))) => {
                         self.state = Active(Loop::client(out, inp, Packetize,
-                            Dispatcher {}, &*CONFIG, &handle()));
+                            d, &*CONFIG, &handle()));
                     }
                     Err(e) => {
                         error!("Error handshaking with {}: {}", self.id, e);
@@ -119,12 +122,18 @@ impl Future for Connection {
 }
 
 impl Connection {
-    pub fn new(id: &Id, addr: SocketAddr, shared: &Shared) -> Connection {
-        info!("Connecting to {} via {}", id, addr);
+    pub fn new(id: &Id, hostname: &Hostname, addr: SocketAddr, shared: &Shared)
+        -> Connection
+    {
+        info!("Connecting to {}:{} via {}", hostname, id, addr);
+        let disp = Dispatcher {
+            hostname: hostname.clone(),
+            shared: shared.clone(),
+        };
         Connection {
             id: id.clone(),
             shared: shared.clone(),
-            state: State::Connecting(TcpStream::connect(&addr)),
+            state: State::Connecting(TcpStream::connect(&addr), disp),
         }
     }
 }

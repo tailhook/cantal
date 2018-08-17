@@ -1,3 +1,4 @@
+use std::fmt;
 use std::sync::Arc;
 use std::borrow::Borrow;
 
@@ -13,9 +14,27 @@ impl Borrow<str> for Hostname {
     }
 }
 
-impl<S: AsRef<str>> From<S> for Hostname {
-    fn from(s: S) -> Hostname {
-        Hostname(Arc::from(s.as_ref()))
+impl AsRef<str> for Hostname {
+    fn as_ref(&self) -> &str {
+        self.0.as_ref()
+    }
+}
+
+impl From<String> for Hostname {
+    fn from(s: String) -> Hostname {
+        Hostname(Arc::from(&s[..]))
+    }
+}
+
+impl<'a> From<&'a String> for Hostname {
+    fn from(s: &String) -> Hostname {
+        Hostname(Arc::from(&s[..]))
+    }
+}
+
+impl<'a> From<&'a str> for Hostname {
+    fn from(s: &str) -> Hostname {
+        Hostname(Arc::from(s))
     }
 }
 
@@ -29,3 +48,9 @@ graphql_scalar!(Hostname {
         v.as_string_value().map(|x| Hostname::from(x))
     }
 });
+
+impl fmt::Display for Hostname {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", &self.0[..])
+    }
+}

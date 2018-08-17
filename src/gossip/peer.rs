@@ -11,6 +11,7 @@ use frontend::graphql::{Timestamp};
 use gossip::Config;
 use time_util::duration_to_millis;
 use id::Id;
+use remote::Hostname;
 
 
 // TODO(tailhook) probably remove the structure
@@ -31,7 +32,7 @@ pub struct Peer {
     pub primary_addr: Option<SocketAddr>,
     /// All addresses declared by host, including virtual ones
     pub addresses: HashSet<SocketAddr>,
-    pub hostname: Option<String>,
+    pub hostname: Option<Hostname>,
     pub name: Option<String>,
     pub last_probe: Option<(u64, SocketAddr)>,
     pub probes_sent: u64,
@@ -46,7 +47,7 @@ pub struct Peer {
 graphql_object!(Peer: () as "Peer" |&self| {
     field id() -> String { self.id.to_string() }
     field name() -> &Option<String> { &self.name }
-    field hostname() -> &Option<String> { &self.hostname }
+    field hostname() -> &Option<Hostname> { &self.hostname }
     field has_remote() -> bool { self.has_remote() }
     field primary_addr() -> Option<String> {
         self.primary_addr.map(|x| x.to_string())
@@ -112,12 +113,12 @@ impl Peer {
             self.report = src;
         }
     }
-    pub fn apply_hostname(&mut self, hostname: Option<&str>,
+    pub fn apply_hostname(&mut self, hostname: Option<&Hostname>,
         direct: bool)
     {
         let overwrite = match (&self.hostname, &hostname) {
             (&None, &Some(_)) => true,
-            (&Some(ref x), &Some(ref y)) if x != y => {
+            (&Some(ref x), &Some(y)) if x != y => {
                 warn!("Host {} has hostname {:?} but received {:?} for it. {}",
                     self.id, x, y,
                     if direct { "Overwriting..." } else { "Ignoring..." });
@@ -126,7 +127,7 @@ impl Peer {
             _ => false,
         };
         if overwrite {
-            self.hostname = hostname.map(|x| x.to_string());
+            self.hostname = hostname.cloned();
         }
     }
     pub fn apply_node_name(&mut self, name: Option<&str>, direct: bool)

@@ -27,7 +27,7 @@ use id::Id as HostId;
 use storage::Storage;
 use time_util::time_ms;
 use incoming::{Incoming, Subscription};
-use remote;
+use remote::{self, Hostname};
 
 lazy_static! {
     pub static ref NUM_PEERS: Integer = Integer::new();
@@ -89,7 +89,7 @@ pub enum Packet {
 pub struct MyInfo {
     id: HostId,
     addresses: Arc<Vec<String>>,
-    host: Arc<String>,
+    host: Hostname,
     name: Arc<String>,
     report: Report,
 }
@@ -99,7 +99,7 @@ pub struct FriendInfo {
     pub id: HostId,
     pub my_primary_addr: Option<String>,
     pub addresses: Vec<String>,
-    pub host: Option<String>,
+    pub host: Option<Hostname>,
     pub name: Option<String>,
     pub report: Option<(u64, Report)>,
     pub roundtrip: Option<(u64, u64)>,
@@ -282,7 +282,7 @@ impl<S: Stream<Item=Command, Error=Void>> Proto<S> {
                         pinfo.addresses.iter().filter_map(|x| x.parse().ok()),
                         true);
                     peer.apply_report(Some((tm, pinfo.report)), true);
-                    peer.apply_hostname(Some(pinfo.host.as_ref()), true);
+                    peer.apply_hostname(Some(&pinfo.host), true);
                     peer.apply_node_name(Some(pinfo.name.as_ref()), true);
                     peer.pings_received += 1;
                     if peer.primary_addr.as_ref() != Some(&addr) {
@@ -362,7 +362,7 @@ impl<S: Stream<Item=Command, Error=Void>> Proto<S> {
                         peer.apply_roundtrip((tm, (tm - ping_time)),
                             addr, true);
                     }
-                    peer.apply_hostname(Some(pinfo.host.as_ref()), true);
+                    peer.apply_hostname(Some(&pinfo.host), true);
                     peer.apply_node_name(Some(pinfo.name.as_ref()), true);
                     if peer.primary_addr.as_ref() != Some(&addr) {
                         peer.primary_addr = Some(addr);
@@ -432,7 +432,7 @@ impl<S: Stream<Item=Command, Error=Void>> Proto<S> {
                     friend.addresses.iter().filter_map(|x| x.parse().ok()),
                     false);
                 peer.apply_report(friend.report, false);
-                peer.apply_hostname(friend.host.as_ref().map(|x| &**x), false);
+                peer.apply_hostname(friend.host.as_ref(), false);
                 peer.apply_node_name(
                     friend.name.as_ref().map(|x| &**x), false);
                 friend.roundtrip.map(|rtt|

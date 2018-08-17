@@ -129,12 +129,15 @@ impl State {
             if self.active.contains(&peer.id) {
                 continue;
             }
-            if let Some(addr) = peer.primary_addr {
-                self.futures.push(
-                    Connection::new(&peer.id, addr, &self.shared));
-                self.active.insert(peer.id.clone());
-            } else {
-                self.insert_throttle(peer.id.clone());
+            match (peer.primary_addr, &peer.hostname) {
+                (Some(addr), Some(host)) => {
+                    self.futures.push(
+                        Connection::new(&peer.id, &host, addr, &self.shared));
+                    self.active.insert(peer.id.clone());
+                }
+                _ => {
+                    self.insert_throttle(peer.id.clone());
+                }
             }
         }
     }
@@ -171,14 +174,18 @@ impl State {
             }
             if throttle.timestamp < now() {
                 if let Some(peer) = gossip.get_peer(id) {
-                    if let Some(addr) = peer.primary_addr {
-                        self.futures.push(
-                            Connection::new(&id, addr, &self.shared));
-                        self.active.insert(id.clone());
-                        new = true;
-                    } else {
-                        throttle.bump();
-                        deadline = min(deadline, throttle.timestamp);
+                    match (peer.primary_addr, &peer.hostname) {
+                        (Some(addr), Some(host)) => {
+                            self.futures.push(
+                                Connection::new(&id, &host, addr,
+                                                &self.shared));
+                            self.active.insert(id.clone());
+                            new = true;
+                        }
+                        _ => {
+                            throttle.bump();
+                            deadline = min(deadline, throttle.timestamp);
+                        }
                     }
                 } else {
                     drop_peers.push(id.clone());

@@ -18,7 +18,7 @@ use void::Void;
 
 use id::Id;
 use incoming::Incoming;
-use remote;
+use remote::{self, Hostname};
 use storage::Storage;
 
 pub use self::peer::Peer;
@@ -32,7 +32,7 @@ pub use self::proto::{NUM_PEERS, NUM_STALE};
 pub struct Config {
     machine_id: Id,
     cluster_name: Arc<String>,
-    hostname: Arc<String>,
+    hostname: Hostname,
     name: Arc<String>,
     bind: SocketAddr,
     #[allow(dead_code)]

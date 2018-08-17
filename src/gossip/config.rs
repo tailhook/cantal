@@ -8,13 +8,14 @@ use rand::{thread_rng, Rng};
 use id::Id;
 use gossip::Config;
 use time_util::duration_to_millis;
+use remote::Hostname;
 
 
 pub struct ConfigBuilder {
     machine_id: Option<Id>,
     cluster_name: Option<String>,
     name: Option<String>,
-    hostname: Option<String>,
+    hostname: Option<Hostname>,
     bind: Option<SocketAddr>,
     addresses: Vec<SocketAddr>,
 
@@ -168,7 +169,7 @@ impl ConfigBuilder {
             machine_id: self.machine_id.clone().expect("machine_id"),
             cluster_name: Arc::new(
                 self.cluster_name.clone().expect("cluster_name")),
-            hostname: Arc::new(self.hostname.clone().expect("hostname")),
+            hostname: self.hostname.as_ref().expect("hostname").clone(),
             name: Arc::new(self.name.clone().expect("name")),
             bind: self.bind.expect("bind address"),
             addresses: self.addresses.clone(),
