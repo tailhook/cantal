@@ -1,3 +1,4 @@
+use std::default::Default;
 use std::sync::{Arc, RwLock};
 use std::collections::HashMap;
 use std::marker::PhantomData;
@@ -50,20 +51,21 @@ pub struct Remote<'a>(PhantomData<&'a ()>);
 pub struct Internal<'a>(PhantomData<&'a ()>);
 pub struct Mutation;
 
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Input {
     pub query: String,
     #[serde(default, rename="operationName")]
+    #[serde(skip_serializing_if="Option::is_none")]
     pub operation_name: Option<String>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if="Option::is_none")]
     pub variables: Option<HashMap<String, InputValue>>,
 }
 
 #[derive(Debug, Serialize)]
 pub struct Output {
-    #[serde(skip_serializing_if="Option::is_none")]
+    #[serde(default, skip_serializing_if="Option::is_none")]
     pub data: Option<Value>,
-    #[serde(skip_serializing_if="ErrorWrapper::is_empty")]
+    #[serde(default, skip_serializing_if="ErrorWrapper::is_empty")]
     pub errors: ErrorWrapper,
 }
 
@@ -81,6 +83,12 @@ pub struct Okay {
 
 #[derive(Debug, Clone, Copy)]
 pub struct Timestamp(pub SystemTime);
+
+impl Default for ErrorWrapper {
+    fn default() -> ErrorWrapper {
+        ErrorWrapper::Execution(Vec::new())
+    }
+}
 
 graphql_object!(<'a> Local<'a>: ContextRef<'a> as "Local" |&self| {
     field cgroups(&executor, filter: Option<cgroups::Filter>)
