@@ -7,6 +7,7 @@ use id::Id;
 use serde_json;
 
 use futures::{Future, Async, Stream};
+use futures::sync::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
 use futures::future::{FutureResult, ok, err};
 use frontend::graphql;
 use tokio::net::{TcpStream, ConnectFuture};
@@ -20,10 +21,32 @@ lazy_static! {
         .done();
 }
 
+static SUBSCRIBE_METRICS: &str = "
+    subscription {
+        metrics {
+            key
+            .. on IntegerMetric {
+                value
+            }
+            .. on CounterMetric {
+                value
+            }
+            .. on FloatMetric {
+                value
+            }
+            .. on StateMetric {
+                timestamp
+                value
+            }
+        }
+    }
+";
+
 
 pub enum State {
-    Connecting(ConnectFuture, Dispatcher),
-    Handshake(HandshakeProto<TcpStream, SimpleAuthorizer>, Dispatcher),
+    Connecting(ConnectFuture, UnboundedReceiver<Packet>, Dispatcher),
+    Handshake(HandshakeProto<TcpStream, SimpleAuthorizer>,
+        UnboundedReceiver<Packet>, Dispatcher),
     Active(Loop<TcpStream, Packetize, Dispatcher>),
     Void,
 }
@@ -35,11 +58,14 @@ pub struct Connection {
 }
 
 pub struct Dispatcher {
+    tx: UnboundedSender<Packet>,
     hostname: Hostname,
     shared: Shared,
 }
 
-pub struct Packetize;
+pub struct Packetize {
+    rx: UnboundedReceiver<Packet>,
+}
 
 #[derive(Debug, Serialize)]
 #[serde(tag="type", rename_all="snake_case")]
@@ -91,10 +117,22 @@ impl Disp for Dispatcher {
                 };
                 match value {
                     InputMessage::ConnectionAck => {
-                        // TODO(tailhook) start subscribing?
+                        self.tx.unbounded_send(Packet::Text(
+                            serde_json::to_string(
+                                &OutputMessage::Start {
+                                    id: 1.to_string(),
+                                    payload: graphql::Input {
+                                        operation_name: None,
+                                        variables: None,
+                                        query: SUBSCRIBE_METRICS.to_string(),
+                                    },
+                                }
+                            ).expect("serialize connection_init"),
+                        )).ok();
                     }
                     InputMessage::Data { id, payload } => {
                         // TODO
+                        unimplemented!();
                     }
                 }
             }
@@ -114,7 +152,7 @@ impl Stream for Packetize {
     type Item = Packet;
     type Error = &'static str;
     fn poll(&mut self) -> Result<Async<Option<Packet>>, &'static str> {
-        Ok(Async::NotReady)
+        self.rx.poll().map_err(|_| "websocket closed")
     }
 }
 
@@ -134,29 +172,37 @@ impl Future for Connection {
         use self::State::*;
         loop {
             match mem::replace(&mut self.state, Void) {
-                Connecting(mut f, d) => match f.poll() {
+                Connecting(mut f, rx, d) => match f.poll() {
                     Ok(Async::NotReady) => {
-                        self.state = Connecting(f, d);
+                        self.state = Connecting(f, rx, d);
                         return Ok(Async::NotReady);
                     }
                     Ok(Async::Ready(conn)) => {
                         self.state = Handshake(
                             HandshakeProto::new(conn, SimpleAuthorizer::new(
                                 "cantal.internal", "/graphql")),
-                            d);
+                            rx, d);
                     }
                     Err(e) => {
                         error!("Error connecting to {}: {}", self.id, e);
                         return Err(());
                     }
                 }
-                Handshake(mut f, d) => match f.poll() {
+                Handshake(mut f, rx, d) => match f.poll() {
                     Ok(Async::NotReady) => {
-                        self.state = Handshake(f, d);
+                        self.state = Handshake(f, rx, d);
                         return Ok(Async::NotReady);
                     }
                     Ok(Async::Ready((out, inp, ()))) => {
-                        self.state = Active(Loop::client(out, inp, Packetize,
+                        d.tx.unbounded_send(Packet::Text(
+                            serde_json::to_string(
+                                &OutputMessage::ConnectionInit {
+                                    payload: ConnectionParams {},
+                                }
+                            ).expect("serialize connection_init"),
+                        )).ok();
+                        self.state = Active(Loop::client(out, inp,
+                            Packetize { rx },
                             d, &*CONFIG, &handle()));
                     }
                     Err(e) => {
@@ -189,14 +235,16 @@ impl Connection {
         -> Connection
     {
         info!("Connecting to {}:{} via {}", hostname, id, addr);
+        let (tx, rx) = unbounded();
         let disp = Dispatcher {
+            tx,
             hostname: hostname.clone(),
             shared: shared.clone(),
         };
         Connection {
             id: id.clone(),
             shared: shared.clone(),
-            state: State::Connecting(TcpStream::connect(&addr), disp),
+            state: State::Connecting(TcpStream::connect(&addr), rx, disp),
         }
     }
 }
