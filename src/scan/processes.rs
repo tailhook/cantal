@@ -1,9 +1,9 @@
 use std::str::FromStr;
 use std::sync::Arc;
-use std::io::{Read, BufReader, BufRead};
+use std::io::{self, Read, BufReader, BufRead};
 use std::str::from_utf8;
 use std::fs::{File, read_dir};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use libc;
 
@@ -19,6 +19,7 @@ pub struct ReadCache {
     tick: u32,
     boot_time: u64,
     page_size: usize,
+    prev_processes: usize,
 }
 
 #[derive(Serialize, Debug)]
@@ -209,19 +210,33 @@ fn read_process(cache: &mut ReadCache, cgroup: Option<&Arc<String>>, pid: Pid)
     });
 }
 
+fn list_proc(pids: &mut HashSet<Pid>) -> Result<(), io::Error> {
+    for item in read_dir("/proc")? {
+        item?.file_name().to_str()
+        .and_then(|pid| FromStr::from_str(&pid).ok())
+        .map(|pid| pids.insert(pid));
+    }
+    Ok(())
+}
+
 pub fn read(cache: &mut ReadCache, cgroups: &HashMap<Pid, Arc<String>>)
     -> Vec<MinimalProcess>
 {
-    read_dir("/proc")
-    .map_err(|e| error!("Error listing /proc: {}", e))
-    .map(|lst| lst
-        .filter_map(|x| x.ok())
-        .filter_map(|x| x.path().file_name()
-                         .and_then(|x| x.to_str())
-                         .and_then(|x| FromStr::from_str(x).ok()))
-        .filter_map(|x| read_process(cache, cgroups.get(&x), x).ok())
-        .collect())
-    .unwrap_or(Vec::new())
+    let mut pids = HashSet::with_capacity(cache.prev_processes + 8);
+    // Read pids ast fast as possible,...
+    list_proc(&mut pids).expect("can read /proc");
+    // .. then read again to ensure that we didn't miss any process because
+    // of process reordering
+    list_proc(&mut pids).expect("can read /proc");
+
+    let mut result = Vec::with_capacity(cache.prev_processes + 8);
+    for pid in pids {
+        if let Ok(pro) = read_process(cache, cgroups.get(&pid), pid) {
+            result.push(pro);
+        }
+    }
+    cache.prev_processes = result.len();
+    return result;
 }
 
 fn boot_time() -> u64 {
@@ -252,6 +267,7 @@ impl ReadCache {
                 libc::sysconf(libc::_SC_PAGE_SIZE) as usize
             },
             boot_time: boot_time(),
+            prev_processes: 0,
         }
     }
 }
