@@ -2,6 +2,16 @@ Cantal Changes by Version
 =========================
 
 
+.. _changelog-0.6.9:
+
+Cantal 0.6.9
+------------
+
+* Bugfix: previously cantal sometimes skipped some processes because scanning
+  /proc is not atomic. Now we decrease the issue by making scan fast and
+  doing it twice.
+
+
 .. _changelog-0.6.8:
 
 Cantal 0.6.8
