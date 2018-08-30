@@ -298,6 +298,8 @@ pub fn write_tip(tip: &mut Tip, processes: &Vec<MinimalProcess>,
             Integer(p.vsize as i64));
         tip.add(key("rss", &pid, cgroup),
             Integer(p.rss as i64));
+        tip.add(key("swap", &pid, cgroup),
+            Integer(p.swap as i64));
         tip.add(key("num_threads", &pid, cgroup),
             Integer(p.num_threads as i64));
         tip.add(key("user_time", &pid, cgroup),
