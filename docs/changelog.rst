@@ -2,6 +2,15 @@ Cantal Changes by Version
 =========================
 
 
+.. _changelog-0.6.10:
+
+Cantal 0.6.10
+-------------
+
+* Bugfix: previously swap metric wasn't seen in metrics (only in all_processes)
+  and 0 was always submitted to graphite/carbon
+
+
 .. _changelog-0.6.9:
 
 Cantal 0.6.9
