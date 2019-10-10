@@ -34,6 +34,6 @@ Unless you explicitly state otherwise, any contribution intentionally
 submitted for inclusion in the work by you, shall be licensed under
 the MIT license, without any additional terms or conditions.
 
-.. _LICENSE: https://github.com/tailhook/cantal-py
+.. _LICENSE: https://github.com/tailhook/cantal/blob/master/LICENSE
 .. _cantal-py: https://github.com/tailhook/cantal-py
 
