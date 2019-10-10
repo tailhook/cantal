@@ -20,6 +20,20 @@ Cantal consists of:
 * Local agent to collect/aggregate/forward data
 * A protocol for forwarding data to aggregator (carbon/graphite)
 
+License
+=======
 
+Licensed under
+
+* MIT license (LICENSE_ or http://opensource.org/licenses/MIT)
+
+Contribution
+------------
+
+Unless you explicitly state otherwise, any contribution intentionally
+submitted for inclusion in the work by you, shall be licensed under
+the MIT license, without any additional terms or conditions.
+
+.. _LICENSE: https://github.com/tailhook/cantal-py
 .. _cantal-py: https://github.com/tailhook/cantal-py
 
