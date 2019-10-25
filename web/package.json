@@ -34,7 +34,7 @@
   },
   "optionalDependencies": {
     "webpack-dev-server": "// For hot reload",
-    "webpack-dev-server": "2.9.7"
+    "webpack-dev-server": "3.1.11"
   },
   "scripts": {
     "webpack": "webpack"
